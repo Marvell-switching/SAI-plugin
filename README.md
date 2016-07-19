@@ -10,3 +10,5 @@ Variable EXT_INC_DIR in the Makefile should be updated to point the right path t
 Compilation is done per CPU architecture by setting the flap ARCH=(arm, INTEL64, ...). for example make ARCH=arm sai. the result of the compilation will be placed under build_dir/$(ARCH)/lib, called libsai.o
 
 User applications can then link with this library, in order to use the SAI implementation
+
+mrvl_plugin/test directory contains few examples for sai API usage and are not part of the libsai.o
