@@ -131,7 +131,7 @@ MKDIR_P = mkdir -p
 
 
 EXT_INC_DIR             = $(BASE_DIR)/FPA/ext_h
-SAI_INC_DIR             = SAI/inc/
+SAI_INC_DIR             = sai/
 PLUGIN_INC_DIR          = inc/
 
 CFLAGS += \
