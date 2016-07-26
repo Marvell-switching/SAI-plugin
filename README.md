@@ -2,7 +2,7 @@
 
 This repository contains SAI implementation for Marvell hardware.
 
-SAI headers are based on release v0.9.1 (as of Feb 24, 2016). SAI headers can be downloaded from https://github.com/opencomputeproject/SAI/
+SAI headers are based on release v0.9.3. SAI headers can be downloaded from https://github.com/opencomputeproject/SAI/
 
 The implementation is written over Marvell FPA interfaces API. The API and documentation for it, are available in https://github.com/Marvell-switching/fpa-api
 
@@ -11,4 +11,4 @@ Compilation is done per CPU architecture by setting the flap ARCH=(arm, INTEL64,
 
 User applications can then link with this library, in order to use the SAI implementation
 
-mrvl_plugin/test directory contains few examples for sai API usage and are not part of the libsai.o
+The "sai_mrvl/test" directory contains examples for API usage and is not part of the libsai.o
