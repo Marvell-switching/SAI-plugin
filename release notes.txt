@@ -1,0 +1,33 @@
+Marvell SAI implementation release notes
+==========================================
+
+Release 1.0.0
+---------------
+
+Current implementation is partial. 
+
+Not all the APIs that are defined were fully implemented in this release.
+
+The code was tested to work on i86 and ARM, at Beta level.
+
+Directories structure:
+ sai_mrvl\inc  - contains Marvell includes
+ sai_mrvl\sai  - copy of the SAI standard includes that current Marvell SAI version was compiled and tested with
+ sai_mrvl\src  - contains SAI implementation source code
+ sai_mrvl\test - contains used tests/examples
+ sai_mrvl\Makefile - the Makefile to compile the code
+  
+The following API groups are implemented:
+ - sai_switch_api_t
+ - sai_port_api_t
+ - sai_fdb_api_t
+ - sai_vlan_api_t
+ - sai_hostif_api_t
+ - sai_route_api_t 			 (IPv4 only)
+ - sai_route_interface_api_t (IPv4 only)
+ - sai_neighbor_api_t 		 (IPv4 only)
+ - sai_next_hop_api_t		 (IPv4 only)
+ - sai_virtual_router_api_t  (IPv4 only)
+
+
+
