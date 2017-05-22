@@ -1,0 +1,2 @@
+The SAI shared lib ready for SONiC and RD box.
+User may take it OR prepare byself using sdk/makefile
