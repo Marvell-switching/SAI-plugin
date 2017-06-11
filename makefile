@@ -1,21 +1,23 @@
 .PHONY: all
 
-all: lib
+all: lib fpa_deb deb
 
 ###############################################################################
-ARCH ?= x86
+ARCH ?= intel
 DEBUG ?= yes
-DEMO ?= no
-ifeq ("$(ARCH)" , "arm")
-	CROSS_COMPILE ?= /swtools/devtools/gnueabi/arm_le/arm-mv7_sft-linux-gnueabi/bin/arm-marvell-linux-gnueabi-
-else
-	CROSS_COMPILE ?= 
-endif
+DEMO ?= yes
+CROSS_COMPILE ?= 
 BASE_DIR ?= $(shell pwd)
-OUT_DIR ?= $(BASE_DIR)/objects/$(ARCH)
-FPA_H_PATH ?= $(BASE_DIR)/FPA-switch/
+OUT_DIR ?= $(BASE_DIR)/bin/$(ARCH)
+FPA_PATH ?= $(BASE_DIR)/FPA-switch/
 SAI_H_PATH ?= $(BASE_DIR)/SAI/
 SAI_OBJ_PATH ?= $(OUT_DIR)
+SCRIPT_PATH ?= $(BASE_DIR)/scripts
+PLUGIN_VERSION =`cat version.txt | grep plugin_version | awk {'print $$2'}`
+SAI_VERSION    =`cat version.txt | grep sai_version    | awk {'print $$2'}`
+SAI_BASELINE   =`cat version.txt | grep sai_baseline   | awk {'print $$2'}`
+FPA_BASELINE   =`cat version.txt | grep fpa_baseline   | awk {'print $$2'}`
+
 ###############################################################################
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)gcc
@@ -76,7 +78,7 @@ CWD := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(patsubst %,$(CWD)%/$(MAKEFILE),$(MODULES))
 
 SAI_H_INC := $(SAI_H_PATH)/inc
-FPA_H_INC := $(FPA_H_PATH)/inc
+FPA_H_INC := $(FPA_PATH)/inc
 
 MY_CFLAGS += \
     -I$(FPA_H_INC) \
@@ -85,28 +87,45 @@ MY_CFLAGS += \
 
 ###############################################################################
 SAI_OBJ := $(patsubst %.c,$(SAI_OBJ_PATH)/%.o,$(SAI_SRC))
-SAI_LIB := $(SAI_OBJ_PATH)/lib/libsai.so
+SAI_LIB := $(SAI_OBJ_PATH)/lib/libsai
+FPA_LIB_PATH := $(FPA_PATH)/bin/$(ARCH)/lib
 
 DEP = $(patsubst %.o,%.d,$(SAI_OBJ))
+
 ###############################################################################
+MAKE_FPA := make ARCH=$(ARCH) DEBUG=$(DEBUG) DEMO=$(DEMO)
+###############################################################################
+
 # %.o - compile .c files to objects 
 $(OUT_DIR)/%.o:  %.c
 	$(call compile,$(MY_CFLAGS),$(OUT_DIR))
 
 uninstall:
-	@ rm -fr $(BASE_DIR)/SAI/
-	@ rm -fr $(BASE_DIR)/FPA-switch/
+	@ rm -fr $(SAI_H_PATH)
+	@ rm -fr $(FPA_PATH)
 
 clean:
-	@ rm -fr $(BASE_DIR)/objects
+	@ rm -fr $(BASE_DIR)/bin
+
 install:
-	@ ./install_sai.sh
-	@ ./install_fpa.sh
+	@ $(SCRIPT_PATH)/install_sai.sh $(SAI_H_PATH) $(SAI_BASELINE)
+	@ $(SCRIPT_PATH)/install_fpa.sh $(FPA_PATH) $(FPA_BASELINE)
 
 lib: install $(SAI_OBJ)
 	@ $(MKDIR_P) $(SAI_OBJ_PATH)/lib
-	@ $(AR) -rcs $(SAI_LIB) $(SAI_OBJ)
+	@ $(AR) -rcs $(SAI_LIB).a $(SAI_OBJ)
+	@ $(CC) -shared -o $(SAI_LIB).so $(SAI_OBJ) -L$(FPA_LIB_PATH) -lfpa
 	@ $(ECHO) $(SAI_LIB) Done..
-	
+
+fpa_deb: install
+	@ cd $(FPA_PATH) && $(MAKE_FPA) deb && cd -
+
+$(SAI_LIB).so:
+	@ $(ECHO) "SAI lib does not exist !!!"
+   
+deb: $(SAI_LIB).so
+	@ $(SCRIPT_PATH)/make_deb.sh $(OUT_DIR) $(SAI_H_PATH) $(PLUGIN_VERSION) $(SAI_VERSION)
+
+
 -include $(DEP)
 
