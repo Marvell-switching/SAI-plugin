@@ -1,7 +1,7 @@
 Marvell SAI for SONiC release notes
 ===================================
 
-SONiC version is 201705 version.
+SONiC version is 201709 version.
 
 Current SAI implementation is SAI branch version 0.9.4. 
 
