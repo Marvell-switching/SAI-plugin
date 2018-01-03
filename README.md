@@ -3,7 +3,7 @@ Marvell SAI implementation
 
 This repository contains SAI implementation and FPA SDK image for Marvell hardware for SONIC project (https://github.com/Azure/sonic).
 
-SAI headers are based on latest head of release v0.9.4.
+SAI headers are based on latest head of release v1.0.0.
 The current API compiles with SONIC.
 
 SAI headers can be downloaded from https://github.com/opencomputeproject/SAI/
