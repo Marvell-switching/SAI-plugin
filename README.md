@@ -1,7 +1,7 @@
 # Marvell SAI Plugin
 This repository contains SAI implementation for Marvell hardware.
 
-SAI headers are based on release v0.9.4. SAI headers can be downloaded from https://github.com/opencomputeproject/SAI/
+SAI headers are based on release v1.0.0. SAI headers can be downloaded from https://github.com/opencomputeproject/SAI/
 
 The implementation is written over Marvell FPA interfaces API release v1.8. The API and documentation for it, are available in https://github.com/Marvell-switching/fpa-switch
 
