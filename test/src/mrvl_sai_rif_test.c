@@ -37,6 +37,8 @@
 #include	"../test/inc/mrvl_sai_test.h"
 
 extern sai_router_interface_api_t* sai_rif_api;
+static sai_object_id_t switch_id = 0;
+
 /*******************************************************************************
 * mrvl_sai_rif_add_test
 *
@@ -97,9 +99,17 @@ int mrvl_sai_rif_add_test
     attr_list[attr_count].value.s32 = nbr_miss_act;
     attr_count++;
 
+    attr_list[attr_count].id = SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
+    attr_list[attr_count].value.booldata = true; /* default */
+    attr_count++;
+
+    attr_list[attr_count].id = SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
+    attr_list[attr_count].value.booldata = true; /* default */
+    attr_count++;
+
 
     MRVL_SAI_LOG_INF("Calling sai_rif_api->create_router_interface\n");
-    status = sai_rif_api->create_router_interface(rif_id, attr_count, attr_list);
+    status = sai_rif_api->create_router_interface(rif_id, switch_id, attr_count, attr_list);
 	return status;
 }
 
@@ -614,10 +624,10 @@ int mrvl_sai_rif_test(void)
         printf("rif created ok, rif idx %d \n",rif_idx);
     }
     mrvl_sai_rif_dump();    
-    /**** create rif on port 3 default mac address*/ 
-    printf("\nCreate rif on port 3 with default mac address nbr miss trap\n");
+    /**** create rif on port 4 default mac address*/ 
+    printf("\nCreate rif on port 4 with default mac address nbr miss trap\n");
     interface_type = SAI_ROUTER_INTERFACE_TYPE_PORT;
-    port_vlan = 3;
+    port_vlan = 4;
     default_mac = true;
     nbr_miss_act = SAI_PACKET_ACTION_TRAP;
     status = mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, vr_id, &rif_id);
@@ -708,7 +718,7 @@ int mrvl_sai_rif_test(void)
         return SAI_STATUS_FAILURE;
     }    
     status = mrvl_sai_rif_remove_test(rif_id);
-    if (status!= SAI_STATUS_ITEM_NOT_FOUND){
+    if (status != SAI_STATUS_ITEM_NOT_FOUND){
         printf("test failed %d\n", status);
         return status;    
     }

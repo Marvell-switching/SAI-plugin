@@ -6,18 +6,21 @@ MODULES :=
 
 #List of files to include in list
 FILES := \
- mrvl_sai_test.c \
+ mrvl_sai_switch_test.c  \
  mrvl_sai_fdb_test.c \
- mrvl_sai_vlan_test.c \
+ mrvl_sai_vlan_test.c  \
+ mrvl_sai_acl_test.c  \
  mrvl_sai_rif_test.c \
  mrvl_sai_port_test.c \
- mrvl_sai_RxTx_test.c \
- mrvl_sai_neighbor_test.c \
- mrvl_sai_nexthop_test.c \
- mrvl_sai_nexthopgroup_test.c \
- mrvl_sai_route_test.c \
- mrvl_sai_vr_test.c \
- mrvl_sai_hostif_test.c 
+ mrvl_sai_lag_test.c  \
+ mrvl_sai_vr_test.c 
+
+# mrvl_sai_route_test.c \
+# mrvl_sai_RxTx_test.c \
+# mrvl_sai_neighbor_test.c \
+# mrvl_sai_nexthop_test.c \
+# mrvl_sai_nexthopgroup_test.c \
+# mrvl_sai_hostif_test.c 
 
 CWD := $(dir $(lastword $(MAKEFILE_LIST)))
 

@@ -28,7 +28,7 @@
 #include	"../test/inc/mrvl_sai_test.h"
 
 extern sai_virtual_router_api_t* sai_virtual_router_api;
-
+static sai_object_id_t switch_id = 0;
 /*******************************************************************************
 * mrvl_sai_route_add_test
 *
@@ -62,7 +62,7 @@ int mrvl_sai_virtual_router_add_test
     attr_count++;
     
     MRVL_SAI_LOG_INF("Calling sai_virtual_router_api->create_virtual_router\n");
-    status = sai_virtual_router_api->create_virtual_router(vr_id, attr_count, attr_list);
+    status = sai_virtual_router_api->create_virtual_router(vr_id, switch_id, attr_count, attr_list);
 	return status;
 }
 

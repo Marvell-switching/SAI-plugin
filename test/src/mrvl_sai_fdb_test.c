@@ -41,6 +41,7 @@
 extern sai_fdb_api_t* sai_fdb_api;
 static uint32_t sai_fdb_vlan_member_list[10];
 static uint32_t sai_fdb_vlan_member_counter = 0;
+static sai_object_id_t switch_id = 0;
 
 /*******************************************************************************
 * mrvl_sai_fdb_add_test
@@ -74,7 +75,7 @@ int mrvl_sai_fdb_add_test
 
     attr_list[0].id = SAI_FDB_ENTRY_ATTR_TYPE;
     attr_list[0].value.s32 = type;
-    attr_list[1].id = SAI_FDB_ENTRY_ATTR_PORT_ID;
+    attr_list[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
     attr_list[1].value.oid = port_id;
     attr_list[2].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION;
     attr_list[2].value.s32 = pkt_action;
@@ -247,13 +248,13 @@ int mrvl_sai_fdb_flush_test
         attr_count++;
     }
     if (port_id != -1) {
-        attr_list[attr_count].id = SAI_FDB_FLUSH_ATTR_PORT_ID; 
+        attr_list[attr_count].id = SAI_FDB_FLUSH_ATTR_BRIDGE_PORT_ID; 
         attr_list[attr_count].value.oid = port_id;
         attr_count++;
     }
 
     MRVL_SAI_LOG_INF("Calling sai_fdb_api->flush_fdb_entries\n");
-    status = sai_fdb_api->flush_fdb_entries(attr_count, attr_list);
+    status = sai_fdb_api->flush_fdb_entries(switch_id, attr_count, attr_list);
 	return status;
 }
 
@@ -368,7 +369,7 @@ int mrvl_sai_wrap_fdb_get_attr
     memcpy(fdb_entry.mac_address, mac_addr, sizeof(sai_mac_t));
     fdb_entry.vlan_id = vlan;
     
-    attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_PORT_ID; 
+    attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID; 
     attr_count++;
     
     attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION; 
@@ -466,7 +467,7 @@ int mrvl_sai_wrap_fdb_set_attr
     mac_addr[4] = mac4;
     mac_addr[5] = mac5;
     memset(&at_value, 0, sizeof(sai_attribute_value_t));
-    if (attr_id == SAI_FDB_ENTRY_ATTR_PORT_ID) {
+    if (attr_id == SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID) {
         if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, attr_value, &at_value.oid)) {
             return SAI_STATUS_FAILURE;
         }
@@ -487,23 +488,31 @@ int mrvl_sai_fdb_address_update_vlan_add_pre_test(void)
     sai_vlan_id_t vlan;
     sai_uint32_t num_of_ports = 0;
     sai_port_info_t ports_list[5];
+    uint32_t attr_count;
+    sai_attribute_t attr_list[3];
+    sai_object_id_t vlan_oid;
+
 
     printf("\nCreate vlan 1\n");
     vlan = 1;
-    mrvl_sai_vlan_create_test(vlan);
+    attr_count = 1;
+    attr_list[0].id = SAI_VLAN_ATTR_VLAN_ID;
+    attr_list[0].value.u16 = 1;
+
+    mrvl_sai_vlan_create_test(&vlan_oid, vlan, switch_id, attr_count, attr_list);
     printf("\nAdd ports 0-3 to vlan 1 as tagged\n");
     vlan = 1;
     ports_list[num_of_ports].port = 0;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 1;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 2;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 3;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 4;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
-    mrvl_sai_wrap_vlan_add_ports_list(vlan, num_of_ports, ports_list, &sai_fdb_vlan_member_list[sai_fdb_vlan_member_counter]);
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
+    mrvl_sai_wrap_vlan_add_ports_list(vlan_oid, vlan, num_of_ports, ports_list, &sai_fdb_vlan_member_list[sai_fdb_vlan_member_counter]);
     sai_fdb_vlan_member_counter +=num_of_ports;
     fpaLibFlowTableDump(0, FPA_FLOW_TABLE_TYPE_VLAN_E);
     return SAI_STATUS_SUCCESS;
@@ -551,6 +560,10 @@ int mrvl_sai_fdb_test(void)
     sai_attribute_t attr_list[3];
     sai_status_t status;
 
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SWITCH, SAI_DEFAULT_ETH_SWID_CNS, &switch_id))) {
+        return status;
+    }
+
     mrvl_sai_fdb_address_update_vlan_add_pre_test();
 
     /**** add mac 00:00:00:11:22:33 vlan 1 port 3 forward*/ 
@@ -559,8 +572,8 @@ int mrvl_sai_fdb_test(void)
     port = 3;
     attr_count = 3;
     attr_list[0].id = SAI_FDB_ENTRY_ATTR_TYPE;
-    attr_list[0].value.s32 = SAI_FDB_ENTRY_STATIC;
-    attr_list[1].id = SAI_FDB_ENTRY_ATTR_PORT_ID;
+    attr_list[0].value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
+    attr_list[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port, &attr_list[1].value.oid)) 
         return SAI_STATUS_FAILURE;
     attr_list[2].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION;
@@ -584,8 +597,8 @@ int mrvl_sai_fdb_test(void)
     port = 4;
     attr_count = 3;
     attr_list[0].id = SAI_FDB_ENTRY_ATTR_TYPE;
-    attr_list[0].value.s32 = SAI_FDB_ENTRY_STATIC;
-    attr_list[1].id = SAI_FDB_ENTRY_ATTR_PORT_ID;
+    attr_list[0].value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
+    attr_list[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port, &attr_list[1].value.oid)) 
         return SAI_STATUS_FAILURE;
     attr_list[2].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION;
@@ -609,8 +622,8 @@ int mrvl_sai_fdb_test(void)
     port = 4;
     attr_count = 3;
     attr_list[0].id = SAI_FDB_ENTRY_ATTR_TYPE;
-    attr_list[0].value.s32 = SAI_FDB_ENTRY_STATIC;
-    attr_list[1].id = SAI_FDB_ENTRY_ATTR_PORT_ID;
+    attr_list[0].value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
+    attr_list[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port, &attr_list[1].value.oid)) 
         return SAI_STATUS_FAILURE;
     attr_list[2].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION;
@@ -639,7 +652,7 @@ int mrvl_sai_fdb_test(void)
     fdb_entry.mac_address[4] = 0x22;
     fdb_entry.mac_address[5] = 0x44;
     attr_count = 0;
-    attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_PORT_ID; 
+    attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID; 
     attr_count++;  
     attr_list[attr_count].id = SAI_FDB_ENTRY_ATTR_PACKET_ACTION; 
     attr_count++;    
@@ -697,7 +710,7 @@ int mrvl_sai_fdb_test(void)
     attr_list[attr_count].value.u16 = vlan;
     attr_count++;
     MRVL_SAI_LOG_INF("Calling sai_fdb_api->flush_fdb_entries\n");
-    status = sai_fdb_api->flush_fdb_entries(attr_count, attr_list);
+    status = sai_fdb_api->flush_fdb_entries(switch_id, attr_count, attr_list);
     if (status!= SAI_STATUS_SUCCESS) 
         return SAI_STATUS_FAILURE;
     

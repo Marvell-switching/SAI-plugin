@@ -38,7 +38,8 @@
 #include    "mrvl_sai.h"
 
 extern sai_port_api_t* sai_port_api;
-
+sai_object_id_t switch_id = 0;
+extern sai_status_t mrvl_sai_utl_fill_u32list(uint32_t *data, uint32_t count, sai_u32_list_t *list);
 /*******************************************************************************
 * mrvl_sai_get_port_attribute_wrap
 *
@@ -122,7 +123,7 @@ int mrvl_sai_set_port_attribute_wrap
 int mrvl_sai_get_port_stats_wrap
 (
     IN sai_uint32_t port,
-    IN sai_port_stat_counter_t counter_id,
+    IN sai_port_stat_t counter_id,
     OUT uint64_t *port_counter
 )
 {
@@ -133,7 +134,7 @@ int mrvl_sai_get_port_stats_wrap
     }
 
     MRVL_SAI_LOG_INF("sai_port_api->get_port_stats\n");
-    return sai_port_api->get_port_stats(port_id, &counter_id, 1, port_counter);
+    return sai_port_api->get_port_stats(port_id,1, &counter_id, port_counter);
 }
 
 /*******************************************************************************
@@ -418,7 +419,7 @@ int mrvl_sai_set_port_speed_cli
 int mrvl_sai_get_port_stats_cli
 (
     IN sai_uint32_t port,
-    IN sai_port_stat_counter_t counter_id
+    IN sai_port_stat_t counter_id
 )
 {
     sai_status_t    status;
@@ -481,7 +482,7 @@ int mrvl_sai_get_port_stats_cli
 #define GENERATE_ZERO_VAL(HOLDER) 0,
 
 /* Creating counters IDs array */
-static const sai_port_stat_counter_t counter_id[] = {
+static const sai_port_stat_t counter_id[] = {
     FOREACH_COUNTER(GENERATE_ENUM)
 };
 
@@ -525,9 +526,9 @@ int mrvl_sai_get_port_counters_cli
         return SAI_STATUS_FAILURE;
     }
 
-    num_of_counters = sizeof(counter_id)/sizeof(sai_port_stat_counter_t);
+    num_of_counters = sizeof(counter_id)/sizeof(sai_port_stat_t);
     
-    status = sai_port_api->get_port_stats(port_id, counter_id, num_of_counters, port_counter);
+    status = sai_port_api->get_port_stats(port_id, num_of_counters, counter_id, port_counter);
     if (SAI_STATUS_SUCCESS != status) {
         printf("failed to get port %d counters, status %d\n", port, status);
         return status;
@@ -598,7 +599,7 @@ int mrvl_sai_get_port_fc_cli
     sai_status_t    status;
     sai_attribute_t port_attr;
 
-    port_attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL;
+    port_attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE;
 
     status = mrvl_sai_get_port_attribute_wrap(port, &port_attr);
     if (SAI_STATUS_SUCCESS != status) {
@@ -607,10 +608,10 @@ int mrvl_sai_get_port_fc_cli
         printf("port %d, flow control state %d "
                "(%d-disable/%d-only tx/%d-only rx/%d-enable(rx&tx)\n",
                port, port_attr.value.s32,
-               SAI_PORT_FLOW_CONTROL_DISABLE,
-               SAI_PORT_FLOW_CONTROL_TX_ONLY,
-               SAI_PORT_FLOW_CONTROL_RX_ONLY,
-               SAI_PORT_FLOW_CONTROL_BOTH_ENABLE);
+               SAI_PORT_FLOW_CONTROL_MODE_DISABLE,
+               SAI_PORT_FLOW_CONTROL_MODE_TX_ONLY,
+               SAI_PORT_FLOW_CONTROL_MODE_RX_ONLY,
+               SAI_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE);
     }
 
     return status;
@@ -641,7 +642,7 @@ int mrvl_sai_set_port_fc_cli
     sai_status_t    status;
     sai_attribute_t port_attr;
 
-    port_attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL;
+    port_attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE;
     port_attr.value.s32 = fc;
 
     status = mrvl_sai_set_port_attribute_wrap(port, &port_attr);
@@ -651,9 +652,9 @@ int mrvl_sai_set_port_fc_cli
 
     return status;
 }
-
+#if 0
 /*******************************************************************************
-* mrvl_sai_get_port_fc_cli
+* mrvl_sai_get_port_fdb_learning_cli
 *
 * DESCRIPTION:
 *
@@ -730,7 +731,7 @@ int mrvl_sai_set_port_fdb_learning_cli
 
     return status;
 }
-
+#endif
 /*******************************************************************************
 * mrvl_sai_get_port_default_vlan_cli
 *
@@ -875,4 +876,80 @@ int mrvl_sai_set_port_default_vlan_priority_cli
     return status;
 }
 
+
+/*******************************************************************************
+* mrvl_sai_port_tests
+*
+* DESCRIPTION:
+*
+* INPUTS:
+*       None
+*
+* OUTPUTS:
+*       None
+*
+* RETURNS:
+*
+* COMMENTS:
+*
+*******************************************************************************/
+int mrvl_sai_port_tests (void)
+{
+    sai_object_id_t     port_oid;
+    uint32_t            port_idx;
+    sai_attribute_t     attr_list[4];
+    uint32_t            attr_count, i;   
+    sai_status_t        status = SAI_STATUS_SUCCESS;
+    uint32_t            port_speed_ARR[2] = {10, 100};
+
+    /*printf("\n\n---------------------mrvl_sai_lag_deletion_test---------------------\n");
+    printf("1. Create empty lag\n");
+    printf("2. Add 2 ports to the LAG as lag members\n");
+    printf("3. Get LAG attributes\n");
+    printf("4. Remove LAG members from LAG\n");
+    printf("5. Remove LAG\n");
+    printf("Between each step, dump LAG tables from FPA and HW\n");*/
+
+    /* create ports */
+    for (i = 0; i < 2; i++)
+    {
+        attr_count = 0; 
+        memset(attr_list, 0, sizeof(sai_attribute_t)*4);
+        /*attr_list[0].id = SAI_PORT_ATTR_HW_LANE_LIST;
+        attr_list[0].value.u32list.count = 1;
+        attr_list[0].value.u32list.list = calloc(1, sizeof(uint32_t));
+        attr_count++;*/
+        attr_list[attr_count].id = SAI_PORT_ATTR_SPEED;
+        attr_list[attr_count].value.u32 = port_speed_ARR[i];
+        attr_count++;
+        attr_list[attr_count].id = SAI_PORT_ATTR_INGRESS_ACL;
+        attr_list[attr_count].value.oid = SAI_NULL_OBJECT_ID;
+        attr_count++;
+        attr_list[attr_count].id = SAI_PORT_ATTR_EGRESS_ACL;
+        attr_list[attr_count].value.oid = SAI_NULL_OBJECT_ID;
+        attr_count++;
+        status = sai_port_api->create_port(&port_oid, switch_id, attr_count, attr_list);
+        if (status != SAI_STATUS_SUCCESS) {
+            MRVL_SAI_LOG_ERR("Create port failed\n");
+            return status;
+        }
+    
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_idx))) {
+            MRVL_SAI_LOG_ERR("Convert object PORT to type failed\n");
+            return status;
+        }
+
+        MRVL_SAI_LOG_NTC("Created port %d\n", port_idx);
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_set_port_admin_state_cli(port_idx, true))) {
+            MRVL_SAI_LOG_ERR("Failed to set port %d admin state UP\n", port_idx);
+            return status;
+        }
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_set_port_speed_cli(port_idx, 1000))) {
+            MRVL_SAI_LOG_ERR("Failed to set port %d speed to 1G\n", port_idx);
+            return status;
+        }
+    }
+    return status;
+}
 

@@ -20,14 +20,19 @@
 
 #include    "mrvl_sai.h"
 
-int mrvl_sai_vlan_create_test(IN sai_vlan_id_t vlan_id);
-int mrvl_sai_vlan_remove_test(IN sai_vlan_id_t vlan_id);
+int mrvl_sai_vlan_create_test(OUT sai_object_id_t *vlan_oid, 
+                              IN sai_vlan_id_t    vlan_id,
+                              IN sai_object_id_t  switch_id,
+                              IN uint32_t         attr_count,
+                              IN sai_attribute_t  *attr_list);
+int mrvl_sai_vlan_remove_test(IN sai_object_id_t vlan_oid);
 int mrvl_sai_vlan_create_member_test(IN sai_vlan_id_t            vlan_id,
                                     IN sai_object_id_t          port_id,
                                     IN sai_vlan_tagging_mode_t  tagging_mode,
                                     OUT sai_object_id_t         *vlan_member_id);
 int mrvl_sai_vlan_remove_member_test(IN sai_object_id_t  vlan_member_id);
-int mrvl_sai_wrap_vlan_add_ports_list(IN  sai_uint32_t vlan_id,
+int mrvl_sai_wrap_vlan_add_ports_list(IN sai_object_id_t vlan_oid,
+                                      IN  sai_uint32_t vlan_id,
                                       IN  sai_uint32_t num_of_ports,
                                       IN  sai_port_info_t *ports_list,
                                       OUT sai_uint32_t *vlan_member_list);
