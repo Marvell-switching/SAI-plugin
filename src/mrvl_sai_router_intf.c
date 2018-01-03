@@ -185,17 +185,19 @@ sai_status_t mrvl_sai_rif_dump(void)
     return SAI_STATUS_SUCCESS;
 }
 
-/*
- * Routine Description:
- *    Remove router interface
+/**
+
+
+ * @brief Remove router interface
  *
- * Arguments:
- *    [in] rif_id - router interface id
+ * @param[in] rif_id Router interface id
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_remove_router_interface(_In_ sai_object_id_t rif_id)
 {
     char                        key_str[MAX_KEY_STR_LEN];
@@ -362,22 +364,24 @@ sai_status_t mrvl_sai_rif_remove_all()
     
 }
 
-/*
- * Routine Description:
- *    Create router interface.
+/**
+
+ * @brief Create router interface.
  *
- * Arguments:
- *    [out] rif_id - router interface id
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
+ * @param[out] rif_id Router interface id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
  */
-sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
-                                          _In_ uint32_t                 attr_count,
-                                          _In_ const sai_attribute_t    *attr_list)
+
+sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id,
+                                              _In_ sai_object_id_t        switch_id,
+                                              _In_ uint32_t               attr_count,
+                                              _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
     const sai_attribute_value_t  *type, *vrid, *port, *vlan, *mtu, *mac, *adminv4, *adminv6, *miss_act;
@@ -421,7 +425,7 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
     }
     status = mrvl_sai_virtual_router_is_valid(vr_id, &vr_is_valid);
     if ((status != SAI_STATUS_SUCCESS) || (vr_is_valid == false)) {
-        MRVL_SAI_LOG_ERR("VIRTUAL_ROUTER %d not supported\n", vr_id);
+        MRVL_SAI_LOG_ERR("VIRTUAL_ROUTER %d is invalid\n", vr_id);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
     
@@ -675,7 +679,7 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
 				/* update netdev mac address */
 				mac_ptr =  (unsigned char *)mac->mac;
 				 mc_rc = mrvl_sai_netdev_set_mac(host_fd[portVlan].name, mac_ptr);
-				 MRVL_SAI_LOG_NTC("set netdev % mac address ret  %d\n", host_fd[portVlan].name, mc_rc);
+				 MRVL_SAI_LOG_NTC("set netdev %s mac address, ret %d\n", host_fd[portVlan].name, mc_rc);
 
 			} else {
 				flowEntry.data.vr_id.vlanId = portVlan;
@@ -717,7 +721,7 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
 			flowEntry.data.control_pkt.match.etherType = 0x806;
 			flowEntry.data.control_pkt.match.etherTypeMask = 0xFFFF;
 			flowEntry.data.control_pkt.outputPort = SAI_OUTPUT_CONTROLLER;
-			fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+			fpa_status = fpaLibFlowEntryAdd(switch_id, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
 			if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
 				mrvl_sai_remove_router_interface(*rif_id);
 				MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
@@ -759,11 +763,123 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
 				MRVL_SAI_API_RETURN(status);
 			}
 
+            /**** add ipv6 neighbor solicitation control pkt entry ****/
+            fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to init CONTROL_PKT entry status = %d\n", fpa_status);
+                mrvl_sai_remove_router_interface(*rif_id);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            flowEntry.data.control_pkt.entry_type = FPA_CONTROL_PKTS_TYPE_IPV6_NEIGHBOR_SOLICITATION_E;
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_NEIGHBOR_SOLICITATION_E, type->s32, portVlan, 0);
+            flowEntry.cookie = cookie;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6, 0, 16);
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[0]  = 0xFF;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[1]  = 0x02;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[11] = 0x01;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[12] = 0xFF;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6Mask, 0, 16);
+            memset(&flowEntry.data.control_pkt.match.dstIpv6Mask, 0xFF, 13);
+            if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32){
+                flowEntry.data.control_pkt.match.inPort = portVlan;
+                flowEntry.data.control_pkt.match.inPortMask = 0xFFFFFFFF;
+                flowEntry.priority = 0xFFFFFFFF;
+
+            } else {
+                flowEntry.data.control_pkt.match.vlanId = portVlan;
+                flowEntry.data.control_pkt.match.vlanIdMask = 0xFFFF;
+            }
+            flowEntry.data.control_pkt.match.etherType = 0x86dd;
+            flowEntry.data.control_pkt.match.etherTypeMask = 0xFFFF;
+            flowEntry.data.control_pkt.outputPort = SAI_OUTPUT_CONTROLLER;
+            fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
+                mrvl_sai_remove_router_interface(*rif_id);
+                MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            /**** add ipv6 all_nodes control pkt entry ****/
+            fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to init CONTROL_PKT entry status = %d\n", fpa_status);
+                mrvl_sai_remove_router_interface(*rif_id);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            flowEntry.data.control_pkt.entry_type = FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E;
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E, type->s32, portVlan, 0);
+            flowEntry.cookie = cookie;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6, 0, 16);
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[0]  = 0xFF;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[1]  = 0x02;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[15] = 0x01;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6Mask, 0xFF, 16);
+            if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32){
+                flowEntry.data.control_pkt.match.inPort = portVlan;
+                flowEntry.data.control_pkt.match.inPortMask = 0xFFFFFFFF;
+                flowEntry.priority = 0xFFFFFFFF;
+
+            } else {
+                flowEntry.data.control_pkt.match.vlanId = portVlan;
+                flowEntry.data.control_pkt.match.vlanIdMask = 0xFFFF;
+            }
+            flowEntry.data.control_pkt.match.etherType = 0x86dd;
+            flowEntry.data.control_pkt.match.etherTypeMask = 0xFFFF;
+            flowEntry.data.control_pkt.outputPort = SAI_OUTPUT_CONTROLLER;
+            fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
+                mrvl_sai_remove_router_interface(*rif_id);
+                MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            /**** add ipv6 all_routers control pkt entry ****/
+            fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to init CONTROL_PKT entry status = %d\n", fpa_status);
+                mrvl_sai_remove_router_interface(*rif_id);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            flowEntry.data.control_pkt.entry_type = FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E;
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E, type->s32, portVlan, 0);
+            flowEntry.cookie = cookie;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6, 0, 16);
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[0]  = 0xFF;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[1]  = 0x02;
+            flowEntry.data.control_pkt.match.dstIpv6.s6_addr[15] = 0x02;
+            memset(&flowEntry.data.control_pkt.match.dstIpv6Mask, 0xFF, 16);
+            if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32){
+                flowEntry.data.control_pkt.match.inPort = portVlan;
+                flowEntry.data.control_pkt.match.inPortMask = 0xFFFFFFFF;
+                flowEntry.priority = 0xFFFFFFFF;
+
+            } else {
+                flowEntry.data.control_pkt.match.vlanId = portVlan;
+                flowEntry.data.control_pkt.match.vlanIdMask = 0xFFFF;
+            }
+            flowEntry.data.control_pkt.match.etherType = 0x86dd;
+            flowEntry.data.control_pkt.match.etherTypeMask = 0xFFFF;
+            flowEntry.data.control_pkt.outputPort = SAI_OUTPUT_CONTROLLER;
+            fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+            if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
+                mrvl_sai_remove_router_interface(*rif_id);
+                MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
 		}
 
 		/*** add l2 interface group in case of rif on port ****/
 		if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32){
-			mrvl_sai_utl_create_l2_int_group(portVlan, 0, SAI_VLAN_PORT_UNTAGGED, true, &group);
+			mrvl_sai_utl_create_l2_int_group(portVlan, 0, SAI_VLAN_TAGGING_MODE_UNTAGGED, true, &group);
 		}
     }
 
@@ -791,22 +907,24 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t     *rif_id,
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Set router interface attribute
+/**
+
+
+ * @brief Set router interface attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - router_interface_id
- *    [in] attr - attribute
+ * @param[in] rif_id Router interface id
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_set_router_interface_attribute(_In_ sai_object_id_t rif_id,
                                                  _In_ const sai_attribute_t    *attr)
 {
-    const sai_object_key_t key = { .object_id = rif_id };
+    const sai_object_key_t key = { .key.object_id = rif_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -817,24 +935,26 @@ sai_status_t mrvl_sai_set_router_interface_attribute(_In_ sai_object_id_t rif_id
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
- * Routine Description:
- *    Get router interface attribute
+/**
+
+
+
+ * @brief Get router interface attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - router_interface_id
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
+ * @param[in] rif_id Router interface id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
 sai_status_t mrvl_sai_get_router_interface_attribute(_In_ sai_object_id_t rif_id,
                                                  _In_ uint32_t                  attr_count,
                                                  _Inout_ sai_attribute_t       *attr_list)
 {
-    const sai_object_key_t key = { .object_id = rif_id };
+    const sai_object_key_t key = { .key.object_id = rif_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -856,7 +976,7 @@ static sai_status_t mrvl_sai_rif_attrib_set_prv(_In_ const sai_object_key_t *key
     
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }
@@ -952,7 +1072,7 @@ static sai_status_t mrvl_sai_rif_admin_set_prv(_In_ const sai_object_key_t *key,
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }
@@ -990,7 +1110,7 @@ static sai_status_t mrvl_sai_rif_attrib_get_prv(_In_ const sai_object_key_t   *k
 */
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }
@@ -1089,7 +1209,7 @@ static sai_status_t mrvl_sai_rif_admin_get_prv(_In_ const sai_object_key_t   *ke
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }

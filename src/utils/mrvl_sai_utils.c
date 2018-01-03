@@ -35,6 +35,31 @@
 #define MRVL_SAI_TRACE_APP_NAME_LEN 16
 static time_t mrvl_sai_trace_start_time = 0;
 
+
+sai_status_t mrvl_sai_utl_is_valid_switch(_In_ const sai_object_id_t switch_id)
+{
+    uint32_t switch_idx;
+    sai_status_t status;
+
+    if (SAI_NULL_OBJECT_ID == switch_id) {
+        MRVL_SAI_LOG_ERR("NULL switch_id value\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx))) {
+        return status;
+    }
+
+    if (SAI_DEFAULT_ETH_SWID_CNS != switch_idx) {
+        MRVL_SAI_LOG_ERR("invalid switch_idx value\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    return SAI_STATUS_SUCCESS;
+}
+
+
 static sai_status_t mrvl_sai_utl_fill_genericlist_prv(size_t element_size, void *data, uint32_t count, void *list)
 {
     /* all list objects have same field count in the beginning of the object, and then different data,
@@ -173,6 +198,7 @@ static sai_status_t mrvl_sai_utl_get_dispatch_attribs_handler_prv(_In_ uint32_t 
     memset(&cache, 0, sizeof(cache));
 
     for (ii = 0; ii < attr_count; ii++) {
+
         assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_functionality_attrib_index_prv(attr_list[ii].id, functionality_attr, &index));
 
         if (!functionality_vendor_attr[index].getter) {
@@ -264,7 +290,7 @@ sai_status_t mrvl_sai_utl_fpa_to_sai_status(int32_t fpa_status)
     }
 }
 
-sai_status_t mrvl_sai_utl_check_attribs_metadata(_In_ uint32_t                            attr_count,
+sai_status_t mrvl_sai_utl_check_attribs_metadata(_In_ uint32_t              attr_count,
                                     _In_ const sai_attribute_t              *attr_list,
                                     _In_ const sai_attribute_entry_t        *functionality_attr,
                                     _In_ const sai_vendor_attribute_entry_t *functionality_vendor_attr,
@@ -717,7 +743,48 @@ sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t      value,
         }
         snprintf(value_str + pos, max_length - pos, "]");
         break;
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8:
+        snprintf(value_str, max_length, "%u", value.aclfield.data.u8);
+        break;
 
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S8:
+        snprintf(value_str, max_length, "%d", value.aclfield.data.s8);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16:
+        snprintf(value_str, max_length, "%u", value.aclfield.data.u16);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S16:
+        snprintf(value_str, max_length, "%d", value.aclfield.data.s16);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32:
+        snprintf(value_str, max_length, "%u", value.aclfield.data.u32);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S32:
+        snprintf(value_str, max_length, "%d", value.aclfield.data.s32);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_MAC:
+        snprintf(value_str, max_length, "[%02x:%02x:%02x:%02x:%02x:%02x]",
+                 value.aclfield.data.mac[0],
+                 value.aclfield.data.mac[1],
+                 value.aclfield.data.mac[2],
+                 value.aclfield.data.mac[3],
+                 value.aclfield.data.mac[4],
+                 value.aclfield.data.mac[5]);
+        break;
+
+    /* IP is in network order */
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4:
+        mrvl_sai_utl_ipv4_to_str_prv(value.aclfield.data.ip4, max_length, value_str, NULL);
+        break;
+
+    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6:
+        mrvl_sai_utl_ipv6_to_str_prv(value.aclfield.data.ip6, max_length, value_str, NULL);
+        break;
 
     case SAI_ATTR_VAL_TYPE_ACLFIELD:
     case SAI_ATTR_VAL_TYPE_ACLACTION:
@@ -725,6 +792,9 @@ sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t      value,
         snprintf(value_str, max_length, "Not implemented value type %d", type);
         return SAI_STATUS_NOT_IMPLEMENTED;
 
+    case SAI_ATTR_VAL_TYPE_PTR:
+        snprintf(value_str, max_length, "%" PRIx64, (int64_t)value.ptr);
+        break;
     case SAI_ATTR_VAL_TYPE_UNDETERMINED:
     default:
         snprintf(value_str, max_length, "Invalid/Unsupported value type %d", type);
@@ -811,11 +881,11 @@ sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_t
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *port_id, uint32_t *lag_id)
+sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint32_t *data_ext)
 {
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)&object_id;
 
-    if ((NULL == port_id) || (NULL == lag_id)) {
+    if ((NULL == data) || (NULL == data_ext)) {
         MRVL_SAI_LOG_ERR("NULL value\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
@@ -825,8 +895,8 @@ sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_obje
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    *port_id = mrvl_object_id->data;
-    *lag_id = (mrvl_object_id->reserved[1] << 8) || (mrvl_object_id->reserved[0]);
+    *data = mrvl_object_id->data;
+    *data_ext = (mrvl_object_id->reserved[1] << 8) | (mrvl_object_id->reserved[0]);
     return SAI_STATUS_SUCCESS;
 }
 
@@ -850,7 +920,7 @@ sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, s
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t port_id, uint32_t lag_id, sai_object_id_t *object_id)
+sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint32_t data_ext, sai_object_id_t *object_id)
 {
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)object_id;
 
@@ -865,9 +935,9 @@ sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t por
     }
 
     memset(mrvl_object_id, 0, sizeof(*mrvl_object_id));
-    mrvl_object_id->data        = port_id;
-    mrvl_object_id->reserved[0] = lag_id && 0xFF;
-    mrvl_object_id->reserved[1] = (lag_id >> 8) && 0xFF;
+    mrvl_object_id->data        = data;
+    mrvl_object_id->reserved[0] = (uint8_t)(data_ext & 0xFF);
+    mrvl_object_id->reserved[1] = (uint8_t)((data_ext >> 8) & 0xFF);
     mrvl_object_id->object_type = type;
     return SAI_STATUS_SUCCESS;
 }
@@ -911,7 +981,7 @@ sai_status_t mrvl_sai_utl_fill_vlanlist(sai_vlan_id_t *data, uint32_t count, sai
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t vlan, _In_ uint32_t tag, _In_ bool tag_overwrite, _Inout_ uint32_t *group)
+sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t vlan, _In_ sai_vlan_tagging_mode_t tagged, _In_ bool tag_overwrite, _Inout_ uint32_t *group)
 {
     FPA_GROUP_TABLE_ENTRY_STC  group_entry;
     FPA_GROUP_BUCKET_ENTRY_STC bucket;
@@ -936,7 +1006,7 @@ sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t 
         bucket.index = 0;
         bucket.type = FPA_GROUP_BUCKET_L2_INTERFACE_E;
         bucket.data.l2Interface.outputPort = port;
-        bucket.data.l2Interface.popVlanTagAction = (tag == SAI_VLAN_PORT_TAGGED)? false: true ; 
+        bucket.data.l2Interface.popVlanTagAction = (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true ; 
         fpa_status = fpaLibGroupEntryBucketAdd(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
     }
     if (fpa_status != FPA_OK){
@@ -954,8 +1024,8 @@ sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t 
                     MRVL_SAI_LOG_ERR("Failed to add group %d entry status = %d\n", *group, fpa_status); 
                     return SAI_STATUS_FAILURE;
                 } 
-                if (bucket.data.l2Interface.popVlanTagAction != ((tag == SAI_VLAN_PORT_TAGGED)? false: true)) {
-                    bucket.data.l2Interface.popVlanTagAction = (tag == SAI_VLAN_PORT_TAGGED)? false: true; 
+                if (bucket.data.l2Interface.popVlanTagAction != ((tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true)) {
+                    bucket.data.l2Interface.popVlanTagAction = (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true; 
                     fpa_status = fpaLibGroupEntryBucketModify(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
                 }
                 if (fpa_status != FPA_OK){
@@ -1098,7 +1168,7 @@ sai_status_t mrvl_sai_utl_l2_int_group_get_tagging_mode(_In_ uint32_t port, _In_
         MRVL_SAI_LOG_ERR("Failed to found group vlan %d port %d \n", vlan, port);
         return SAI_STATUS_FAILURE;
     }
-    *tag_mode = (bucket.data.l2Interface.popVlanTagAction == true)? SAI_VLAN_PORT_UNTAGGED: SAI_VLAN_PORT_TAGGED;
+    *tag_mode = (bucket.data.l2Interface.popVlanTagAction == true)? SAI_VLAN_TAGGING_MODE_UNTAGGED: SAI_VLAN_TAGGING_MODE_TAGGED;
     return SAI_STATUS_SUCCESS; 
 }
 
@@ -1124,11 +1194,11 @@ sai_status_t mrvl_sai_utl_l2_int_group_set_tagging_mode(_In_ uint32_t port, _In_
         MRVL_SAI_LOG_ERR("Failed to found group vlan %d port %d \n", vlan, port);
         return SAI_STATUS_FAILURE;
     }
-    if (tag_mode >= SAI_VLAN_PORT_PRIORITY_TAGGED) {
+    if (tag_mode >= SAI_VLAN_TAGGING_MODE_PRIORITY_TAGGED) {
         MRVL_SAI_LOG_ERR("Failed to invalid tagging mode %d \n", tag_mode);
         return SAI_STATUS_FAILURE;
     }
-    bucket.data.l2Interface.popVlanTagAction = (tag_mode == SAI_VLAN_PORT_TAGGED)? false: true; 
+    bucket.data.l2Interface.popVlanTagAction = (tag_mode == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true; 
     fpa_status = fpaLibGroupEntryBucketModify(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
     if (fpa_status != FPA_OK){
         return SAI_STATUS_FAILURE;
@@ -1742,7 +1812,7 @@ sai_status_t mrvl_sai_utl_update_l3_ecmp_group_bucket_list(_In_ uint32_t index,
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_utl_create_l2_lag_group(_In_ uint32_t    index,                                                                                               
+sai_status_t mrvl_sai_utl_create_l2_lag_group(_In_ uint32_t    lag_id,                                                                                               
                                               _Out_ uint32_t  *group)
 {
     FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier = {0};
@@ -1755,10 +1825,10 @@ sai_status_t mrvl_sai_utl_create_l2_lag_group(_In_ uint32_t    index,
     memset(&parsed_group_identifier, 0, sizeof(parsed_group_identifier));
     
     parsed_group_identifier.groupType = FPA_GROUP_L2_LAG_E;
-    parsed_group_identifier.index = index;
+    parsed_group_identifier.index = lag_id;
     fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, group);
     if (fpa_status != FPA_OK){
-        MRVL_SAI_LOG_ERR("Failed to create group lag identifier index %d \n", index);
+        MRVL_SAI_LOG_ERR("Failed to create group lag identifier index %d \n", lag_id);
         return SAI_STATUS_FAILURE;
     }
     group_entry.groupIdentifier = *group;
@@ -1830,29 +1900,46 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_add_bucket(_In_ uint32_t        gr
     FPA_GROUP_BUCKET_ENTRY_STC  bucket;
     FPA_STATUS                  fpa_status;    
     uint32_t                    port_idx;
+    FPA_GROUP_TABLE_ENTRY_STC   groupEntry;
+
     
     bucket.groupIdentifier = group_identifier; 
     bucket.type = FPA_GROUP_BUCKET_L2_REFERENCE_E;
     bucket.index = bucket_index;
     if (mrvl_sai_utl_is_object_type(port_oid, SAI_OBJECT_TYPE_PORT) == SAI_STATUS_SUCCESS){
-        mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_idx);
+        if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_idx)) {
+            MRVL_SAI_LOG_ERR("Failed to convert port object to type\n");
+        }
         
-        parsed_group_identifier.groupType = FPA_GROUP_L2_INTERFACE_E;
+        parsed_group_identifier.groupType = FPA_GROUP_L2_INTERFACE_E; 
         parsed_group_identifier.portNum = port_idx;
         fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, &bucket.data.l2Reference.referenceGroupId);
         if (fpa_status != FPA_OK){
             MRVL_SAI_LOG_ERR("Failed to create group identifier port_idx %d \n", port_idx);
         }
+        groupEntry.groupIdentifier = bucket.data.l2Reference.referenceGroupId;
+        groupEntry.groupTypeSemantics = FPA_GROUP_INDIRECT;
+        groupEntry.selectionAlgorithm = 0;
+        fpa_status = fpaLibGroupTableEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, &groupEntry);
+        if (fpa_status != FPA_OK){
+            if (fpa_status != FPA_ALREADY_EXIST) {
+                MRVL_SAI_LOG_ERR("Failed to add group 0x%x entry status = %d\n", bucket.data.l2Reference.referenceGroupId, fpa_status); 
+                return SAI_STATUS_FAILURE;
+            } else {
+                MRVL_SAI_LOG_ERR("group 0x%x already exists entry status = %d\n", bucket.data.l2Reference.referenceGroupId, fpa_status); 
+                return SAI_STATUS_ITEM_ALREADY_EXISTS;
+            }
+        }
         fpa_status = fpaLibGroupEntryBucketAdd(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
         if (fpa_status != FPA_OK){
-            MRVL_SAI_LOG_ERR("Failed - to add bucket idx %d\n", bucket_index);
+            MRVL_SAI_LOG_ERR("Failed - to add bucket idx %d\n", bucket.index);
         }        
     } else {
         fpa_status = FPA_FAIL;
     }
     if (fpa_status != FPA_OK){
         if (fpa_status != FPA_ALREADY_EXIST) {
-            MRVL_SAI_LOG_ERR("Failed to add bucket 0x%x entry status = %d\n", bucket_index, fpa_status); 
+            MRVL_SAI_LOG_ERR("Failed to add bucket %d entry status = %d\n", bucket_index, fpa_status); 
             return SAI_STATUS_FAILURE;
         } else {
             return SAI_STATUS_ITEM_ALREADY_EXISTS;
@@ -1980,12 +2067,37 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_del_bucket(_In_ uint32_t        gr
                                                          _In_ sai_object_id_t port_oid)
 {
     sai_status_t                status;
-    uint32_t                    bucket_index;
+    uint32_t                    bucket_index, groupIdentifier;
+    FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier = {0};
+    FPA_STATUS                  fpa_status;    
+    uint32_t                    port_idx;
+
     
     status = mrvl_sai_utl_l2_lag_group_bucket_get_index(group_identifier, port_oid, &bucket_index);
     if (status == SAI_STATUS_SUCCESS) {
-        fpaLibGroupEntryBucketDelete(SAI_DEFAULT_ETH_SWID_CNS, group_identifier, bucket_index);
-        return SAI_STATUS_SUCCESS; 
+        fpa_status = fpaLibGroupEntryBucketDelete(SAI_DEFAULT_ETH_SWID_CNS, group_identifier, bucket_index);
+        if (fpa_status != FPA_OK){
+            MRVL_SAI_LOG_ERR("Failed to delete bucjet %d, status = %d\n", bucket_index, fpa_status); 
+            return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+        }
+        if (mrvl_sai_utl_is_object_type(port_oid, SAI_OBJECT_TYPE_PORT) == SAI_STATUS_SUCCESS)
+        {
+            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_idx)) {
+                MRVL_SAI_LOG_ERR("Failed to convert port object to type\n");
+            }
+            parsed_group_identifier.groupType = FPA_GROUP_L2_INTERFACE_E; 
+            parsed_group_identifier.portNum = port_idx;
+            fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, &groupIdentifier);
+            if (fpa_status != FPA_OK){
+                MRVL_SAI_LOG_ERR("Failed to create group identifier port_idx %d \n", port_idx);
+                return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            }
+            fpa_status = fpaLibGroupTableEntryDelete(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier);
+            if (fpa_status != FPA_OK){
+                MRVL_SAI_LOG_ERR("Failed to delete entry 0x%x, status = %d\n", groupIdentifier, fpa_status); 
+                return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            }
+        }
     }
     return status;
 }
@@ -2003,7 +2115,7 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_del_bucket(_In_ uint32_t        gr
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index, 
+sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        lag_id, 
                                                      _In_  sai_object_id_t port_oid,
                                                      _In_  uint32_t        operation,
                                                      _Out_ uint32_t       *numChanged)
@@ -2017,10 +2129,11 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index
     sai_status_t                status;
             
     parsed_group_identifier.groupType = FPA_GROUP_L2_LAG_E; 
-    parsed_group_identifier.index = index;
+    parsed_group_identifier.index = lag_id;
+
     fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, &groupIdentifier);
     if (fpa_status != FPA_OK){
-        MRVL_SAI_LOG_ERR("Failed to build group identifier index %d \n", index);
+        MRVL_SAI_LOG_ERR("Failed to build group identifier index %d \n", lag_id);
         return SAI_STATUS_FAILURE;
     }
     fpa_status = fpaLibGroupTableGetEntry(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier, &groupEntry);
@@ -2028,7 +2141,6 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index
         MRVL_SAI_LOG_ERR("Failed to find group identifier index %d \n", groupIdentifier);
         return SAI_STATUS_FAILURE;
     }
-
     *numChanged = 0;
     switch (operation) {    
     case MRVL_SAI_UTL_ADD:
@@ -2038,7 +2150,7 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index
         if (status == SAI_STATUS_SUCCESS){ /* bucket already inside*/           
            return SAI_STATUS_SUCCESS; 
         } else if (status != SAI_STATUS_ITEM_NOT_FOUND) {
-            MRVL_SAI_LOG_ERR("Failed - to add bucket to lag group index %d\n", index);
+            MRVL_SAI_LOG_ERR("Failed - to add bucket to lag group index %d\n", lag_id);
             fpaLibGroupTableEntryDelete(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier);
             return SAI_STATUS_FAILURE;
         } else {
@@ -2046,12 +2158,12 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index
             while (fpa_status == FPA_OK) {
                 fpa_status = fpaLibGroupEntryBucketGetNext(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier, i, &bucket); 
                 if ((fpa_status != FPA_OK) && (fpa_status != FPA_NO_MORE)) {
-                    MRVL_SAI_LOG_ERR("Failed - to add bucket to lag group index %d\n", index);                       
+                    MRVL_SAI_LOG_ERR("Failed - to add bucket to lag group index %d\n", lag_id);                       
                     return SAI_STATUS_FAILURE;
                 } else if ((fpa_status == FPA_NO_MORE) || (empty_index < bucket.index)) {
                     status = mrvl_sai_utl_l2_lag_group_add_bucket(groupIdentifier, empty_index, port_oid);
                     if ((status != SAI_STATUS_SUCCESS) && (status != SAI_STATUS_ITEM_ALREADY_EXISTS)){
-                        MRVL_SAI_LOG_ERR("Failed - to add bucket to lag group index %d\n", index);                            
+                        MRVL_SAI_LOG_ERR("Failed - to add bucket %d/%d to lag group index %d\n", bucket_index, empty_index, lag_id);                            
                         return SAI_STATUS_FAILURE;
                     } else {  
                         *numChanged = 1;                                              
@@ -2067,7 +2179,7 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        index
     case MRVL_SAI_UTL_DEL:                        
         status = mrvl_sai_utl_l2_lag_group_del_bucket(groupIdentifier, port_oid);
         if ((status != SAI_STATUS_SUCCESS) && (status != SAI_STATUS_ITEM_NOT_FOUND)){
-            MRVL_SAI_LOG_ERR("Failed - to del bucket from lag group index %d\n", index);                
+            MRVL_SAI_LOG_ERR("Failed - to del bucket from lag group index %d\n", lag_id);                
             return SAI_STATUS_FAILURE;
         }   
         *numChanged = 1;             
@@ -2270,7 +2382,7 @@ sai_status_t  mrvl_sai_return
 #else
 	new_status = status;
 #endif
-	MRVL_SAI_LOG_ERR("%s:%d - Ver[%d], Acctually Returned new status: 0x%x\n", func_name, line, ver, new_status);
+	MRVL_SAI_LOG_ERR("%s:%d - Ver[%d], actually returned new status: 0x%x\n", func_name, line, ver, new_status);
     return new_status;
 }
 
@@ -2337,6 +2449,24 @@ int mrvl_sai_netdev_alloc(char *dev) {
   return fd;
 #else
   return -1;
+#endif
+
+}
+
+/* update tun/tap device with the HW link status */
+int mrvl_sai_netdev_set_carrier(uint32_t portId, int linkStatus) {
+#ifdef LINUX
+    int fd, err;
+
+    fd = host_fd[portId].fd;
+    if (fd) {
+       if ((err = ioctl(fd, TUNSETCARRIER,linkStatus)) < 0 ) {
+         return err;
+       }
+    }
+    return 0;
+#else
+    return -1;
 #endif
 
 }

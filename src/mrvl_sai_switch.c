@@ -17,6 +17,7 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
+#include "assert.h"
 #include <pthread.h>
 
 #undef  __MODULE__
@@ -24,10 +25,18 @@
 
 uint32_t mrvl_sai_switch_init_first_time=1;
 
-sai_switch_notification_t mrvl_sai_notification_callbacks = {
-	NULL, NULL, NULL, NULL, NULL, NULL };
+typedef struct _sai_switch_notification_t {
+    sai_switch_state_change_notification_fn     on_switch_state_change;
+    sai_fdb_event_notification_fn               on_fdb_event;
+    sai_port_state_change_notification_fn       on_port_state_change;
+    sai_switch_shutdown_request_notification_fn on_switch_shutdown_request;
+    sai_packet_event_notification_fn            on_packet_event;
+} sai_switch_notification_t;
 
-uint32_t                  mrvl_sai_gh_sdk = 0;
+sai_switch_notification_t     mrvl_sai_notification_callbacks = {NULL, NULL, NULL, NULL, NULL};
+
+bool                      mrvl_switch_is_created = false;
+uint32_t                  mrvl_profile_id = 0;
 uint32_t                  mrvl_sai_switch_aging_time = SAI_DEFAULT_FDB_AGING_TIME_CNS;
 uint32_t                  mrvl_sai_switch_ecmp_hash_algorithm = SAI_ECMP_DEFAULT_HASH_ALGORITHM_CNS;
 
@@ -40,9 +49,10 @@ uint32_t SAI_SYS_PORT_MAPPING[SAI_MAX_NUM_OF_PORTS] = {
 };
 
 
-extern sai_status_t mrvl_sai_create_virtual_router(_Out_ sai_object_id_t *vr_id,
-                                        _In_ uint32_t                  attr_count,
-                                        _In_ const sai_attribute_t    *attr_list);
+extern sai_status_t mrvl_sai_create_virtual_router(_Out_ sai_object_id_t      *vr_id,
+                                                   _In_ sai_object_id_t        switch_id,
+                                                   _In_ uint32_t               attr_count,
+                                                   _In_ const sai_attribute_t *attr_list);
 
 
 /* TODO - find another solution for this WA */
@@ -50,17 +60,167 @@ uint32_t  *saiSysPortMappingPtr=SAI_SYS_PORT_MAPPING;
 
 extern uint32_t fpaSysBridgingTblSize;
 
+static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id);
+
+
+/* private functions implementation */
+static void mrvl_sai_switch_object_id_to_str(_In_ sai_object_type_t type, _In_ sai_object_id_t id, _Out_ char *object_id_str)
+{
+    uint32_t switch_idx;
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(id, type, &switch_idx)) {
+        snprintf(object_id_str, MAX_KEY_STR_LEN, "invalid switch");
+    } else {
+        snprintf(object_id_str, MAX_KEY_STR_LEN, "switch %u", switch_idx);
+    }
+}
+
+static sai_status_t mrvl_sai_switch_notify_fn_set_prv(_In_ const sai_object_key_t      *key,
+                                               _In_ const sai_attribute_value_t *value,
+                                               void                             *arg)
+{
+    long attr_id = (long)arg;
+
+    MRVL_SAI_LOG_ENTER();
+
+    switch (attr_id) {
+    case SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY:
+        mrvl_sai_notification_callbacks.on_switch_state_change = (sai_switch_state_change_notification_fn)value->ptr;
+        break;
+
+    case SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY:
+        mrvl_sai_notification_callbacks.on_switch_shutdown_request = (sai_switch_shutdown_request_notification_fn)value->ptr;
+        break;
+
+    case SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY:
+        mrvl_sai_notification_callbacks.on_fdb_event = (sai_fdb_event_notification_fn)value->ptr;
+        break;
+
+    case SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY:
+        mrvl_sai_notification_callbacks.on_port_state_change = (sai_port_state_change_notification_fn)value->ptr;
+        break;
+
+    case SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY:
+        mrvl_sai_notification_callbacks.on_packet_event = (sai_packet_event_notification_fn)value->ptr;
+        break;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+static sai_status_t mrvl_sai_switch_notify_fn_get_prv(_In_ const sai_object_key_t   *key,
+                                               _Inout_ sai_attribute_value_t *value,
+                                               _In_ uint32_t                  attr_index,
+                                               _Inout_ vendor_cache_t        *cache,
+                                               void                          *arg)
+{
+    long attr_id = (long)arg;
+
+    MRVL_SAI_LOG_ENTER();
+
+    switch (attr_id) {
+    case SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY:
+        value->ptr = mrvl_sai_notification_callbacks.on_switch_state_change;
+        break;
+
+    case SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY:
+        value->ptr = mrvl_sai_notification_callbacks.on_switch_shutdown_request;
+        break;
+
+    case SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY:
+        value->ptr = mrvl_sai_notification_callbacks.on_fdb_event;
+        break;
+
+    case SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY:
+        value->ptr = mrvl_sai_notification_callbacks.on_port_state_change;
+        break;
+
+    case SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY:
+        value->ptr = mrvl_sai_notification_callbacks.on_packet_event;
+        break;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+/* set Switch init[sai_bool_t]
+ */
+static sai_status_t mrvl_sai_switch_init_set_prv(_In_ const sai_object_key_t      *key,
+                                        _In_ const sai_attribute_value_t *value,
+                                        void                             *arg)
+{
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (value->booldata == true){
+        if (true == mrvl_switch_is_created)
+        {
+            MRVL_SAI_LOG_ERR("Switch already created - call remove_switch first\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_ALREADY_EXISTS);
+        }
+        mrvl_initialize_switch(key->key.object_id);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+static sai_status_t mrvl_sai_switch_init_get_prv(_In_ const sai_object_key_t   *key,
+                                       _Inout_ sai_attribute_value_t *value,
+                                       _In_ uint32_t                  attr_index,
+                                       _Inout_ vendor_cache_t        *cache,
+                                       void                          *arg)
+{
+
+    MRVL_SAI_LOG_ENTER();
+
+    value->booldata = mrvl_switch_is_created;
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+/* set profile id [sai_u32_t]
+ */
+static sai_status_t mrvl_sai_switch_profile_id_set_prv(_In_ const sai_object_key_t      *key,
+                                        _In_ const sai_attribute_value_t *value,
+                                        void                             *arg)
+{
+
+    MRVL_SAI_LOG_ENTER();
+
+    mrvl_profile_id = value->u32;
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+static sai_status_t mrvl_sai_switch_profile_id_get_prv(_In_ const sai_object_key_t   *key,
+                                       _Inout_ sai_attribute_value_t *value,
+                                       _In_ uint32_t                  attr_index,
+                                       _Inout_ vendor_cache_t        *cache,
+                                       void                          *arg)
+{
+
+    MRVL_SAI_LOG_ENTER();
+
+    value->u32 = mrvl_profile_id;
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
 /* Switching mode [sai_switch_switching_mode_t]
- *  (default to SAI_SWITCHING_MODE_STORE_AND_FORWARD) */
+ *  (default to SAI_SWITCH_SWITCHING_MODE_STORE_AND_FORWARD) */
 static sai_status_t mrvl_sai_switch_mode_set_prv(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg)
 {
     MRVL_SAI_LOG_ENTER();
 
     switch (value->s32) {
-    case SAI_SWITCHING_MODE_STORE_AND_FORWARD:
+    case SAI_SWITCH_SWITCHING_MODE_STORE_AND_FORWARD:
         break;
 
-    case SAI_SWITCHING_MODE_CUT_THROUGH:
+    case SAI_SWITCH_SWITCHING_MODE_CUT_THROUGH:
     default:
          MRVL_SAI_LOG_ERR("Invalid switching mode value %d\n", value->s32);
          MRVL_SAI_LOG_EXIT();
@@ -82,8 +242,10 @@ static sai_status_t mrvl_sai_switch_aging_time_set_prv(_In_ const sai_object_key
 {
     FPA_STATUS  fpa_status;
     MRVL_SAI_LOG_ENTER();
-    fpa_status = fpaLibSwitchAgingTimeoutSet(0 /*switchId*/, value->u32);
+    fpa_status = fpaLibSwitchAgingTimeoutSet(SAI_DEFAULT_ETH_SWID_CNS, value->u32);
     if (fpa_status != FPA_OK) {
+        MRVL_SAI_LOG_DBG("fpaLibSwitchAgingTimeoutSet failed, timeout %d, status %d\n", value->u32, fpa_status);
+        MRVL_SAI_LOG_EXIT();
         return SAI_STATUS_FAILURE;
     }
     mrvl_sai_switch_aging_time =  value->u32;
@@ -122,14 +284,18 @@ static sai_status_t mrvl_sai_switch_src_mac_set_prv(_In_ const sai_object_key_t 
 {
     FPA_MAC_ADDRESS_STC src_mac;
     FPA_STATUS          fpa_status;
+    char           value_str[MAX_VALUE_STR_LEN];
 
     MRVL_SAI_LOG_ENTER();
     memcpy(src_mac.addr, value->mac, FPA_MAC_ADDRESS_SIZE);
-    fpa_status = fpaLibSwitchSrcMacAddressSet(0 /*switchId*/, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &src_mac);
+    fpa_status = fpaLibSwitchSrcMacAddressSet(SAI_DEFAULT_ETH_SWID_CNS, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &src_mac);
     if (fpa_status != FPA_OK) {
+        MRVL_SAI_LOG_DBG("fpaLibSwitchSrcMacAddressSet failed, mode %d, status %d\n", SAI_SWITCH_DEFAULT_MAC_MODE_CNS, fpa_status);
     	MRVL_SAI_LOG_EXIT();
         return SAI_STATUS_FAILURE;
     }
+    mrvl_sai_utl_value_to_str(*value, SAI_ATTR_VAL_TYPE_MAC, MAX_VALUE_STR_LEN, value_str);
+    MRVL_SAI_LOG_DBG("mrvl_sai_switch_src_mac_set_prv: Set SAI_SWITCH_ATTR_SRC_MAC_ADDRESS: %s\n", value_str); 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -167,6 +333,7 @@ static sai_status_t mrvl_sai_switch_port_list_get_prv(_In_ const sai_object_key_
     for (i=0; i < SAI_MAX_NUM_OF_PORTS; i++) {
         if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, saiSysPortMappingPtr[i], &value->objlist.list[i])))
         {
+            MRVL_SAI_LOG_DBG("Failed to create port list, for port %d\n", saiSysPortMappingPtr[i]);
         	MRVL_SAI_LOG_EXIT();
         	return status;
         }
@@ -229,7 +396,7 @@ static sai_status_t mrvl_sai_switch_default_stp_get_prv(_In_ const sai_object_ke
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP_INSTANCE, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 0, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -249,7 +416,7 @@ static sai_status_t mrvl_sai_switch_default_vr_id_get_prv(_In_ const sai_object_
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, SAI_DEFAULT_VRID_CNS, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -294,8 +461,9 @@ static sai_status_t mrvl_sai_switch_acl_table_min_prio_get_prv(_In_ const sai_ob
                                                 void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
+    value->u32 = SAI_ACL_MIN_PRIORITY_CNS;
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_IMPLEMENTED;
+    return SAI_STATUS_SUCCESS;
 }
 
 /* maximum priority for ACL table [sai_uint32_t] */
@@ -306,9 +474,9 @@ static sai_status_t mrvl_sai_switch_acl_table_max_prio_get_prv(_In_ const sai_ob
                                                 void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
-
+    value->u32 = SAI_ACL_MAX_PRIORITY_CNS;
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_IMPLEMENTED;
+    return SAI_STATUS_SUCCESS;
 }
 
 /* minimum priority for ACL entry [sai_uint32_t] */
@@ -319,8 +487,9 @@ static sai_status_t mrvl_sai_switch_acl_entry_min_prio_get_prv(_In_ const sai_ob
                                                 void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
+    value->u32 = SAI_ACL_MIN_PRIORITY_CNS;
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_IMPLEMENTED;
+    return SAI_STATUS_SUCCESS;
 }
 
 /* maximum priority for ACL entry [sai_uint32_t] */
@@ -331,12 +500,13 @@ static sai_status_t mrvl_sai_switch_acl_entry_max_prio_get_prv(_In_ const sai_ob
                                                 void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
+    value->u32 = SAI_ACL_MAX_PRIORITY_CNS;
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_IMPLEMENTED;
+    return SAI_STATUS_SUCCESS;
 }
 
 /* Switching mode [sai_switch_switching_mode_t]
- *  (default to SAI_SWITCHING_MODE_STORE_AND_FORWARD) */
+ *  (default to SAI_SWITCH_SWITCHING_MODE_STORE_AND_FORWARD) */
 static sai_status_t mrvl_sai_switch_mode_get_prv(_In_ const sai_object_key_t   *key,
                                   _Inout_ sai_attribute_value_t *value,
                                   _In_ uint32_t                  attr_index,
@@ -344,7 +514,7 @@ static sai_status_t mrvl_sai_switch_mode_get_prv(_In_ const sai_object_key_t   *
                                   void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
-    value->s32 = SAI_SWITCHING_MODE_STORE_AND_FORWARD;
+    value->s32 = SAI_SWITCH_SWITCHING_MODE_STORE_AND_FORWARD;
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -361,8 +531,9 @@ static sai_status_t mrvl_sai_switch_src_mac_get_prv(_In_ const sai_object_key_t 
     FPA_STATUS          fpa_status;
 
     MRVL_SAI_LOG_ENTER();
-    fpa_status = fpaLibSwitchSrcMacAddressGet(0 /*switchId*/, &mode, &src_mac);
+    fpa_status = fpaLibSwitchSrcMacAddressGet(SAI_DEFAULT_ETH_SWID_CNS, &mode, &src_mac);
     if (fpa_status != FPA_OK) {
+        MRVL_SAI_LOG_DBG("fpaLibSwitchSrcMacAddressGet failed, status %d\n", fpa_status);
     	MRVL_SAI_LOG_EXIT();
         return SAI_STATUS_FAILURE;
     }
@@ -383,8 +554,9 @@ static sai_status_t mrvl_sai_switch_aging_time_get_prv(_In_ const sai_object_key
 {
     FPA_STATUS          fpa_status;
     MRVL_SAI_LOG_ENTER();
-    fpa_status = fpaLibSwitchAgingTimeoutGet(0, &value->u32);
+    fpa_status = fpaLibSwitchAgingTimeoutGet(SAI_DEFAULT_ETH_SWID_CNS, &value->u32);
     if (fpa_status != FPA_OK) {
+        MRVL_SAI_LOG_DBG("fpaLibSwitchAgingTimeoutGet failed, status %d\n", fpa_status);
     	MRVL_SAI_LOG_EXIT();
         return SAI_STATUS_FAILURE;
     }
@@ -680,7 +852,7 @@ static sai_status_t mrvl_sai_switch_default_trap_group_get_prv(_In_ const sai_ob
 {
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_TRAP_GROUP, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP, 0, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -763,8 +935,13 @@ sai_status_t mrvl_sai_switch_ecmp_hash_seed_get_prv(_In_ const sai_object_key_t 
                                             _Inout_ vendor_cache_t        *cache,
                                             void                          *arg)
 {
+    sai_status_t status;
+
     MRVL_SAI_LOG_ENTER();
-    value->u32 = 0;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 0, &value->oid))) {
+    	MRVL_SAI_LOG_EXIT();
+        return status;
+    }
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -785,10 +962,10 @@ sai_status_t mrvl_sai_switch_ecmp_hash_seed_set_prv(_In_ const sai_object_key_t 
     *   ensuring the same conversation will result in the same hash value.
     */
 sai_status_t mrvl_sai_switch_ecmp_hash_symmetric_get_prv(_In_ const sai_object_key_t   *key,
-                                            _Inout_ sai_attribute_value_t *value,
-                                            _In_ uint32_t                  attr_index,
-                                            _Inout_ vendor_cache_t        *cache,
-                                            void                          *arg)
+                                                         _Inout_ sai_attribute_value_t *value,
+                                                         _In_ uint32_t                  attr_index,
+                                                         _Inout_ vendor_cache_t        *cache,
+                                                         void                          *arg)
 {
     MRVL_SAI_LOG_ENTER();
     value->u32 = false;
@@ -808,6 +985,24 @@ sai_status_t mrvl_sai_switch_ecmp_hash_symmetric_set_prv(_In_ const sai_object_k
     MRVL_SAI_LOG_ENTER();
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
+
+sai_status_t mrvl_sai_default_bridge_id_get(_In_ const sai_object_key_t   *key,
+                                            _Inout_ sai_attribute_value_t *value,
+                                            _In_ uint32_t                  attr_index,
+                                            _Inout_ vendor_cache_t        *cache,
+                                            void                          *arg)
+{
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 0, &value->oid))) {
+    	MRVL_SAI_LOG_EXIT();
+        return status;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
 }
 
 /****************************************************************/
@@ -866,6 +1061,8 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch Default SAI STP instance ID", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID, false, false, false, true,
       "Switch Default SAI Virtual Router ID", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID, false, false, false, true,
+      "Switch default 1Q bridge ID", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES, false, false, false, true,
       "Switch Maximum traffic classes limit", SAI_ATTR_VAL_TYPE_U8 },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_SCHEDULER_GROUP_HIERARCHY_LEVELS, false, false, false, true,
@@ -900,11 +1097,11 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch maximum number of learned MAC addresses", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_SWITCH_ATTR_FDB_AGING_TIME, false, false, true, true,
       "Switch FDB aging time", SAI_ATTR_VAL_TYPE_U32 },
-    { SAI_SWITCH_ATTR_FDB_UNICAST_MISS_ACTION, false, false, true, true,
+    { SAI_SWITCH_ATTR_FDB_UNICAST_MISS_PACKET_ACTION, false, false, true, true,
       "Switch flood control for unknown unicast address", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_SWITCH_ATTR_FDB_BROADCAST_MISS_ACTION, false, false, true, true,
+    { SAI_SWITCH_ATTR_FDB_BROADCAST_MISS_PACKET_ACTION, false, false, true, true,
       "Switch flood control for unknown broadcast address", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_SWITCH_ATTR_FDB_MULTICAST_MISS_ACTION, false, false, true, true,
+    { SAI_SWITCH_ATTR_FDB_MULTICAST_MISS_PACKET_ACTION, false, false, true, true,
       "Switch flood control for unknown multicast address", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_SWITCH_ATTR_ECMP_DEFAULT_HASH_ALGORITHM, false, false, true, true,
       "Switch ECMP default hash algorithm", SAI_ATTR_VAL_TYPE_S32 },
@@ -944,6 +1141,27 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch Enable TC + COLOR -> DOT1P MAP", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_QOS_TC_AND_COLOR_TO_DSCP_MAP, false, false, true, true,
       "Switch Enable TC + COLOR -> DSCP MAP", SAI_ATTR_VAL_TYPE_OID },
+
+    { SAI_SWITCH_ATTR_SWITCH_SHELL_ENABLE, false, false, false, false,
+      "Switch shell enable", SAI_ATTR_VAL_TYPE_BOOL },
+    { SAI_SWITCH_ATTR_SWITCH_PROFILE_ID, false, true, false, true,
+      "Switch profile id", SAI_ATTR_VAL_TYPE_U32 },
+    { SAI_SWITCH_ATTR_SWITCH_HARDWARE_INFO, false, false, false, false,
+      "Switch hardware info", SAI_ATTR_VAL_TYPE_U8LIST },
+    { SAI_SWITCH_ATTR_FIRMWARE_PATH_NAME, false, false, false, false,
+      "Switch firmware pathname", SAI_ATTR_VAL_TYPE_U8LIST },
+    { SAI_SWITCH_ATTR_INIT_SWITCH, true, true, true, true,
+      "Switch init switch", SAI_ATTR_VAL_TYPE_BOOL },
+    { SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY, false, true, true, false,
+      "Switch state change notify", SAI_ATTR_VAL_TYPE_PTR },
+    { SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY, false, true, true, false,
+      "Switch shutdown request notify", SAI_ATTR_VAL_TYPE_PTR },
+    { SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY, false, true, true, false,
+      "Switch fdb event notify", SAI_ATTR_VAL_TYPE_PTR },
+    { SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY, false, true, true, false,
+      "Switch port state change notify", SAI_ATTR_VAL_TYPE_PTR },
+    { SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY, false, true, true, false,
+      "Switch packet event notify", SAI_ATTR_VAL_TYPE_PTR },
 
     /******* wrire only *********/
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
@@ -1072,11 +1290,15 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       { false, false, false, true },
       mrvl_sai_switch_default_stp_get_prv, NULL,
       NULL, NULL },
-
     { SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID,
       { false, false, false, true },
       { false, false, false, true },
       mrvl_sai_switch_default_vr_id_get_prv, NULL,
+      NULL, NULL },
+    { SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID,
+      { false, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_default_bridge_id_get, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES,
       { false, false, false, true },
@@ -1158,17 +1380,17 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       { false, false, true, true },
       mrvl_sai_switch_aging_time_get_prv, NULL,
       mrvl_sai_switch_aging_time_set_prv, NULL },
-    { SAI_SWITCH_ATTR_FDB_UNICAST_MISS_ACTION,
+    { SAI_SWITCH_ATTR_FDB_UNICAST_MISS_PACKET_ACTION,
       { false, false, false, false },
       { false, false, true, true },
       NULL, NULL,
       NULL, NULL },
-    { SAI_SWITCH_ATTR_FDB_BROADCAST_MISS_ACTION,
+    { SAI_SWITCH_ATTR_FDB_BROADCAST_MISS_PACKET_ACTION,
       { false, false, false, false },
       { false, false, true, true },
       NULL, NULL,
       NULL, NULL },
-    { SAI_SWITCH_ATTR_FDB_MULTICAST_MISS_ACTION,
+    { SAI_SWITCH_ATTR_FDB_MULTICAST_MISS_PACKET_ACTION,
       { false, false, false, false },
       { false, false, true, true },
       NULL, NULL,
@@ -1270,6 +1492,58 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       { false, false, true, true },
       NULL/*mrvl_sai_switch_qos_tc_and_color_to_dscp_get_prv*/, NULL,
       NULL/*mrvl_sai_switch_qos_tc_and_color_to_dscp_set_prv*/, NULL },
+
+
+    { SAI_SWITCH_ATTR_SWITCH_SHELL_ENABLE,
+      { false, false, true, true },
+      { false, false, true, true },
+      NULL/**/, NULL,
+      NULL/**/, NULL },
+    { SAI_SWITCH_ATTR_SWITCH_PROFILE_ID,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_profile_id_get_prv, NULL,
+      mrvl_sai_switch_profile_id_set_prv, NULL },
+    { SAI_SWITCH_ATTR_SWITCH_HARDWARE_INFO,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL/**/, NULL,
+      NULL/**/, NULL },
+    { SAI_SWITCH_ATTR_FIRMWARE_PATH_NAME,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL/**/, NULL,
+      NULL/**/, NULL },
+    { SAI_SWITCH_ATTR_INIT_SWITCH,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_init_get_prv, NULL,
+      mrvl_sai_switch_init_set_prv, NULL },
+    { SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_notify_fn_get_prv, NULL,
+      mrvl_sai_switch_notify_fn_set_prv, NULL },
+    { SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_notify_fn_get_prv, NULL,
+      mrvl_sai_switch_notify_fn_set_prv, NULL },
+    { SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_notify_fn_get_prv, NULL,
+      mrvl_sai_switch_notify_fn_set_prv, NULL },
+    { SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_notify_fn_get_prv, NULL,
+      mrvl_sai_switch_notify_fn_set_prv, NULL },
+    { SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY,
+      { true, true, true, true },
+      { true, true, true, true },
+      mrvl_sai_switch_notify_fn_get_prv, NULL,
+      mrvl_sai_switch_notify_fn_set_prv, NULL }
 };
 
 extern FPA_STATUS fpaWrapInitialize(IN void);
@@ -1303,7 +1577,8 @@ void * mrvl_sai_port_status_task(void * arg)
 	sai_object_id_t port_id;
 	sai_port_oper_status_notification_t port_data;
 	char extra_data[64];
-	sai_port_state_change_notification_fn on_port_state_change;
+
+
 	MRVL_SAI_LOG_ENTER();
 	memset(&port_status, 0, sizeof(port_status));
 	while (1)
@@ -1325,29 +1600,21 @@ void * mrvl_sai_port_status_task(void * arg)
 				if ( up )
 				{
 					properties.flags = ( FPA_PORT_PROPERTIES_CURRSPEED_FLAG );
-					st =  fpaLibPortPropertiesGet(0, i, &properties);
-					if ( st == FPA_OK)
-					{
-						sprintf(extra_data, ",speed (%d)\n", properties.currSpeed);
-					}
-					else
-					{
-						sprintf(extra_data, ",speed get FAILED\n");
-					}
+                    sprintf(extra_data, ",speed (%d)\n", properties.currSpeed);
 				}
 				else
 				{
 					sprintf(extra_data,"\n");
 				}
+                mrvl_sai_netdev_set_carrier(i,up);
 				MRVL_SAI_LOG_INF("port %d status changed now %s %s", i, (up) ? "UP" : "Down", extra_data);
 				port_status[i] = up;
 				port_data.port_state = (up) ? SAI_PORT_OPER_STATUS_UP : SAI_PORT_OPER_STATUS_DOWN;
 				mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, i, &port_id);
 				port_data.port_id = port_id;
-				on_port_state_change = mrvl_sai_notification_callbacks.on_port_state_change;
-				if (on_port_state_change)
+				if (mrvl_sai_notification_callbacks.on_port_state_change)
 				{
-					on_port_state_change(1, &port_data);
+					mrvl_sai_notification_callbacks.on_port_state_change(1, &port_data);
 				}
 			}
 		}
@@ -1356,97 +1623,40 @@ void * mrvl_sai_port_status_task(void * arg)
 	MRVL_SAI_LOG_EXIT();
 }
 void mrvl_sai_simple_server(void);
-/*
- * Routine Description:
- *   SDK initialization. After the call the capability attributes should be
- *   ready for retrieval via sai_get_switch_attribute().
- *
- * Arguments:
- *   [in] profile_id - Handle for the switch profile.
- *   [in] switch_hardware_id - Switch hardware ID to open
- *   [in/opt] firmware_path_name - Vendor specific path name of the firmware
- *                                     to load
- *   [in] switch_notifications - switch notification table
- * Return Values:
- *   SAI_STATUS_SUCCESS on success
- *   Failure status code on error
- */
-sai_status_t mrvl_sai_initialize_switch(_In_ sai_switch_profile_id_t                           profile_id,
-                                    _In_reads_z_(SAI_MAX_HARDWARE_ID_LEN) char           * switch_hardware_id,
-                                    _In_reads_opt_z_(SAI_MAX_FIRMWARE_PATH_NAME_LEN) char* firmware_path_name,
-                                    _In_ sai_switch_notification_t                       * switch_notifications)
+
+/* switch initialization */
+static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
 {
-	sai_port_event_notification_t       event_data;
-	//sai_port_oper_status_notification_t port_data;
-	sai_object_id_t port_id;
 	sai_object_id_t object_id;
 	sai_attribute_t attr_list[2];
-
+    char          switch_str[MAX_LIST_VALUE_STR_LEN];
 	FPA_STATUS fpa_status;
-    uint32_t err;
+    uint32_t err, switch_idx;
     FPA_SRCMAC_LEARNING_MODE_ENT learning_mode = FPA_SRCMAC_LEARNING_AUTO_E;
     pthread_t t;
-    FPA_MAC_ADDRESS_STC     defaultSrcMac = {{0,0,0,0x11,0x22,0x33}};
-    int i;
+    FPA_MAC_ADDRESS_STC     defaultSrcMac = {{0,0,0,0x12,0x23,0x33}};
     pthread_t thread_console;
-
-
-    /*if (NULL == switch_hardware_id) {
-        fprintf(stderr, "NULL switch hardware ID passed to SAI switch initialize\n");
-        return SAI_STATUS_INVALID_PARAMETER;
-    }*/
 
     MRVL_SAI_LOG_ENTER();
 
-    if (NULL == switch_notifications) {
-    	MRVL_SAI_LOG_ERR("NULL switch notifications passed to SAI switch initialize\n");
-    	MRVL_SAI_LOG_EXIT();
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx)) {
+        MRVL_SAI_LOG_ERR("invalid switch_idx %d\n",switch_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    if (true == mrvl_sai_gh_sdk)
-    {
-    	MRVL_SAI_LOG_ERR("Switch already initialized - first call shutdown_switch\n");
-    	MRVL_SAI_LOG_EXIT() ;
-        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
-    }
-
-    mrvl_sai_gh_sdk = 1;
-
-    if ( mrvl_sai_notification_callbacks.on_fdb_event !=  switch_notifications->on_fdb_event)
-    {
-    	mrvl_sai_notification_callbacks.on_fdb_event = switch_notifications->on_fdb_event ;
-    }
-    if ( mrvl_sai_notification_callbacks.on_packet_event !=  switch_notifications->on_packet_event)
-    {
-    	mrvl_sai_notification_callbacks.on_packet_event = switch_notifications->on_packet_event ;
-    }
-    if ( mrvl_sai_notification_callbacks.on_port_event !=  switch_notifications->on_port_event)
-    {
-    	mrvl_sai_notification_callbacks.on_port_event = switch_notifications->on_port_event ;
-    }
-    if ( mrvl_sai_notification_callbacks.on_port_state_change !=  switch_notifications->on_port_state_change )
-    {
-    	mrvl_sai_notification_callbacks.on_port_state_change = switch_notifications->on_port_state_change ;
-    }
-    if ( mrvl_sai_notification_callbacks.on_switch_shutdown_request !=  switch_notifications->on_switch_shutdown_request )
-    {
-    	mrvl_sai_notification_callbacks.on_switch_shutdown_request = switch_notifications->on_switch_shutdown_request ;
-    }
-    if ( mrvl_sai_notification_callbacks.on_switch_state_change !=  switch_notifications->on_switch_state_change )
-    {
-    	mrvl_sai_notification_callbacks.on_switch_state_change = switch_notifications->on_switch_state_change ;
-    }
-
+    mrvl_sai_switch_object_id_to_str(SAI_OBJECT_TYPE_SWITCH, switch_id, switch_str);
+   
     if ( mrvl_sai_switch_init_first_time )
     {
+        MRVL_SAI_LOG_NTC("Initialize %s for the first time\n", switch_str);
+
         fpa_status = fpaLibInit();
         if (fpa_status != FPA_OK){
         	MRVL_SAI_LOG_ERR("Error %d initializing switch !!\n", (int)fpa_status);
         	MRVL_SAI_LOG_EXIT();
           MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
         }
-        fpa_status = fpaLibSwitchSrcMacLearningSet(SAI_DEFAULT_ETH_SWID_CNS, learning_mode);
+        fpa_status = fpaLibSwitchSrcMacLearningSet(switch_idx, learning_mode);
         if (fpa_status != FPA_OK){
              fprintf(stderr,  "Error %d initializing learning mode !!\n", (int)fpa_status);
               MRVL_SAI_LOG_EXIT();
@@ -1463,7 +1673,8 @@ sai_status_t mrvl_sai_initialize_switch(_In_ sai_switch_profile_id_t            
         }else {
             MRVL_SAI_LOG_WRN("No FDB event callback\n");
         }
-        fpa_status = fpaLibSwitchSrcMacAddressSet(SAI_DEFAULT_ETH_SWID_CNS, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &defaultSrcMac);
+        MRVL_SAI_LOG_NTC("Setting SRC MAC address for %s\n", switch_str);
+        fpa_status = fpaLibSwitchSrcMacAddressSet(switch_idx, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &defaultSrcMac);
         if (fpa_status != FPA_OK) {
         	MRVL_SAI_LOG_EXIT();
         	MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
@@ -1474,12 +1685,13 @@ sai_status_t mrvl_sai_initialize_switch(_In_ sai_switch_profile_id_t            
     		MRVL_SAI_LOG_EXIT();
     		MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     	}
+
     	mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, 0, &object_id);
     	attr_list[0].id = SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE;
     	attr_list[0].value.booldata = 1;
         attr_list[1].id = SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V6_STATE;
     	attr_list[1].value.booldata = 1;
-    	mrvl_sai_create_virtual_router(&object_id, 2, attr_list);
+        mrvl_sai_create_virtual_router(&object_id, switch_id, 2, attr_list);
     }
 
 	MRVL_SAI_LOG_NTC("Initialize switch\n");
@@ -1487,24 +1699,14 @@ sai_status_t mrvl_sai_initialize_switch(_In_ sai_switch_profile_id_t            
 
 	/* notifications */
     if (mrvl_sai_notification_callbacks.on_switch_state_change) {
-    	mrvl_sai_notification_callbacks.on_switch_state_change(SAI_SWITCH_OPER_STATUS_UP);
-    }
-
-
-    if (mrvl_sai_notification_callbacks.on_port_event) {
-    	event_data.port_event = SAI_PORT_EVENT_ADD;
-    	for ( i = 0; i < SAI_MAX_NUM_OF_PORTS; i++)
-    	{
-    		mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, saiSysPortMappingPtr[i], &port_id);
-    		event_data.port_id = port_id;
-    		mrvl_sai_notification_callbacks.on_port_event(1, &event_data);
-    	}
+    	mrvl_sai_notification_callbacks.on_switch_state_change(switch_idx, SAI_SWITCH_OPER_STATUS_UP);
     }
 
  	if (mrvl_sai_notification_callbacks.on_port_state_change) {
  		if ( mrvl_sai_switch_init_first_time ) {
  			memset(&port_status, 0, sizeof(port_status));
  			mrvl_sai_inform_all_ports_status_adv();
+            MRVL_SAI_LOG_NTC("Creating SAI port status task\n");
      		err = pthread_create(&thread_port, NULL, (void *)mrvl_sai_port_status_task, NULL);
 		    if (err )
 		    {
@@ -1513,186 +1715,262 @@ sai_status_t mrvl_sai_initialize_switch(_In_ sai_switch_profile_id_t            
  		}
  		else
  		{
+            MRVL_SAI_LOG_NTC("Informing all_ports_status_adv\n");
  			mrvl_sai_inform_all_ports_status_adv();
  		}
  	}
-	 if ( mrvl_sai_switch_init_first_time )
-	 {
-		pthread_create(&thread_console, NULL, (void *)mrvl_sai_simple_server, NULL);
-	 }
+    if ( mrvl_sai_switch_init_first_time )
+    {
+        err = pthread_create(&thread_console, NULL, (void *)mrvl_sai_simple_server, NULL);
+        if (err )
+        {
+            MRVL_SAI_LOG_ERR("Created SAI simple server thread failed: err %d \n", err);
+        }
+	}
 
     MRVL_SAI_LOG_EXIT();
     mrvl_sai_switch_init_first_time = 0;
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *   Release all resources associated with currently opened switch
+/**
+ * @brief Create switch
  *
- * Arguments:
- *   [in] warm_restart_hint - hint that indicates controlled warm restart.
- *                            Since warm restart can be caused by crash
- *                            (therefore there are no guarantees for this call),
- *                            this hint is really a performance optimization.
+ * SDK initialization/connect to SDK. After the call the capability attributes should be
+ * ready for retrieval via sai_get_switch_attribute(). Same Switch Object id should be
+ * given for create/connect for each NPU.
  *
- * Return Values:
- *   None
+ * @param[out] switch_id The Switch Object ID
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-void mrvl_sai_shutdown_switch(_In_ bool warm_restart_hint)
+sai_status_t mrvl_sai_create_switch(
+        _Out_ sai_object_id_t *switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
 {
-	MRVL_SAI_LOG_ENTER();
-	MRVL_SAI_LOG_WRN("Shutdown switch\n");
-    mrvl_sai_gh_sdk = 0;
-#ifndef DEMO
-    memset(&mrvl_sai_notification_callbacks, 0, sizeof(sai_switch_notification_t));
-#endif
-    MRVL_SAI_LOG_EXIT();
-}
+    sai_status_t  status; 
+    char          list_str[MAX_LIST_VALUE_STR_LEN];
+    const sai_attribute_value_t *attr_val       = NULL;
+    uint32_t                    attr_idx;
 
-/*
- * Routine Description:
- *   SDK connect. This API connects library to the initialized SDK.
- *   After the call the capability attributes should be ready for retrieval
- *   via sai_get_switch_attribute().
- *
- * Arguments:
- *   [in] profile_id - Handle for the switch profile.
- *   [in] switch_hardware_id - Switch hardware ID to open
- *   [in] switch_notifications - switch notification table
- * Return Values:
- *   SAI_STATUS_SUCCESS on success
- *   Failure status code on error
- */
-sai_status_t mrvl_sai_connect_switch(_In_ sai_switch_profile_id_t                profile_id,
-                                 _In_reads_z_(SAI_MAX_HARDWARE_ID_LEN) char* switch_hardware_id,
-                                 _In_ sai_switch_notification_t            * switch_notifications)
-{
-	MRVL_SAI_LOG_ENTER();
-	if (NULL == switch_hardware_id) {
-		MRVL_SAI_LOG_ERR("NULL switch hardware ID passed to SAI switch connect\n");
-		MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_LOG_ENTER();
+
+    if (NULL == switch_id) {
+        MRVL_SAI_LOG_ERR("NULL switch_id param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    if (NULL == switch_notifications) {
-    	MRVL_SAI_LOG_ERR("NULL switch notifications passed to SAI switch connect\n");
-    	MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    if (SAI_STATUS_SUCCESS !=
+        (status =
+             mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, switch_attribs, switch_vendor_attribs,
+                                    SAI_OPERATION_CREATE))) {
+        MRVL_SAI_LOG_ERR("Failed attribs check\n");
+        MRVL_SAI_API_RETURN(status);
     }
 
-    if ( switch_notifications->on_fdb_event &&
-    	 mrvl_sai_notification_callbacks.on_fdb_event !=  switch_notifications->on_fdb_event)
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, switch_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
+    MRVL_SAI_LOG_NTC("Create switch, %s\n", list_str);
+
+    if (true == mrvl_switch_is_created)
     {
-    	mrvl_sai_notification_callbacks.on_fdb_event = switch_notifications->on_fdb_event ;
-    }
-    if ( switch_notifications->on_packet_event &&
-    	mrvl_sai_notification_callbacks.on_packet_event !=  switch_notifications->on_packet_event)
-    {
-    	mrvl_sai_notification_callbacks.on_packet_event = switch_notifications->on_packet_event ;
-    }
-    if ( switch_notifications->on_port_event &&
-    	 mrvl_sai_notification_callbacks.on_port_event !=  switch_notifications->on_port_event)
-    {
-    	mrvl_sai_notification_callbacks.on_port_event = switch_notifications->on_port_event ;
-    }
-    if ( switch_notifications->on_port_state_change &&
-    	mrvl_sai_notification_callbacks.on_port_state_change !=  switch_notifications->on_port_state_change )
-    {
-    	mrvl_sai_notification_callbacks.on_port_state_change = switch_notifications->on_port_state_change ;
-    }
-    if ( switch_notifications->on_switch_shutdown_request &&
-    	mrvl_sai_notification_callbacks.on_switch_shutdown_request !=  switch_notifications->on_switch_shutdown_request )
-    {
-    	mrvl_sai_notification_callbacks.on_switch_shutdown_request = switch_notifications->on_switch_shutdown_request ;
-    }
-    if ( switch_notifications->on_switch_state_change &&
-    	mrvl_sai_notification_callbacks.on_switch_state_change !=  switch_notifications->on_switch_state_change )
-    {
-    	mrvl_sai_notification_callbacks.on_switch_state_change = switch_notifications->on_switch_state_change ;
+    	MRVL_SAI_LOG_ERR("Switch already created - first call remove_switch\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
 
-    /* Open an handle if not done already on init for init agent */
-    if (0 == mrvl_sai_gh_sdk) {
-#if 0
-/*#ifndef _WIN32*/
-        openlog("SAI", 0, LOG_USER);
-#endif
+    /* check mandatory attribute SAI_SWITCH_ATTR_INIT_SWITCH */
+    assert(SAI_STATUS_SUCCESS ==
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_INIT_SWITCH, &attr_val, &attr_idx));
+    mrvl_switch_is_created = attr_val->booldata;
+
+    /* SAI_SWITCH_ATTR_SWITCH_PROFILE_ID */
+    /*if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SWITCH_PROFILE_ID, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SWITCH_PROFILE_ID - %d\n", attr_val->u32);
+        MRVL_SAI_API_RETURN(status);
+    }*/
+    mrvl_profile_id = 0; /*default*/ /*attr_val->u32;*/
+
+    /* SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY */
+    /*if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY - %x\n", attr_val->ptr);
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_notification_callbacks.on_switch_state_change = (sai_switch_state_change_notification_fn)attr_val->ptr;*/
+
+    /* SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY */
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY - %d\n", attr_val->ptr);
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_notification_callbacks.on_switch_shutdown_request = (sai_switch_shutdown_request_notification_fn)attr_val->ptr;
+
+    /* SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY */
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY - %d\n", attr_val->ptr);
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_notification_callbacks.on_fdb_event = (sai_fdb_event_notification_fn)attr_val->ptr;
+    
+    /* SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY */
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY - %d\n", attr_val->ptr);
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_notification_callbacks.on_port_state_change = (sai_port_state_change_notification_fn)attr_val->ptr;
+
+   /* SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY */
+   /* if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY, &attr_val, &attr_idx))){
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY - %d\n", attr_val->ptr);
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_notification_callbacks.on_packet_event = (sai_packet_event_notification_fn)attr_val->ptr;*/
+
+    /* create SAI switch object */    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SWITCH, SAI_DEFAULT_ETH_SWID_CNS, switch_id))) {
+        MRVL_SAI_API_RETURN(status);
+    }
+    if (mrvl_switch_is_created) {
+        status = mrvl_initialize_switch(*switch_id);
     }
 
- /*   db_init_next_hop_group();*/
-    MRVL_SAI_LOG_NTC("Connect switch\n");
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);    
+
+}
+/**
+ * @brief Remove/disconnect Switch
+ *
+ * Release all resources associated with currently opened switch
+ *
+ * @param[in] switch_id The Switch id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_switch(
+        _In_ sai_object_id_t switch_id)
+{
+    uint32_t            switch_idx;       
+
+    MRVL_SAI_LOG_ENTER();        
+    MRVL_SAI_LOG_WRN("remove_switch\n");
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx)) {
+        MRVL_SAI_LOG_ERR("invalid switch_idx %d\n",switch_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    mrvl_switch_is_created = 0;
+    memset(&mrvl_sai_notification_callbacks, 0, sizeof(sai_switch_notification_t));
+
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
 }
 
-/*
- * Routine Description:
- *   Disconnect this SAI library from the SDK.
+/**
+ * @brief Set switch attribute value
  *
- * Arguments:
- *   None
- * Return Values:
- *   None
+ * @param[in] switch_id Switch id
+ * @param[in] attr Switch attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-void mrvl_sai_disconnect_switch(void)
+sai_status_t mrvl_sai_set_switch_attribute(
+        _In_ sai_object_id_t switch_id,
+        _In_ const sai_attribute_t *attr)
 {
-    MRVL_SAI_LOG_NTC("Disconnect switch\n");
-#ifndef DEMO
-    memset(&mrvl_sai_notification_callbacks, 0, sizeof(mrvl_sai_notification_callbacks));
-#endif
-}
-
-/*
- * Routine Description:
- *    Set switch attribute value
- *
- * Arguments:
- *    [in] attr - switch attribute
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
- */
-sai_status_t mrvl_sai_set_switch_attribute(_In_ const sai_attribute_t *attr)
-{
+    const sai_object_key_t key = { .key.object_id = switch_id };
+    char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
-	MRVL_SAI_LOG_ENTER();
+    uint32_t            switch_idx;  
 
-    if (NULL == attr){
-    	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_NULL_OBJECT_ID == switch_id) {
+        MRVL_SAI_LOG_ERR("Invalid switch_id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    status = mrvl_sai_utl_set_attribute(NULL, "", switch_attribs, switch_vendor_attribs, attr);
-    MRVL_SAI_API_RETURN(status);
-}
-/*
- * Routine Description:
- *    Get switch attribute value
- *
- * Arguments:
- *    [in] attr_count - number of switch attributes
- *    [inout] attr_list - array of switch attributes
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
- */
-sai_status_t mrvl_sai_get_switch_attribute(_In_ uint32_t attr_count, _Inout_ sai_attribute_t *attr_list)
-{
-    sai_status_t status;
-	MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx)) {
+        MRVL_SAI_LOG_ERR("invalid switch_idx %d\n",switch_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
-    status = mrvl_sai_utl_get_attributes(NULL, "", switch_attribs, switch_vendor_attribs, attr_count, attr_list);
+    if (switch_idx != SAI_DEFAULT_ETH_SWID_CNS){
+        MRVL_SAI_LOG_ERR("non default switch_idx %d\n",switch_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    mrvl_sai_switch_object_id_to_str(SAI_OBJECT_TYPE_SWITCH, switch_id, key_str);
+    MRVL_SAI_LOG_NTC("Set attributes for switch %s\n", key_str);
+
+    status = mrvl_sai_utl_set_attribute(&key, key_str, switch_attribs, switch_vendor_attribs, attr);
+
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
+
+}
+
+/**
+ * @brief Get switch attribute value
+ *
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of switch attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_get_switch_attribute(
+        _In_ sai_object_id_t switch_id,
+        _In_ sai_uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    const sai_object_key_t key = { .key.object_id = switch_id };
+    char                   key_str[MAX_LIST_VALUE_STR_LEN];
+    sai_status_t status;
+    uint32_t switch_idx;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_NULL_OBJECT_ID == switch_id) {
+        MRVL_SAI_LOG_ERR("Invalid switch_id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx)) {
+        MRVL_SAI_LOG_ERR("invalid switch_idx %d\n",switch_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (switch_idx != SAI_DEFAULT_ETH_SWID_CNS){
+        MRVL_SAI_LOG_ERR("non default switch_idx %d\n",switch_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    status = mrvl_sai_utl_get_attributes(&key, key_str, switch_attribs, switch_vendor_attribs, attr_count, attr_list);
+
+    mrvl_sai_switch_object_id_to_str(SAI_OBJECT_TYPE_SWITCH, switch_id, key_str);
+    MRVL_SAI_LOG_DBG("Get Attribs %s\n", key_str);
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+
 }
 
 
 const sai_switch_api_t switch_api = {
-    mrvl_sai_initialize_switch,
-    mrvl_sai_shutdown_switch,
-    mrvl_sai_connect_switch,
-    mrvl_sai_disconnect_switch,
+    mrvl_sai_create_switch,
+    mrvl_sai_remove_switch,
     mrvl_sai_set_switch_attribute,
-    mrvl_sai_get_switch_attribute,
+    mrvl_sai_get_switch_attribute
+
 };

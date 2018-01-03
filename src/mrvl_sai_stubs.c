@@ -22,6 +22,41 @@
 #undef  __MODULE__
 #define __MODULE__ SAI_STUBS
 
+
+/**
+ * @brief Create ingress priority group
+ *
+ * @param[out] ingress_pg_id Ingress priority group
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_ingress_priority_group(
+        _Out_ sai_object_id_t* ingress_pg_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+ 
+/**
+ * @brief Remove ingress priority group
+ *
+ * @param[in] ingress_pg_id Ingress priority group
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_ingress_priority_group(
+        _In_ sai_object_id_t ingress_pg_id)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+  
 /**
  * @brief Set ingress priority group attribute
  * @param[in] ingress_pg_id ingress priority group id
@@ -58,8 +93,8 @@ sai_status_t mrvl_get_ingress_priority_group_attr(
 * @brief   Get ingress priority group statistics counters.
 *
 * @param[in] ingress_pg_id ingress priority group id
-* @param[in] counter_ids specifies the array of counter ids
 * @param[in] number_of_counters number of counters in the array
+* @param[in] counter_ids specifies the array of counter ids
 * @param[out] counters array of resulting counter values.
 *
 * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
@@ -67,8 +102,8 @@ sai_status_t mrvl_get_ingress_priority_group_attr(
 */
 sai_status_t mrvl_get_ingress_priority_group_stats(
     _In_ sai_object_id_t ingress_pg_id,
-    _In_ const sai_ingress_priority_group_stat_counter_t *counter_ids,
     _In_ uint32_t number_of_counters,
+    _In_ const sai_ingress_priority_group_stat_t *counter_ids,
     _Out_ uint64_t* counters
     )
 {
@@ -87,8 +122,8 @@ sai_status_t mrvl_get_ingress_priority_group_stats(
 */
 sai_status_t mrvl_clear_ingress_priority_group_stats(
     _In_ sai_object_id_t ingress_pg_id,
-    _In_ const sai_ingress_priority_group_stat_counter_t *counter_ids,
-    _In_ uint32_t number_of_counters
+    _In_ uint32_t number_of_counters,
+    _In_ const sai_ingress_priority_group_stat_t *counter_ids
     )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
@@ -104,7 +139,8 @@ sai_status_t mrvl_clear_ingress_priority_group_stats(
  *           Failure status code on error
  */
 sai_status_t mrvl_create_buffer_pool(
-    _Out_ sai_object_id_t* pool_id,
+    _Out_ sai_object_id_t *pool_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
     )
@@ -163,8 +199,8 @@ sai_status_t mrvl_get_buffer_pool_attr(
 * @brief   Get buffer pool statistics counters.
 *
 * @param[in] pool_id buffer pool id
-* @param[in] counter_ids specifies the array of counter ids
 * @param[in] number_of_counters number of counters in the array
+* @param[in] counter_ids specifies the array of counter ids
 * @param[out] counters array of resulting counter values.
 *
 * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
@@ -172,14 +208,33 @@ sai_status_t mrvl_get_buffer_pool_attr(
 */
 sai_status_t mrvl_get_buffer_pool_stats(
     _In_ sai_object_id_t pool_id,
-    _In_ const sai_buffer_pool_stat_counter_t *counter_ids,
     _In_ uint32_t number_of_counters,
+    _In_ const sai_buffer_pool_stat_t *counter_ids,
     _Out_ uint64_t* counters
     )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 }
+
+/**
+ * @brief Clear buffer pool statistics counters.
+ *
+ * @param[in] pool_id Buffer pool id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_clear_buffer_pool_stats(
+        _In_ sai_object_id_t pool_id,
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_buffer_pool_stat_t *counter_ids)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
 
 /**
  * @brief Create buffer profile
@@ -191,6 +246,7 @@ sai_status_t mrvl_get_buffer_pool_stats(
  */
 sai_status_t mrvl_create_buffer_profile(
     _Out_ sai_object_id_t* buffer_profile_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
     )
@@ -225,6 +281,7 @@ sai_status_t mrvl_set_buffer_profile_attr(
     _In_ const sai_attribute_t *attr
     )
 {
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 }
 
@@ -242,6 +299,7 @@ sai_status_t mrvl_get_buffer_profile_attr(
     _Inout_ sai_attribute_t *attr_list
     )
 {
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 }
 
@@ -251,6 +309,9 @@ const sai_buffer_api_t buffer_api = {
     mrvl_set_buffer_pool_attr,
     mrvl_get_buffer_pool_attr,
     mrvl_get_buffer_pool_stats,
+    mrvl_clear_buffer_pool_stats,
+    mrvl_create_ingress_priority_group,
+    mrvl_remove_ingress_priority_group,
     mrvl_set_ingress_priority_group_attr,
     mrvl_get_ingress_priority_group_attr,
     mrvl_get_ingress_priority_group_stats,
@@ -259,105 +320,6 @@ const sai_buffer_api_t buffer_api = {
     mrvl_remove_buffer_profile,
     mrvl_set_buffer_profile_attr,
     mrvl_get_buffer_profile_attr,
-};
-
-
-/**
- * Routine Description:
- *    @brief Create hash
- *
- * Arguments:
- *    @param[out] hash_id - hash id
- *    @param[in] attr_count - number of attributes
- *    @param[in] attr_list - array of attributes
- *
- * Return Values:
- *    @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *            Failure status code on error
- *
- */
-sai_status_t mrvl_create_hash(
-    _Out_ sai_object_id_t* hash_id,
-    _In_ uint32_t attr_count,
-    _In_ const sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * Routine Description:
- *    @brief Remove hash
- *
- * Arguments:
- *    @param[in] hash_id - hash id
- *
- * Return Values:
- *    @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *            Failure status code on error
- */
-sai_status_t mrvl_remove_hash(
-    _In_ sai_object_id_t hash_id
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * Routine Description:
- *    @brief Set hash attribute
- *
- * Arguments:
- *    @param[in] hash_id - hash id
- *    @param[in] attr - attribute
- *
- * Return Values:
- *    @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *            Failure status code on error
- */
-sai_status_t mrvl_set_hash_attribute(
-    _In_ sai_object_id_t hash_id,
-    _In_ const sai_attribute_t *attr
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * Routine Description:
- *    @brief Get hash attribute value
- *
- * Arguments:
- *    @param[in] hash_id - hash id
- *    @param[in] attr_count - number of attributes
- *    @param[inout] attrs - array of attributes
- *
- * Return Values:
- *    @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *            Failure status code on error
- */
-sai_status_t mrvl_get_hash_attribute(
-    _In_ sai_object_id_t hash_id,
-    _In_ uint32_t attr_count,
-    _Inout_ sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- *  @brief hash methods, retrieved via sai_api_query()
- */
-const sai_hash_api_t hash_api =
-{
-    mrvl_create_hash,
-    mrvl_remove_hash,
-    mrvl_set_hash_attribute,
-    mrvl_get_hash_attribute
 };
 
 /**
@@ -371,6 +333,7 @@ const sai_hash_api_t hash_api =
  */
 sai_status_t mrvl_create_mirror_session(
         _Out_ sai_object_id_t *session_id,
+        _In_ sai_object_id_t switch_id,
         _In_  uint32_t attr_count,
         _In_  const sai_attribute_t *attr_list)
 {
@@ -455,6 +418,7 @@ const sai_mirror_api_t mirror_api=
  */
 sai_status_t mrvl_create_policer(
     _Out_ sai_object_id_t *policer_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list)
 {
@@ -536,9 +500,9 @@ sai_status_t mrvl_get_policer_attribute(
  */
 sai_status_t mrvl_get_policer_statistics(
     _In_ sai_object_id_t policer_id,
-    _In_ const sai_policer_stat_counter_t *counter_ids,
     _In_ uint32_t number_of_counters,
-    _Out_ uint64_t* counters
+    _In_ const sai_policer_stat_t *counter_ids,
+    _Out_ uint64_t *counters
 )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
@@ -569,6 +533,7 @@ const sai_policer_api_t policer_api=
  */
 sai_status_t mrvl_create_qos_map(
     _Out_ sai_object_id_t* qos_map_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -645,6 +610,43 @@ const sai_qos_map_api_t qos_map_api=
     mrvl_get_qos_map_attribute
 };
 
+
+/**
+ * @brief Create queue
+ *
+ * @param[out] queue_id Queue id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_queue(
+        _Out_ sai_object_id_t *queue_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Remove queue
+ *
+ * @param[in] queue_id Queue id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_queue(
+        _In_ sai_object_id_t queue_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
 /**
  * @brief Set attribute to Queue
  * @param[in] queue_id queue id to set the attribute
@@ -695,9 +697,9 @@ sai_status_t mrvl_get_queue_attribute(
  */
 sai_status_t mrvl_get_queue_stats(
     _In_ sai_object_id_t queue_id,
-    _In_ const sai_queue_stat_counter_t *counter_ids,
     _In_ uint32_t number_of_counters,
-    _Out_ uint64_t* counters
+    _In_ const sai_queue_stat_t *counter_ids,
+    _Out_ uint64_t *counters
 )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
@@ -716,8 +718,8 @@ sai_status_t mrvl_get_queue_stats(
  */
 sai_status_t mrvl_clear_queue_stats(
     _In_ sai_object_id_t queue_id,
-    _In_ const sai_queue_stat_counter_t *counter_ids,
-    _In_ uint32_t number_of_counters
+    _In_ uint32_t number_of_counters,
+    _In_ const sai_queue_stat_t *counter_ids
 )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
@@ -730,6 +732,8 @@ sai_status_t mrvl_clear_queue_stats(
  */
 const sai_queue_api_t queue_api=
 {
+    mrvl_create_queue,
+    mrvl_remove_queue,
     mrvl_set_queue_attribute,
     mrvl_get_queue_attribute,
     mrvl_get_queue_stats,
@@ -747,6 +751,7 @@ const sai_queue_api_t queue_api=
  */
 sai_status_t mrvl_create_samplepacket_session(
         _Out_ sai_object_id_t *session_id,
+        _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
@@ -831,6 +836,7 @@ const sai_samplepacket_api_t samplepacket_api=
  */
 sai_status_t mrvl_create_scheduler_profile(
     _Out_ sai_object_id_t  *scheduler_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -908,264 +914,6 @@ const sai_scheduler_api_t scheduler_api=
 } ;
 
 /**
- * @brief  Create Scheduler group
- *
- * @param[out] scheduler_group_id Scheudler group id
- * @param[in] attr_count number of attributes
- * @param[in] attr_list array of attributes
- *
- * @return  MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *          Failure status code on error
- */
-sai_status_t mrvl_create_scheduler_group(
-    _Out_ sai_object_id_t  *scheduler_group_id,
-    _In_ uint32_t attr_count,
-    _In_ const sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * @brief  Remove Scheduler group
- *
- * @param[in] scheduler_group_id Scheudler group id
- *
- * @return  MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *          Failure status code on error
- */
-sai_status_t mrvl_remove_scheduler_group(
-    _In_ sai_object_id_t scheduler_group_id
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief  Set Scheduler group Attribute
- *
- * @param[in] scheduler_group_id Scheudler group id
- * @param[in] attr attribute to set
- *
- * @return  MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *          Failure status code on error
- */
-sai_status_t mrvl_set_scheduler_group_attribute(
-    _In_ sai_object_id_t scheduler_group_id,
-    _In_ const sai_attribute_t *attr
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * @brief  Get Scheduler Group attribute
- *
- * @param[in] scheduler_group_id - scheduler group id
- * @param[in] attr_count - number of attributes
- * @param[inout] attr_list - array of attributes
- *
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *        Failure status code on error
- */
-
-sai_status_t mrvl_get_scheduler_group_attribute(
-    _In_ sai_object_id_t scheduler_group_id,
-    _In_ uint32_t attr_count,
-    _Inout_ sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * @brief   Add Child queue/group objects to scheduler group
- *
- * @param[in] scheduler_group_id Scheduler group id.
- * @param[in] child_count number of child count
- * @param[in] child_objects array of child objects
- *
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *        Failure status code on error
- */
-sai_status_t mrvl_add_child_object_to_group(
-    _In_ sai_object_id_t scheduler_group_id,
-    _In_ uint32_t        child_count,
-    _In_ const sai_object_id_t* child_objects
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief   Remove Child queue/group objects from scheduler group
- *
- * @param[in] scheduler_group_id Scheduler group id.
- * @param[in] child_count number of child count
- * @param[in] child_objects array of child objects
- *
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
- *        Failure status code on error
- */
-sai_status_t mrvl_remove_child_object_from_group(
-    _In_ sai_object_id_t scheduler_group_id,
-    _In_ uint32_t        child_count,
-    _In_ const sai_object_id_t* child_objects
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-/**
- * @brief  Scheduler Group methods table retrieved with sai_api_query()
- */
-const sai_scheduler_group_api_t scheduler_group_api=
-{
-    mrvl_create_scheduler_group,
-    mrvl_remove_scheduler_group,
-    mrvl_set_scheduler_group_attribute,
-    mrvl_get_scheduler_group_attribute,
-    mrvl_add_child_object_to_group,
-    mrvl_remove_child_object_from_group
-} ;
-
-/**
- * @brief Create stp instance with default port state as forwarding.
- *
- * @param[out] stp_id stp instance id
- * @param[in] attr_count Number of attributes
- * @param[in] attr_list Value of attributes
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_create_stp(
-    _Out_ sai_object_id_t *stp_id,
-    _In_  uint32_t attr_count,
-    _In_  const sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-
-/**
- * @brief Remove stp instance.
- *
- * @param[in] stp_id stp instance id
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_remove_stp(
-    _In_ sai_object_id_t stp_id
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief Update stp state of a port in specified stp instance.
- *
- * @param[in] stp_id stp instance id
- * @param[in] port_id port id
- * @param[in] stp_port_state stp state of the port
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_set_stp_port_state(
-    _In_ sai_object_id_t stp_id,
-    _In_ sai_object_id_t port_id,
-    _In_ sai_port_stp_port_state_t stp_port_state
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief Retrieve stp state of a port in specified stp instance.
- *
- * @param[in] stp_id stp instance id
- * @param[in] port_id port id
- * @param[out] stp_port_state stp state of the port
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_get_stp_port_state(
-    _In_ sai_object_id_t stp_id,
-    _In_ sai_object_id_t port_id,
-    _Out_ sai_port_stp_port_state_t  *stp_port_state
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief Set the attribute of STP instance.
- *
- * @param[in] stp_id stp instance id
- * @param[in] attr attribute value
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_set_stp_attribute(
-    _In_ sai_object_id_t stp_id,
-    _In_ const sai_attribute_t *attr
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief Get the attribute of STP instance.
- *
- * @param[in] stp_id stp instance id
- * @param[in] attr_count number of the attribute
- * @param[in] attr_list attribute value
- * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) if operation is successful otherwise a different
- *  error code is returned.
- */
-sai_status_t mrvl_get_stp_attribute(
-    _In_ sai_object_id_t stp_id,
-    _In_ uint32_t attr_count,
-    _Inout_ sai_attribute_t *attr_list
-)
-{
-	MRVL_SAI_LOG_ERR("STUB %s", __func__);
-	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-}
-
-
-/**
- * @brief STP method table retrieved with sai_api_query()
- */
-const sai_stp_api_t stp_api=
-{
-    mrvl_create_stp,
-    mrvl_remove_stp,
-    mrvl_set_stp_attribute,
-    mrvl_get_stp_attribute,
-    mrvl_set_stp_port_state,
-    mrvl_get_stp_port_state
-};
-
-/**
  * @brief Create tunnel Map
  *
  * @param[out] tunnel_map_id tunnel Map Id
@@ -1176,10 +924,10 @@ const sai_stp_api_t stp_api=
  *          Failure status code on error
  */
 sai_status_t mrvl_create_tunnel_map(
-    _Out_ sai_object_id_t* tunnel_map_id,
+    _Out_ sai_object_id_t *tunnel_map_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
-    _In_ const sai_attribute_t *attr_list
-)
+    _In_ const sai_attribute_t *attr_list)
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
@@ -1256,6 +1004,7 @@ sai_status_t mrvl_get_tunnel_map_attribute(
  */
 sai_status_t mrvl_create_tunnel(
     _Out_ sai_object_id_t* tunnel_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -1342,10 +1091,10 @@ sai_status_t mrvl_get_tunnel_attribute(
  *            Failure status code on error
  */
 sai_status_t mrvl_create_tunnel_term_table_entry(
-    _Out_ sai_object_id_t* tunnel_term_table_entry_id,
-    _In_ uint32_t attr_count,
-    _In_ const sai_attribute_t *attr_list
-)
+   _Out_ sai_object_id_t *tunnel_term_table_entry_id,
+   _In_ sai_object_id_t switch_id,
+   _In_ uint32_t attr_count,
+   _In_ const sai_attribute_t *attr_list)
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
@@ -1416,6 +1165,74 @@ sai_status_t mrvl_get_tunnel_term_table_entry_attribute(
 }
 
 /**
+ * @brief Create tunnel map item
+ *
+ * @param[out] tunnel_map_entry_id Tunnel map item id
+ * @param[in] switch_id Switch Id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_tunnel_map_entry(
+        _Out_ sai_object_id_t *tunnel_map_entry_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove tunnel map item
+ *
+ * @param[in] tunnel_map_entry_id Tunnel map item id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_tunnel_map_entry(
+        _In_ sai_object_id_t tunnel_map_entry_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set tunnel map item attribute
+ *
+ * @param[in] tunnel_map_entry_id Tunnel map item id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_tunnel_map_entry_attribute(
+        _In_ sai_object_id_t tunnel_map_entry_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get tunnel map item attributes
+ *
+ * @param[in] tunnel_map_entry_id Tunnel map item id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_tunnel_map_entry_attribute(
+        _In_ sai_object_id_t tunnel_map_entry_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
  * @brief tunnel methods table retrieved with sai_api_query()
  */
 const sai_tunnel_api_t tunnel_api=
@@ -1431,7 +1248,12 @@ const sai_tunnel_api_t tunnel_api=
     mrvl_create_tunnel_term_table_entry,
     mrvl_remove_tunnel_term_table_entry,
     mrvl_set_tunnel_term_table_entry_attribute,
-    mrvl_get_tunnel_term_table_entry_attribute
+    mrvl_get_tunnel_term_table_entry_attribute,
+    mrvl_create_tunnel_map_entry,
+    mrvl_remove_tunnel_map_entry,
+    mrvl_set_tunnel_map_entry_attribute,
+    mrvl_get_tunnel_map_entry_attribute
+
 } ;
 
 /**
@@ -1450,6 +1272,7 @@ const sai_tunnel_api_t tunnel_api=
  */
 sai_status_t mrvl_create_udf(
     _Out_ sai_object_id_t* udf_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -1537,6 +1360,7 @@ sai_status_t mrvl_get_udf_attribute(
  */
 sai_status_t mrvl_create_udf_match(
     _Out_ sai_object_id_t* udf_match_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -1624,6 +1448,7 @@ sai_status_t mrvl_get_udf_match_attribute(
  */
 sai_status_t mrvl_create_udf_group(
     _Out_ sai_object_id_t* udf_group_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -1728,6 +1553,7 @@ const sai_udf_api_t udf_api=
 
 sai_status_t mrvl_create_wred_profile(
     _Out_ sai_object_id_t *wred_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
 )
@@ -1803,6 +1629,839 @@ const sai_wred_api_t wred_api=
     mrvl_set_wred_attribute,
     mrvl_get_wred_attribute
 } ;
+
+/**
+ * @brief Create L2MC entry
+ *
+ * @param[in] l2mc_entry L2MC entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_l2mc_entry(
+        _In_ const sai_l2mc_entry_t *l2mc_entry,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove L2MC entry
+ *
+ * @param[in] l2mc_entry L2MC entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_l2mc_entry(
+        _In_ const sai_l2mc_entry_t *l2mc_entry)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set L2MC entry attribute value
+ *
+ * @param[in] l2mc_entry L2MC entry
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_l2mc_entry_attribute(
+        _In_ const sai_l2mc_entry_t *l2mc_entry,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get L2MC entry attribute value
+ *
+ * @param[in] l2mc_entry L2MC entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_l2mc_entry_attribute(
+        _In_ const sai_l2mc_entry_t *l2mc_entry,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief L2MC method table retrieved with sai_api_query()
+ */
+const sai_l2mc_api_t l2mc_api=
+{
+    mrvl_create_l2mc_entry,
+    mrvl_remove_l2mc_entry,
+    mrvl_set_l2mc_entry_attribute,
+    mrvl_get_l2mc_entry_attribute
+} ;
+
+/**
+ * @brief Create IPMC entry
+ *
+ * @param[in] ipmc_entry IPMC entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_ipmc_entry(
+        _In_ const sai_ipmc_entry_t *ipmc_entry,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove IPMC entry
+ *
+ * @param[in] ipmc_entry IPMC entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_ipmc_entry(
+        _In_ const sai_ipmc_entry_t *ipmc_entry)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set IPMC entry attribute value
+ *
+ * @param[in] ipmc_entry IPMC entry
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_ipmc_entry_attribute(
+        _In_ const sai_ipmc_entry_t *ipmc_entry,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get IPMC entry attribute value
+ *
+ * @param[in] ipmc_entry IPMC entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_ipmc_entry_attribute(
+        _In_ const sai_ipmc_entry_t *ipmc_entry,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief IPMC method table retrieved with sai_api_query()
+ */
+const sai_ipmc_api_t ipmc_api=
+{
+    mrvl_create_ipmc_entry,
+    mrvl_remove_ipmc_entry,
+    mrvl_set_ipmc_entry_attribute,
+    mrvl_get_ipmc_entry_attribute
+};
+
+/**
+ * @brief Create RPF interface group
+ *
+ * @param[out] rpf_group_id RPF interface group id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_rpf_group(
+        _Out_ sai_object_id_t *rpf_group_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove RPF interface group
+ *
+ * @param[in] rpf_group_id RPF interface group id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_rpf_group(
+        _In_ sai_object_id_t rpf_group_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set RPF interface Group attribute
+ *
+ * @param[in] sai_object_id_t RPF interface group id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_rpf_group_attribute(
+        _In_ sai_object_id_t rpf_group_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get RPF interface Group attribute
+ *
+ * @param[in] sai_object_id_t RPF interface group id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_rpf_group_attribute(
+        _In_ sai_object_id_t rpf_group_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create RPF interface group member
+ *
+ * @param[out] rpf_group_member_id RPF interface group member id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_rpf_group_member(
+        _Out_ sai_object_id_t* rpf_group_member_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove RPF interface group member
+ *
+ * @param[in] rpf_group_member_id RPF interface group member id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_rpf_group_member(
+        _In_ sai_object_id_t rpf_group_member_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set RPF interface Group attribute
+ *
+ * @param[in] sai_object_id_t RPF interface group member id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_rpf_group_member_attribute(
+        _In_ sai_object_id_t rpf_group_member_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get RPF interface Group attribute
+ *
+ * @param[in] sai_object_id_t RPF group member ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_rpf_group_member_attribute(
+        _In_ sai_object_id_t rpf_group_member_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief RPF group methods table retrieved with sai_api_query()
+ */
+const sai_rpf_group_api_t rpf_api=
+{
+    mrvl_create_rpf_group,
+    mrvl_remove_rpf_group,
+    mrvl_set_rpf_group_attribute,
+    mrvl_get_rpf_group_attribute,
+    mrvl_create_rpf_group_member,
+    mrvl_remove_rpf_group_member,
+    mrvl_set_rpf_group_member_attribute,
+    mrvl_get_rpf_group_member_attribute
+};
+
+/**
+ * @brief Create L2MC group
+ *
+ * @param[out] l2mc_group_id L2MC group id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_l2mc_group(
+        _Out_ sai_object_id_t *l2mc_group_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove L2MC group
+ *
+ * @param[in] l2mc_group_id L2MC group id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_l2mc_group(
+        _In_ sai_object_id_t l2mc_group_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set L2MC Group attribute
+ *
+ * @param[in] sai_object_id_t L2MC group id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_l2mc_group_attribute(
+        _In_ sai_object_id_t l2mc_group_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get L2MC Group attribute
+ *
+ * @param[in] sai_object_id_t L2MC group id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_l2mc_group_attribute(
+        _In_ sai_object_id_t l2mc_group_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create L2MC group member
+ *
+ * @param[out] l2mc_group_member_id L2MC group member id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_l2mc_group_member(
+        _Out_ sai_object_id_t* l2mc_group_member_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove L2MC group member
+ *
+ * @param[in] l2mc_group_member_id L2MC group member id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_l2mc_group_member(
+        _In_ sai_object_id_t l2mc_group_member_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set L2MC Group attribute
+ *
+ * @param[in] sai_object_id_t L2MC group member id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_l2mc_group_member_attribute(
+        _In_ sai_object_id_t l2mc_group_member_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get L2MC Group attribute
+ *
+ * @param[in] sai_object_id_t L2MC group member id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_l2mc_group_member_attribute(
+        _In_ sai_object_id_t l2mc_group_member_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief L2MC group methods table retrieved with sai_api_query()
+ */
+const sai_l2mc_group_api_t l2mc_group_api=
+{
+    mrvl_create_l2mc_group,
+    mrvl_remove_l2mc_group,
+    mrvl_set_l2mc_group_attribute,
+    mrvl_get_l2mc_group_attribute,
+    mrvl_create_l2mc_group_member,
+    mrvl_remove_l2mc_group_member,
+    mrvl_set_l2mc_group_member_attribute,
+    mrvl_get_l2mc_group_member_attribute
+};
+
+/**
+ * @brief Create IPMC group
+ *
+ * @param[out] ipmc_group_id IPMC group id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_ipmc_group(
+        _Out_ sai_object_id_t *ipmc_group_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove IPMC group
+ *
+ * @param[in] ipmc_group_id IPMC group id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_ipmc_group(
+        _In_ sai_object_id_t ipmc_group_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set IPMC Group attribute
+ *
+ * @param[in] sai_object_id_t IPMC group id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_ipmc_group_attribute(
+        _In_ sai_object_id_t ipmc_group_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get IPMC Group attribute
+ *
+ * @param[in] sai_object_id_t IPMC group id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_ipmc_group_attribute(
+        _In_ sai_object_id_t ipmc_group_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create IPMC group member
+ *
+ * @param[out] ipmc_group_member_id IPMC group member id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_ipmc_group_member(
+        _Out_ sai_object_id_t* ipmc_group_member_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove IPMC group member
+ *
+ * @param[in] ipmc_group_member_id IPMC group member id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_ipmc_group_member(
+        _In_ sai_object_id_t ipmc_group_member_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set IPMC Group attribute
+ *
+ * @param[in] sai_object_id_t IPMC group member id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_ipmc_group_member_attribute(
+        _In_ sai_object_id_t ipmc_group_member_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get IPMC Group attribute
+ *
+ * @param[in] sai_object_id_t IPMC group member ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_ipmc_group_member_attribute(
+        _In_ sai_object_id_t ipmc_group_member_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief IPMC group methods table retrieved with sai_api_query()
+ */
+const sai_ipmc_group_api_t ipmc_group_api=
+{
+    mrvl_create_ipmc_group,
+    mrvl_remove_ipmc_group,
+    mrvl_set_ipmc_group_attribute,
+    mrvl_get_ipmc_group_attribute,
+    mrvl_create_ipmc_group_member,
+    mrvl_remove_ipmc_group_member,
+    mrvl_set_ipmc_group_member_attribute,
+    mrvl_get_ipmc_group_member_attribute
+};
+
+/**
+ * @brief Create Multicast FDB entry
+ *
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_mcast_fdb_entry(
+        _In_ const sai_mcast_fdb_entry_t *fdb_entry,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove Multicast FDB entry
+ *
+ * @param[in] fdb_entry FDB entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_mcast_fdb_entry(
+        _In_ const sai_mcast_fdb_entry_t *fdb_entry)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set multicast FDB entry attribute value
+ *
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_mcast_fdb_entry_attribute(
+        _In_ const sai_mcast_fdb_entry_t *fdb_entry,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get FDB entry attribute value
+ *
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_mcast_fdb_entry_attribute(
+        _In_ const sai_mcast_fdb_entry_t *fdb_entry,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Multicast FDB method table retrieved with sai_api_query()
+ */
+const sai_mcast_fdb_api_t mcast_fdb_api=
+{
+    mrvl_create_mcast_fdb_entry,
+    mrvl_remove_mcast_fdb_entry,
+    mrvl_set_mcast_fdb_entry_attribute,
+    mrvl_get_mcast_fdb_entry_attribute
+};
+
+/**
+ * @brief Create bridge
+ *
+ * @param[out] bridge_id Bridge ID
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_bridge(
+        _Out_ sai_object_id_t* bridge_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove bridge
+ *
+ * @param[in] bridge_id Bridge ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_bridge(
+        _In_ sai_object_id_t bridge_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set attribute for bridge
+ *
+ * @param[in] bridge_id Bridge ID
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_bridge_attribute(
+        _In_ sai_object_id_t bridge_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get attributes of bridge
+ *
+ * @param[in] bridge_id Bridge ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_bridge_attribute(
+        _In_ sai_object_id_t bridge_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create bridge port
+ *
+ * @param[out] bridge_port_id Bridge port ID
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_create_bridge_port(
+        _Out_ sai_object_id_t* bridge_port_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove bridge port
+ *
+ * @param[in] bridge_port_id Bridge port ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_remove_bridge_port(
+        _In_ sai_object_id_t bridge_port_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set attribute for bridge port
+ *
+ * @param[in] bridge_port_id Bridge port ID
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_set_bridge_port_attribute(
+        _In_ sai_object_id_t bridge_port_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get attributes of bridge port
+ *
+ * @param[in] bridge_port_id Bridge port ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_get_bridge_port_attribute(
+        _In_ sai_object_id_t bridge_port_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Bridge methods table retrieved with sai_api_query()
+ */
+const sai_bridge_api_t bridge_api=
+{
+    mrvl_create_bridge,
+    mrvl_remove_bridge,
+    mrvl_set_bridge_attribute,
+    mrvl_get_bridge_attribute,
+    mrvl_create_bridge_port,
+    mrvl_remove_bridge_port,
+    mrvl_set_bridge_port_attribute,
+    mrvl_get_bridge_port_attribute
+} ;
+
 
 
 

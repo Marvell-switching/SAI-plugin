@@ -32,124 +32,124 @@
 
 
 
-/* define consecutive enumaration for sai trap IDs enum _sai_hostif_trap_id_t
+/* define consecutive enumaration for sai trap IDs enum _sai_hostif_trap_type_t
    when adding in sai new trap IDs need to update also this enumaration */
-typedef enum _sai_consecutive_hostif_trap_id_t
+typedef enum _sai_consecutive_hostif_trap_type_t
 {   
-    INTERNAL_SAI_HOSTIF_TRAP_ID_START, 
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_START, 
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_STP = INTERNAL_SAI_HOSTIF_TRAP_ID_START,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_STP = INTERNAL_SAI_HOSTIF_TRAP_TYPE_START,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_LACP,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_LACP,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_EAPOL,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_EAPOL,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_LLDP,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_LLDP,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_PVRST,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_PVRST,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_SAMPLEPACKET,    
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET,    
   
-    INTERNAL_SAI_HOSTIF_TRAP_ID_ARP_REQUEST,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_ARP_RESPONSE,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_DHCP,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_DHCP,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_OSPF,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_OSPF,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_PIM,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_PIM,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_VRRP,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_VRRP,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_BGP,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_BGP,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_DHCPV6,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_DHCPV6,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_OSPFV6,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_OSPFV6,
   
-    INTERNAL_SAI_HOSTIF_TRAP_ID_VRRPV6,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_VRRPV6,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_BGPV6,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_BGPV6,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_NEIGHBOR_DISCOVERY,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_NEIGHBOR_DISCOVERY,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_V2,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_V2,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_REPORT,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_REPORT,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_DONE,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_DONE,
     
-    INTERNAL_SAI_HOSTIF_TRAP_ID_MLD_V2_REPORT,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_MLD_V2_REPORT,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_IP2ME,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_IP2ME,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_SSH,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_SSH,
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_SNMP,   
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_SNMP,   
    
-    INTERNAL_SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR,
   
-    INTERNAL_SAI_HOSTIF_TRAP_ID_TTL_ERROR,
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_TTL_ERROR,
 
-    INTERNAL_SAI_HOSTIF_TRAP_ID_END    
+    INTERNAL_SAI_HOSTIF_TRAP_TYPE_END    
 
-} sai_consecutive_hostif_trap_id_t;
+} sai_consecutive_hostif_trap_type_t;
 
 /* check and convert sai trapid to consecutive internal trapid */
-inline uint32_t mrvl_sai_host_interface_conv_trap_id (_In_ sai_hostif_trap_id_t sai_trap_id)
+inline uint32_t mrvl_sai_host_interface_conv_trap_type (_In_ sai_hostif_trap_type_t sai_trap_type)
 {
-    switch(sai_trap_id)                                           
+    switch(sai_trap_type)                                           
     {                                                             
-    case SAI_HOSTIF_TRAP_ID_STP: return INTERNAL_SAI_HOSTIF_TRAP_ID_STP; break;             
-    case SAI_HOSTIF_TRAP_ID_LACP: return INTERNAL_SAI_HOSTIF_TRAP_ID_LACP; break;             
-    case SAI_HOSTIF_TRAP_ID_EAPOL: return INTERNAL_SAI_HOSTIF_TRAP_ID_EAPOL; break;             
-    case SAI_HOSTIF_TRAP_ID_LLDP: return INTERNAL_SAI_HOSTIF_TRAP_ID_LLDP; break;            
-    case SAI_HOSTIF_TRAP_ID_PVRST:  return INTERNAL_SAI_HOSTIF_TRAP_ID_PVRST; break;             
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY: return INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY; break;             
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE: return INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE; break;             
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT; break;             
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT; break;             
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT; break;             
-    case SAI_HOSTIF_TRAP_ID_SAMPLEPACKET: return INTERNAL_SAI_HOSTIF_TRAP_ID_SAMPLEPACKET; break;             
-    case SAI_HOSTIF_TRAP_ID_ARP_REQUEST: return INTERNAL_SAI_HOSTIF_TRAP_ID_ARP_REQUEST; break;             
-    case SAI_HOSTIF_TRAP_ID_ARP_RESPONSE: return INTERNAL_SAI_HOSTIF_TRAP_ID_ARP_RESPONSE; break;             
-    case SAI_HOSTIF_TRAP_ID_DHCP: return INTERNAL_SAI_HOSTIF_TRAP_ID_DHCP; break;             
-    case SAI_HOSTIF_TRAP_ID_OSPF: return INTERNAL_SAI_HOSTIF_TRAP_ID_OSPF; break;             
-    case SAI_HOSTIF_TRAP_ID_PIM: return INTERNAL_SAI_HOSTIF_TRAP_ID_PIM; break;             
-    case SAI_HOSTIF_TRAP_ID_VRRP: return INTERNAL_SAI_HOSTIF_TRAP_ID_VRRP; break;             
-    case SAI_HOSTIF_TRAP_ID_BGP: return INTERNAL_SAI_HOSTIF_TRAP_ID_BGP; break;             
-    case SAI_HOSTIF_TRAP_ID_DHCPV6: return INTERNAL_SAI_HOSTIF_TRAP_ID_DHCPV6; break;             
-    case SAI_HOSTIF_TRAP_ID_OSPFV6: return INTERNAL_SAI_HOSTIF_TRAP_ID_OSPFV6; break;             
-    case SAI_HOSTIF_TRAP_ID_VRRPV6: return INTERNAL_SAI_HOSTIF_TRAP_ID_VRRPV6; break;             
-    case SAI_HOSTIF_TRAP_ID_BGPV6: return INTERNAL_SAI_HOSTIF_TRAP_ID_BGPV6; break;             
-    case SAI_HOSTIF_TRAP_ID_IPV6_NEIGHBOR_DISCOVERY: return INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_NEIGHBOR_DISCOVERY; break;             
-    case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_V2: return INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_V2; break;             
-    case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_REPORT; break;             
-    case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_DONE:  return INTERNAL_SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_DONE; break;             
-    case SAI_HOSTIF_TRAP_ID_MLD_V2_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_ID_MLD_V2_REPORT; break;             
-    case SAI_HOSTIF_TRAP_ID_IP2ME: return INTERNAL_SAI_HOSTIF_TRAP_ID_IP2ME; break;             
-    case SAI_HOSTIF_TRAP_ID_SSH: return INTERNAL_SAI_HOSTIF_TRAP_ID_SSH; break;             
-    case SAI_HOSTIF_TRAP_ID_SNMP: return INTERNAL_SAI_HOSTIF_TRAP_ID_SNMP; break;             
-    case SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR: return INTERNAL_SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR; break;             
-    case SAI_HOSTIF_TRAP_ID_TTL_ERROR: return INTERNAL_SAI_HOSTIF_TRAP_ID_TTL_ERROR; break;             
+    case SAI_HOSTIF_TRAP_TYPE_STP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_STP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_LACP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_LACP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_EAPOL: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_EAPOL; break;             
+    case SAI_HOSTIF_TRAP_TYPE_LLDP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_LLDP; break;            
+    case SAI_HOSTIF_TRAP_TYPE_PVRST:  return INTERNAL_SAI_HOSTIF_TRAP_TYPE_PVRST; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT; break;             
+    case SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET; break;             
+    case SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST; break;             
+    case SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE; break;             
+    case SAI_HOSTIF_TRAP_TYPE_DHCP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_DHCP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_OSPF: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_OSPF; break;             
+    case SAI_HOSTIF_TRAP_TYPE_PIM: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_PIM; break;             
+    case SAI_HOSTIF_TRAP_TYPE_VRRP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_VRRP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_BGP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_BGP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_DHCPV6: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_DHCPV6; break;             
+    case SAI_HOSTIF_TRAP_TYPE_OSPFV6: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_OSPFV6; break;             
+    case SAI_HOSTIF_TRAP_TYPE_VRRPV6: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_VRRPV6; break;             
+    case SAI_HOSTIF_TRAP_TYPE_BGPV6: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_BGPV6; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IPV6_NEIGHBOR_DISCOVERY: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_NEIGHBOR_DISCOVERY; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_V2: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_V2; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_REPORT; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_DONE:  return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_DONE; break;             
+    case SAI_HOSTIF_TRAP_TYPE_MLD_V2_REPORT: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_MLD_V2_REPORT; break;             
+    case SAI_HOSTIF_TRAP_TYPE_IP2ME: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_IP2ME; break;             
+    case SAI_HOSTIF_TRAP_TYPE_SSH: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_SSH; break;             
+    case SAI_HOSTIF_TRAP_TYPE_SNMP: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_SNMP; break;             
+    case SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR; break;             
+    case SAI_HOSTIF_TRAP_TYPE_TTL_ERROR: return INTERNAL_SAI_HOSTIF_TRAP_TYPE_TTL_ERROR; break;             
     default: return SAI_STATUS_INVALID_PARAMETER; break;                             
     } 
 }
                               
 /* convert sai trapid to consecutive internal trapid */
-#define PRV_CONVERT_INTERNAL_TRAP_ID_MAC(_sai_trap_id, _internal_trap_id) \
-    _internal_trap_id = mrvl_sai_host_interface_conv_trap_id(_sai_trap_id)
+#define PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(_sai_trap_type, _internal_trap_type) \
+    _internal_trap_type = mrvl_sai_host_interface_conv_trap_type(_sai_trap_type)
 
 
 typedef struct _mrvl_sai_hostif_set_entry_t {
@@ -173,12 +173,12 @@ typedef struct _mrvl_sai_hostif_trap_entry_t {
     uint32_t vlanList_count;    /* number of vlans in linked list */
 } mrvl_sai_hostif_trap_entry_t; 
    
-static mrvl_sai_hostif_trap_entry_t mrvl_sai_hostif_trap_table[INTERNAL_SAI_HOSTIF_TRAP_ID_END] = {};
+static mrvl_sai_hostif_trap_entry_t mrvl_sai_hostif_trap_table[INTERNAL_SAI_HOSTIF_TRAP_TYPE_END] = {};
 
 static const sai_attribute_entry_t host_interface_attribs[] = {
     { SAI_HOSTIF_ATTR_TYPE, true, true, false, true,
       "Host interface type", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_HOSTIF_ATTR_RIF_OR_PORT_ID, false, true, false, true,
+    { SAI_HOSTIF_ATTR_OBJ_ID, false, true, false, true,
       "Host interface associated port or router interface", SAI_ATTR_VAL_TYPE_OID },
     { SAI_HOSTIF_ATTR_NAME, true, true, true, true,
       "Host interface name", SAI_ATTR_VAL_TYPE_CHARDATA },
@@ -223,7 +223,7 @@ static const sai_vendor_attribute_entry_t host_interface_vendor_attribs[] = {
       { true, false, false, true },
       mrvl_sai_host_interface_type_get, NULL,
       NULL, NULL },
-    { SAI_HOSTIF_ATTR_RIF_OR_PORT_ID,
+    { SAI_HOSTIF_ATTR_OBJ_ID,
       { true, false, false, true },
       { true, false, false, true },
       mrvl_sai_host_interface_rif_port_get, NULL,
@@ -244,7 +244,7 @@ static void mrvl_sai_host_interface_key_to_str(_In_ sai_object_id_t hif_id, _Out
 {
     uint32_t hif_data;
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(hif_id, SAI_OBJECT_TYPE_HOST_INTERFACE, &hif_data)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(hif_id, SAI_OBJECT_TYPE_HOSTIF, &hif_data)) {
         snprintf(key_str, MAX_KEY_STR_LEN, "invalid host interface");
     } else {
         snprintf(key_str, MAX_KEY_STR_LEN, "host interface %u", hif_data);
@@ -256,12 +256,14 @@ static const sai_attribute_entry_t host_interface_trap_attribs[] = {
       "trap action", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_PRIORITY, false, false, false, false,
       "trap priority", SAI_ATTR_VAL_TYPE_U32 },
-    { SAI_HOSTIF_TRAP_ATTR_TRAP_CHANNEL, false, false, true, true,
+/*    { SAI_HOSTIF_TRAP_ATTR_TRAP_CHANNEL, false, false, true, true,
       "trap channel to use", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_HOSTIF_TRAP_ATTR_FD, false, false, false, false,
       "file descriptor", SAI_ATTR_VAL_TYPE_U64 },
     { SAI_HOSTIF_TRAP_ATTR_PORT_LIST, false, false, true, true,
       "enable trap for a list of SAI ports", SAI_ATTR_VAL_TYPE_OBJLIST },
+*/
+
     { SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP, false, false, false, false,
       "trap-group ID for the trap", SAI_ATTR_VAL_TYPE_U64 },  
     { SAI_HOSTIF_TRAP_ATTR_VLAN_LIST, false, false, true, true,
@@ -322,6 +324,7 @@ static const sai_vendor_attribute_entry_t host_interface_trap_vendor_attribs[] =
       { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
+/* TODO need to support new attributes
     { SAI_HOSTIF_TRAP_ATTR_TRAP_CHANNEL,
       { false, false, true, true },
       { false, false, true, true },
@@ -337,6 +340,7 @@ static const sai_vendor_attribute_entry_t host_interface_trap_vendor_attribs[] =
       { false, false, true, true },
       mrvl_hostif_trap_port_list_get, NULL,
       mrvl_hostif_trap_port_list_set, NULL },
+*/
     { SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP,
       { false, false, false, false },
       { false, false, false, false },
@@ -349,7 +353,7 @@ static const sai_vendor_attribute_entry_t host_interface_trap_vendor_attribs[] =
       mrvl_hostif_trap_vlan_list_set, NULL },
 };
 
-static void mrvl_sai_host_interface_trap_key_to_str(_In_ sai_hostif_trap_id_t hostif_trapid, _Out_ char *key_str)
+static void mrvl_sai_host_interface_trap_key_to_str(_In_ sai_hostif_trap_type_t hostif_trapid, _Out_ char *key_str)
 {    
     snprintf(key_str, MAX_KEY_STR_LEN, "host interface trap id 0x%x\n", hostif_trapid);
 }
@@ -468,22 +472,24 @@ void * mrvl_sai_asic_listen(void * arg)
 	return NULL;
 }
 
-/*
- * Routine Description:
- *    Create host interface.
+/**
+
+ * @brief Create host interface
  *
- * Arguments:
- *    [out] hif_id - host interface id
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
+ * @param[out] hif_id Host interface id
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
  */
+
 sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
-                                        _In_ uint32_t               attr_count,
-                                        _In_ const sai_attribute_t *attr_list)
+                                            _In_ sai_object_id_t        switch_id,
+                                            _In_ uint32_t               attr_count,
+                                            _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
     const sai_attribute_value_t *type, *rif_port, *name;
@@ -522,7 +528,7 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
     if (SAI_HOSTIF_TYPE_NETDEV == type->s32) {
         if (SAI_STATUS_SUCCESS !=
             (status =
-                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_ATTR_RIF_OR_PORT_ID, &rif_port,
+                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_ATTR_OBJ_ID, &rif_port,
                                      &rif_port_index))) {
             MRVL_SAI_LOG_ERR("Missing mandatory attribute rif port id on create of host if netdev type\n");
             MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
@@ -581,6 +587,8 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
     		FD_SET(fd, &read_fd_set);
     		pthread_mutex_unlock(&lock);
     		host_fd[rif_data].valid = 1;
+            /* default port oper status should be down */
+            mrvl_sai_netdev_set_carrier(rif_data,0);
     		if ( read_fd_num == 0)
     		{
     			err = pthread_create(&thread_tap, NULL, mrvl_sai_tap_listen, NULL);
@@ -602,7 +610,7 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
         MRVL_SAI_API_RETURN(status);
     }
    
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOST_INTERFACE, next_id++, hif_id))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOSTIF, next_id++, hif_id))) {
         MRVL_SAI_API_RETURN(status);
     }
     mrvl_sai_host_interface_key_to_str(*hif_id, key_str);
@@ -612,17 +620,16 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Remove host interface
+/**
+
+ * @brief Remove host interface
  *
- * Arguments:
- *    [in] hif_id - host interface id
+ * @param[in] hif_id Host interface id
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ 
  */
+
 sai_status_t mrvl_sai_remove_host_interface(_In_ sai_object_id_t hif_id)
 {
     char         key_str[MAX_KEY_STR_LEN];
@@ -634,7 +641,7 @@ sai_status_t mrvl_sai_remove_host_interface(_In_ sai_object_id_t hif_id)
     mrvl_sai_host_interface_key_to_str(hif_id, key_str);
     MRVL_SAI_LOG_NTC("Remove host interface %s\n", key_str);
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(hif_id, SAI_OBJECT_TYPE_HOST_INTERFACE, &hif_data))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(hif_id, SAI_OBJECT_TYPE_HOSTIF, &hif_data))) {
     	MRVL_SAI_API_RETURN(status);
     }
 
@@ -642,21 +649,23 @@ sai_status_t mrvl_sai_remove_host_interface(_In_ sai_object_id_t hif_id)
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Set host interface attribute
+/**
+
+
+ * @brief Set host interface attribute
  *
- * Arguments:
- *    [in] hif_id - host interface id
- *    [in] attr - attribute
+ * @param[in] hif_id Host interface id
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_set_host_interface_attribute(_In_ sai_object_id_t hif_id, _In_ const sai_attribute_t *attr)
 {
-    const sai_object_key_t key = { .object_id = hif_id };
+    const sai_object_key_t key = { .key.object_id = hif_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t		   status;
 
@@ -667,24 +676,24 @@ sai_status_t mrvl_sai_set_host_interface_attribute(_In_ sai_object_id_t hif_id, 
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
- * Routine Description:
- *    Get host interface attribute
+/**
+
+
+ * @brief Get host interface attribute
  *
- * Arguments:
- *    [in] hif_id - host interface id
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
+ * @param[in] hif_id Host interface id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
  */
+
 sai_status_t mrvl_sai_get_host_interface_attribute(_In_ sai_object_id_t     hif_id,
                                                _In_ uint32_t            attr_count,
                                                _Inout_ sai_attribute_t *attr_list)
 {
-    const sai_object_key_t key = { .object_id = hif_id };
+    const sai_object_key_t key = { .key.object_id = hif_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t			status;
 
@@ -749,7 +758,7 @@ sai_status_t mrvl_sai_host_interface_name_get(_In_ const sai_object_key_t   *key
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_HOST_INTERFACE, &hif_id))) {
+        (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hif_id))) {
         return status;
     }
 
@@ -772,7 +781,7 @@ sai_status_t mrvl_sai_host_interface_name_set(_In_ const sai_object_key_t      *
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_HOST_INTERFACE, &hif_id))) {
+        (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hif_id))) {
         return status;
     }
 
@@ -806,57 +815,57 @@ sai_status_t mrvl_sai_host_interface_oper_set(_In_ const sai_object_key_t      *
 
 
 /* convert trap entry type from SAI to FPA */
-static sai_status_t mrvl_sai_host_interface_trap_conv_entry_type(_In_  sai_hostif_trap_id_t hostif_trapid,                                                               
+static sai_status_t mrvl_sai_host_interface_trap_conv_entry_type(_In_  sai_hostif_trap_type_t hostif_trapid,                                                               
                                                                  _Out_ FPA_CONTROL_PKTS_ENTRY_TYPE_ENT *entry_type)
 {
     switch(hostif_trapid) {
-        case SAI_HOSTIF_TRAP_ID_STP:
-        case SAI_HOSTIF_TRAP_ID_LACP:
-        case SAI_HOSTIF_TRAP_ID_LLDP:
+        case SAI_HOSTIF_TRAP_TYPE_STP:
+        case SAI_HOSTIF_TRAP_TYPE_LACP:
+        case SAI_HOSTIF_TRAP_TYPE_LLDP:
             *entry_type = FPA_CONTROL_PKTS_TYPE_IEEE_RESERVED_MULTICAST_E;                      
             break;
 
-        case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY:
-        case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE:
-        case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT:
-        case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT:
-        case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT:
+        case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY:
+        case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE:
+        case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT:
+        case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT:
+        case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT:
             *entry_type = FPA_CONTROL_PKTS_TYPE_IGMP_CTRL_MESSAGES_E;                    
             break;
 
-        case SAI_HOSTIF_TRAP_ID_ARP_REQUEST:
-        case SAI_HOSTIF_TRAP_ID_ARP_RESPONSE:
+        case SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST:
+        case SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE:
             *entry_type = FPA_CONTROL_PKTS_TYPE_ARP_REQUEST_MESSAGES_E;       
             break;
 
-        case SAI_HOSTIF_TRAP_ID_DHCP:
+        case SAI_HOSTIF_TRAP_TYPE_DHCP:
             *entry_type = FPA_CONTROL_PKTS_TYPE_UDP_BROADCAST_CTRL_E;
             break;
 
-        case SAI_HOSTIF_TRAP_ID_OSPF:
-        case SAI_HOSTIF_TRAP_ID_PIM:
-        case SAI_HOSTIF_TRAP_ID_VRRP:
-        case SAI_HOSTIF_TRAP_ID_BGP:
+        case SAI_HOSTIF_TRAP_TYPE_OSPF:
+        case SAI_HOSTIF_TRAP_TYPE_PIM:
+        case SAI_HOSTIF_TRAP_TYPE_VRRP:
+        case SAI_HOSTIF_TRAP_TYPE_BGP:
             *entry_type = FPA_CONTROL_PKTS_TYPE_PROPRIETRY_L2_MULTICAST_E;               
             break;
 
-        case SAI_HOSTIF_TRAP_ID_DHCPV6:
-        case SAI_HOSTIF_TRAP_ID_OSPFV6:
-        case SAI_HOSTIF_TRAP_ID_VRRPV6:
-        case SAI_HOSTIF_TRAP_ID_BGPV6:
-        case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_V2:
-        case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_REPORT:
-        case SAI_HOSTIF_TRAP_ID_IPV6_MLD_V1_DONE:
-        case SAI_HOSTIF_TRAP_ID_MLD_V2_REPORT:
+        case SAI_HOSTIF_TRAP_TYPE_DHCPV6:
+        case SAI_HOSTIF_TRAP_TYPE_OSPFV6:
+        case SAI_HOSTIF_TRAP_TYPE_VRRPV6:
+        case SAI_HOSTIF_TRAP_TYPE_BGPV6:
+        case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_V2:
+        case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_REPORT:
+        case SAI_HOSTIF_TRAP_TYPE_IPV6_MLD_V1_DONE:
+        case SAI_HOSTIF_TRAP_TYPE_MLD_V2_REPORT:
             *entry_type = FPA_CONTROL_PKTS_TYPE_IPV6_MLD_ICMP_MESSAGES_E;        
             break;    
 
-        case SAI_HOSTIF_TRAP_ID_SAMPLEPACKET: /* TODO: Vitally need to define */
-        case SAI_HOSTIF_TRAP_ID_EAPOL: /* TODO: Vitally need to define */
-        case SAI_HOSTIF_TRAP_ID_PVRST: /* TODO: Vitally need to define */
-        case SAI_HOSTIF_TRAP_ID_IPV6_NEIGHBOR_DISCOVERY: /* TODO: Phase 2 */
-        case SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR: /* TODO: Vitally need to define */
-        case SAI_HOSTIF_TRAP_ID_TTL_ERROR: /* TODO: Vitally need to define */
+        case SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET: /* TODO: Vitally need to define */
+        case SAI_HOSTIF_TRAP_TYPE_EAPOL: /* TODO: Vitally need to define */
+        case SAI_HOSTIF_TRAP_TYPE_PVRST: /* TODO: Vitally need to define */
+        case SAI_HOSTIF_TRAP_TYPE_IPV6_NEIGHBOR_DISCOVERY: /* TODO: Phase 2 */
+        case SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR: /* TODO: Vitally need to define */
+        case SAI_HOSTIF_TRAP_TYPE_TTL_ERROR: /* TODO: Vitally need to define */
         default:
             MRVL_SAI_LOG_ERR("host trap id %d is not supported\n", hostif_trapid);        
             return SAI_STATUS_NOT_SUPPORTED;
@@ -866,17 +875,17 @@ static sai_status_t mrvl_sai_host_interface_trap_conv_entry_type(_In_  sai_hosti
 
 
 /* check validity for trap entry type attribute port/vlan_list */
-sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hostif_trap_id_t hostif_trapid,                                                               
+sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hostif_trap_type_t hostif_trapid,                                                               
                                                                  _Out_ bool *isSupported)
 {
     switch(hostif_trapid) {
-    case SAI_HOSTIF_TRAP_ID_STP:
-    case SAI_HOSTIF_TRAP_ID_LACP:
-    case SAI_HOSTIF_TRAP_ID_LLDP:
-    case SAI_HOSTIF_TRAP_ID_OSPF:
-    case SAI_HOSTIF_TRAP_ID_PIM:
-    case SAI_HOSTIF_TRAP_ID_VRRP:
-    case SAI_HOSTIF_TRAP_ID_BGP:
+    case SAI_HOSTIF_TRAP_TYPE_STP:
+    case SAI_HOSTIF_TRAP_TYPE_LACP:
+    case SAI_HOSTIF_TRAP_TYPE_LLDP:
+    case SAI_HOSTIF_TRAP_TYPE_OSPF:
+    case SAI_HOSTIF_TRAP_TYPE_PIM:
+    case SAI_HOSTIF_TRAP_TYPE_VRRP:
+    case SAI_HOSTIF_TRAP_TYPE_BGP:
         *isSupported = false;
         break;
     default: 
@@ -888,7 +897,7 @@ sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hosti
 }
 
 /* check validity for trap entry type attribute port/vlan_list then convert form SAI to FPA */
-static sai_status_t mrvl_sai_host_interface_trap_check_entry_type(_In_  sai_hostif_trap_id_t hostif_trapid,                                                               
+static sai_status_t mrvl_sai_host_interface_trap_check_entry_type(_In_  sai_hostif_trap_type_t hostif_trapid,                                                               
                                                                   _Out_ FPA_CONTROL_PKTS_ENTRY_TYPE_ENT *entry_type)
 {
     sai_status_t status; 
@@ -910,29 +919,29 @@ static sai_status_t mrvl_sai_host_interface_trap_check_entry_type(_In_  sai_host
 }
 
 /* set default trap action command for SAI */
-static sai_status_t mrvl_sai_host_interface_trap_set_default_action(_In_ sai_hostif_trap_id_t hostif_trapid,                                                               
+static sai_status_t mrvl_sai_host_interface_trap_set_default_action(_In_ sai_hostif_trap_type_t hostif_trapid,                                                               
                                                                     _Inout_ FPA_FLOW_TABLE_ENTRY_STC *flowEntry)                                                                
 {  
     switch(hostif_trapid) {
-    case SAI_HOSTIF_TRAP_ID_STP:
-    case SAI_HOSTIF_TRAP_ID_LACP:
-    case SAI_HOSTIF_TRAP_ID_EAPOL: 
-    case SAI_HOSTIF_TRAP_ID_LLDP:
-    case SAI_HOSTIF_TRAP_ID_PVRST:
+    case SAI_HOSTIF_TRAP_TYPE_STP:
+    case SAI_HOSTIF_TRAP_TYPE_LACP:
+    case SAI_HOSTIF_TRAP_TYPE_EAPOL: 
+    case SAI_HOSTIF_TRAP_TYPE_LLDP:
+    case SAI_HOSTIF_TRAP_TYPE_PVRST:
         /* trap action command drop */
         flowEntry->data.control_pkt.clearActions = 1; /* drop */
         flowEntry->data.control_pkt.outputPort = 0;   /* not trap */
         flowEntry->data.control_pkt.gotoTableNo = 0;  
         break;
 
-    case SAI_HOSTIF_TRAP_ID_SAMPLEPACKET:
-    case SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR:
-    case SAI_HOSTIF_TRAP_ID_TTL_ERROR: 
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY: /* TODO: temp vitaly need to change default action for IGMP */
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET:
+    case SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR:
+    case SAI_HOSTIF_TRAP_TYPE_TTL_ERROR: 
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY: /* TODO: temp vitaly need to change default action for IGMP */
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT:
 
         /* trap action command trap */
         flowEntry->data.control_pkt.clearActions = 0; /* not drop */
@@ -952,27 +961,27 @@ static sai_status_t mrvl_sai_host_interface_trap_set_default_action(_In_ sai_hos
 }
 
 /* get default trap action command for SAI */
-sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_trap_id_t hostif_trapid,                                                               
+sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_trap_type_t hostif_trapid,                                                               
                                                              _Out_ sai_packet_action_t *action)                                                                
 {  
     switch(hostif_trapid) {
-    case SAI_HOSTIF_TRAP_ID_STP:
-    case SAI_HOSTIF_TRAP_ID_LACP:
-    case SAI_HOSTIF_TRAP_ID_EAPOL: 
-    case SAI_HOSTIF_TRAP_ID_LLDP:
-    case SAI_HOSTIF_TRAP_ID_PVRST:
+    case SAI_HOSTIF_TRAP_TYPE_STP:
+    case SAI_HOSTIF_TRAP_TYPE_LACP:
+    case SAI_HOSTIF_TRAP_TYPE_EAPOL: 
+    case SAI_HOSTIF_TRAP_TYPE_LLDP:
+    case SAI_HOSTIF_TRAP_TYPE_PVRST:
 
         *action = SAI_PACKET_ACTION_DROP;
         break;        
 
-    case SAI_HOSTIF_TRAP_ID_SAMPLEPACKET:
-    case SAI_HOSTIF_TRAP_ID_L3_MTU_ERROR:
-    case SAI_HOSTIF_TRAP_ID_TTL_ERROR: 
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_QUERY: /* TODO: temp vitaly need to change default action for IGMP */
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_LEAVE:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V1_REPORT:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V2_REPORT:
-    case SAI_HOSTIF_TRAP_ID_IGMP_TYPE_V3_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET:
+    case SAI_HOSTIF_TRAP_TYPE_L3_MTU_ERROR:
+    case SAI_HOSTIF_TRAP_TYPE_TTL_ERROR: 
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_QUERY: /* TODO: temp vitaly need to change default action for IGMP */
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_LEAVE:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V1_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V2_REPORT:
+    case SAI_HOSTIF_TRAP_TYPE_IGMP_TYPE_V3_REPORT:
 
         *action = SAI_PACKET_ACTION_TRAP;
         break;      
@@ -985,7 +994,7 @@ sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_tra
     return SAI_STATUS_SUCCESS;
 }
 
-static sai_status_t mrvl_sai_host_interface_trap_flow_entry_set(_In_ sai_hostif_trap_id_t hostif_trapid,                                                               
+static sai_status_t mrvl_sai_host_interface_trap_flow_entry_set(_In_ sai_hostif_trap_type_t hostif_trapid,                                                               
                                                                 _Inout_ FPA_FLOW_TABLE_ENTRY_STC *flowEntry)                                                                
 {
     sai_status_t status;   
@@ -1032,11 +1041,11 @@ static sai_status_t mrvl_sai_host_interface_trap_flow_entry_set(_In_ sai_hostif_
         flowEntry->data.control_pkt.match.dstL4PortMask = 0;
         flowEntry->data.control_pkt.match.icmpV6TypeMask = 0;
 
-        if (hostif_trapid == SAI_HOSTIF_TRAP_ID_LLDP) 
+        if (hostif_trapid == SAI_HOSTIF_TRAP_TYPE_LLDP) 
             flowEntry->data.control_pkt.match.dstMac.addr[5] = 0xE;
-        else if(hostif_trapid == SAI_HOSTIF_TRAP_ID_STP) 
+        else if(hostif_trapid == SAI_HOSTIF_TRAP_TYPE_STP) 
             flowEntry->data.control_pkt.match.dstMac.addr[5] = 0;
-        else if(hostif_trapid == SAI_HOSTIF_TRAP_ID_LACP) 
+        else if(hostif_trapid == SAI_HOSTIF_TRAP_TYPE_LACP) 
             flowEntry->data.control_pkt.match.dstMac.addr[5] = 2;
 
         break;
@@ -1132,7 +1141,7 @@ static sai_status_t mrvl_sai_host_interface_trap_flow_entry_set(_In_ sai_hostif_
     return SAI_STATUS_SUCCESS;
 }
 
-static sai_status_t mrvl_sai_host_interface_trap_action_set(_In_ sai_hostif_trap_id_t hostif_trapid,
+static sai_status_t mrvl_sai_host_interface_trap_action_set(_In_ sai_hostif_trap_type_t hostif_traptype,
                                                             _In_ const sai_attribute_value_t *value,
                                                             _In_ FPA_FLOW_TABLE_ENTRY_STC *flowEntry,
                                                             _In_ uint32_t intf_type,
@@ -1140,9 +1149,9 @@ static sai_status_t mrvl_sai_host_interface_trap_action_set(_In_ sai_hostif_trap
 {     
     FPA_STATUS fpa_status;   
     uint64_t cookie; 
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid;     
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype;     
 
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(hostif_trapid,internal_hostif_trapid);
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);
       
     cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(flowEntry->data.control_pkt.entry_type, intf_type, portVlan, 0 /*data*/);
     flowEntry->cookie = cookie; 
@@ -1154,7 +1163,7 @@ static sai_status_t mrvl_sai_host_interface_trap_action_set(_In_ sai_hostif_trap
     }       
 
     /* trap action [sai_packet_action_t] */   
-    switch (mrvl_sai_hostif_trap_table[internal_hostif_trapid].action) {
+    switch (mrvl_sai_hostif_trap_table[internal_hostif_traptype].action) {
     case SAI_PACKET_ACTION_DROP:    /** Drop Packet in data plane */   
     case SAI_PACKET_ACTION_DENY:    /** This is a combination of sai packet action COPY_CANCEL and DROP */
         flowEntry->data.control_pkt.clearActions = 1; /* drop */
@@ -1209,7 +1218,7 @@ inline static sai_status_t mrvl_sai_host_interface_trap_list_prv_set(_Inout_ FPA
     return SAI_STATUS_SUCCESS;
 }
 
-static sai_status_t mrvl_sai_host_interface_trap_list_set(_In_ sai_hostif_trap_id_t hostif_trapid,                                                               
+static sai_status_t mrvl_sai_host_interface_trap_list_set(_In_ sai_hostif_trap_type_t hostif_trapid,                                                               
                                                           _Inout_ FPA_FLOW_TABLE_ENTRY_STC *flowEntry,
                                                           _In_ uint32_t intf_type,
                                                           _In_ uint32_t portVlan)
@@ -1270,19 +1279,21 @@ sai_status_t mrvl_hostif_trap_action_set(_In_ const sai_object_key_t *key,
                                          void *arg)
 {
     sai_status_t status;       
-    sai_hostif_trap_id_t hostif_trapid;   
+    sai_hostif_trap_type_t hostif_trapid;   
     uint32_t portVlan, i;
     FPA_FLOW_TABLE_ENTRY_STC flowEntry;
     sai_packet_action_t old_action;
     mrvl_sai_hostif_list_entry_t *entryPtr;  
     mrvl_sai_utl_dlist_elem_STC *element;  
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid; 
+    sai_consecutive_hostif_trap_type_t internal_hostif_trapid; 
 
     MRVL_SAI_LOG_ENTER();
 
-    hostif_trapid = key->data;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_trapid))) {
+    	MRVL_SAI_API_RETURN(status);
+    }
     
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(hostif_trapid,internal_hostif_trapid); 
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_trapid,internal_hostif_trapid); 
 
     /* convert trap entry type from SAI to FPA */
     if (SAI_STATUS_SUCCESS !=
@@ -1293,18 +1304,18 @@ sai_status_t mrvl_hostif_trap_action_set(_In_ const sai_object_key_t *key,
     }      
 
     switch(hostif_trapid) {    
-    case SAI_HOSTIF_TRAP_ID_ARP_REQUEST:   
-    case SAI_HOSTIF_TRAP_ID_ARP_RESPONSE: 
+    case SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST:   
+    case SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE: 
         /* do nothing */       
         return SAI_STATUS_SUCCESS;
         break;
-    case SAI_HOSTIF_TRAP_ID_STP:
-    case SAI_HOSTIF_TRAP_ID_LACP:
-    case SAI_HOSTIF_TRAP_ID_LLDP:  
-    case SAI_HOSTIF_TRAP_ID_OSPF:
-    case SAI_HOSTIF_TRAP_ID_PIM:
-    case SAI_HOSTIF_TRAP_ID_VRRP:
-    case SAI_HOSTIF_TRAP_ID_BGP:               
+    case SAI_HOSTIF_TRAP_TYPE_STP:
+    case SAI_HOSTIF_TRAP_TYPE_LACP:
+    case SAI_HOSTIF_TRAP_TYPE_LLDP:  
+    case SAI_HOSTIF_TRAP_TYPE_OSPF:
+    case SAI_HOSTIF_TRAP_TYPE_PIM:
+    case SAI_HOSTIF_TRAP_TYPE_VRRP:
+    case SAI_HOSTIF_TRAP_TYPE_BGP:               
         portVlan = 0; /* not relevant */  
         if (mrvl_sai_hostif_trap_table[internal_hostif_trapid].action != value->s32) {
             /* update with new action */
@@ -1393,18 +1404,24 @@ sai_status_t mrvl_hostif_trap_action_get(_In_ const sai_object_key_t   *key,
                                          _Inout_ vendor_cache_t        *cache,
                                          void                          *arg)
 {    
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid; 
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype; 
+    sai_hostif_trap_type_t hostif_traptype; 
+    sai_status_t status;    
 
     MRVL_SAI_LOG_ENTER();
 
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(key->data,internal_hostif_trapid);   
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_traptype))) {
+        MRVL_SAI_API_RETURN(status);
+    }
 
-    if (key->data == SAI_HOSTIF_TRAP_ID_ARP_REQUEST || key->data == SAI_HOSTIF_TRAP_ID_ARP_RESPONSE) {
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);   
+
+    if (hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST || hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE) {
         value->s32 = SAI_PACKET_ACTION_TRAP;
     }
     else
     {
-        value->s32 = mrvl_sai_hostif_trap_table[internal_hostif_trapid].action;    
+        value->s32 = mrvl_sai_hostif_trap_table[internal_hostif_traptype].action;    
     }
 
     MRVL_SAI_LOG_EXIT();
@@ -1438,7 +1455,7 @@ static sai_status_t mrvl_sai_host_interface_trap_list_delete(_In_ FPA_FLOW_TABLE
     return SAI_STATUS_SUCCESS;
 }
 
-static sai_status_t mrvl_hostif_trap_list_set(_In_ sai_hostif_trap_id_t hostif_trapid,
+static sai_status_t mrvl_hostif_trap_list_set(_In_ sai_hostif_trap_type_t hostif_trapid,
                                               _In_ const sai_attribute_value_t *value,                                             
                                               _Inout_ uint32_t *list_count,
                                               _Inout_ mrvl_sai_utl_dlist_elem_STC *list_header,
@@ -1452,11 +1469,11 @@ static sai_status_t mrvl_hostif_trap_list_set(_In_ sai_hostif_trap_id_t hostif_t
     uint32_t elementFound, list_counter;    
     bool action_not_set;
     bool init_db;
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid; 
+    sai_consecutive_hostif_trap_type_t internal_hostif_trapid; 
     
     MRVL_SAI_LOG_ENTER();    
 
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(hostif_trapid,internal_hostif_trapid);
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_trapid,internal_hostif_trapid);
     
     /* check validity for trap entry type attribute port/vlan_list then convert form SAI to FPA */
     if (SAI_STATUS_SUCCESS !=
@@ -1609,28 +1626,34 @@ static sai_status_t mrvl_hostif_trap_list_set(_In_ sai_hostif_trap_id_t hostif_t
 
 }
 
+#if 0
 /** enable trap for a list of SAI ports [sai_object_list_t] */
 sai_status_t mrvl_hostif_trap_port_list_set(_In_ const sai_object_key_t *key,
                                             _In_ const sai_attribute_value_t *value,
                                             void *arg)
 {
     sai_status_t status;  
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid;         
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype;  
+    sai_hostif_trap_type_t hostif_traptype;       
     
-    MRVL_SAI_LOG_ENTER();    
+    MRVL_SAI_LOG_ENTER(); 
+       
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_traptype))) {
+        MRVL_SAI_API_RETURN(status);
+    }
                                              
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(key->data,internal_hostif_trapid);
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);
 
-    if (key->data == SAI_HOSTIF_TRAP_ID_ARP_REQUEST || key->data == SAI_HOSTIF_TRAP_ID_ARP_RESPONSE) {
+    if (hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST || hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE) {
         /* do nothing */
         return SAI_STATUS_SUCCESS;
     }
 
     if (SAI_STATUS_SUCCESS !=
         (status =
-            mrvl_hostif_trap_list_set(key->data, value, &mrvl_sai_hostif_trap_table[internal_hostif_trapid].portList_count,
-                                      &mrvl_sai_hostif_trap_table[internal_hostif_trapid].hostif_portlist_header, 0 /* port */))) {
-        MRVL_SAI_LOG_ERR("trap enable for port list failed for trap id %d\n",key->data);
+            mrvl_hostif_trap_list_set(hostif_traptype, value, &mrvl_sai_hostif_trap_table[internal_hostif_traptype].portList_count,
+                                      &mrvl_sai_hostif_trap_table[internal_hostif_traptype].hostif_portlist_header, 0 /* port */))) {
+        MRVL_SAI_LOG_ERR("trap enable for port list failed for trap id %d\n",hostif_traptype);
         return status;
     }         
    
@@ -1638,7 +1661,7 @@ sai_status_t mrvl_hostif_trap_port_list_set(_In_ const sai_object_key_t *key,
     return SAI_STATUS_SUCCESS;
 
 }
-
+#endif
 static sai_status_t mrvl_hostif_trap_list_get(_Inout_ sai_attribute_value_t *value,
                                               _In_ uint32_t list_count,
                                               _In_ mrvl_sai_utl_dlist_elem_STC list_header)
@@ -1658,7 +1681,7 @@ static sai_status_t mrvl_hostif_trap_list_get(_Inout_ sai_attribute_value_t *val
     return SAI_STATUS_SUCCESS;
 
 }
-
+#if 0
 /** enable trap for a list of SAI ports [sai_object_list_t] */
 sai_status_t mrvl_hostif_trap_port_list_get(_In_ const sai_object_key_t   *key,
                                             _Inout_ sai_attribute_value_t *value,
@@ -1666,48 +1689,58 @@ sai_status_t mrvl_hostif_trap_port_list_get(_In_ const sai_object_key_t   *key,
                                             _Inout_ vendor_cache_t        *cache,
                                             void                          *arg)
 {         
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid;         
+    sai_status_t status;  
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype;  
+    sai_hostif_trap_type_t hostif_traptype;       
     
     MRVL_SAI_LOG_ENTER();    
                                              
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(key->data,internal_hostif_trapid);         
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_traptype))) {
+        MRVL_SAI_API_RETURN(status);
+    }
 
-    if (key->data == SAI_HOSTIF_TRAP_ID_ARP_REQUEST || key->data == SAI_HOSTIF_TRAP_ID_ARP_RESPONSE) {
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);         
+
+    if (hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST || hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE) {
         /* do nothing */
         return SAI_STATUS_NOT_SUPPORTED;
     }
 
-    mrvl_hostif_trap_list_get(value,mrvl_sai_hostif_trap_table[internal_hostif_trapid].portList_count,
-                              mrvl_sai_hostif_trap_table[internal_hostif_trapid].hostif_portlist_header);    
+    mrvl_hostif_trap_list_get(value,mrvl_sai_hostif_trap_table[internal_hostif_traptype].portList_count,
+                              mrvl_sai_hostif_trap_table[internal_hostif_traptype].hostif_portlist_header);    
       
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 
 
 }
-
+#endif
 /** enable trap for a list of SAI vlans [sai_object_list_t] */
 sai_status_t mrvl_hostif_trap_vlan_list_set(_In_ const sai_object_key_t *key,
                                             _In_ const sai_attribute_value_t *value,
                                             void *arg)
 {
     sai_status_t status;  
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid;                 
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype = INTERNAL_SAI_HOSTIF_TRAP_TYPE_START;                 
+    sai_hostif_trap_type_t hostif_traptype;       
     
     MRVL_SAI_LOG_ENTER();    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_traptype))) {
+        MRVL_SAI_API_RETURN(status);
+    }
                         
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(key->data,internal_hostif_trapid);
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);
              
-    if (key->data == SAI_HOSTIF_TRAP_ID_ARP_REQUEST || key->data == SAI_HOSTIF_TRAP_ID_ARP_RESPONSE) {
+    if (hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST || hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE) {
         /* do nothing */
         return SAI_STATUS_SUCCESS;
     }
                 
     if (SAI_STATUS_SUCCESS !=
         (status =
-            mrvl_hostif_trap_list_set(key->data, value, &mrvl_sai_hostif_trap_table[internal_hostif_trapid].vlanList_count,
-                                      &mrvl_sai_hostif_trap_table[internal_hostif_trapid].hostif_vlanlist_header, 1 /* vlan */))) {
-        MRVL_SAI_LOG_ERR("trap enable for vlan list failed for trap id %d\n",key->data);
+            mrvl_hostif_trap_list_set(hostif_traptype, value, &mrvl_sai_hostif_trap_table[internal_hostif_traptype].vlanList_count,
+                                      &mrvl_sai_hostif_trap_table[internal_hostif_traptype].hostif_vlanlist_header, 1 /* vlan */))) {
+        MRVL_SAI_LOG_ERR("trap enable for vlan list failed for trap id %d\n",hostif_traptype);
         return status;
     }  
     
@@ -1722,25 +1755,30 @@ sai_status_t mrvl_hostif_trap_vlan_list_get(_In_ const sai_object_key_t   *key,
                                             _Inout_ vendor_cache_t        *cache,
                                             void                          *arg)
 {         
-    sai_consecutive_hostif_trap_id_t internal_hostif_trapid; 
+    sai_status_t status;  
+    sai_consecutive_hostif_trap_type_t internal_hostif_traptype;                 
+    sai_hostif_trap_type_t hostif_traptype;       
 
     MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_traptype))) {
+        MRVL_SAI_API_RETURN(status);
+    }
 
-    PRV_CONVERT_INTERNAL_TRAP_ID_MAC(key->data,internal_hostif_trapid);
+    PRV_CONVERT_INTERNAL_TRAP_TYPE_MAC(hostif_traptype,internal_hostif_traptype);
 
-    if (key->data == SAI_HOSTIF_TRAP_ID_ARP_REQUEST || key->data == SAI_HOSTIF_TRAP_ID_ARP_RESPONSE) {
+    if (hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_REQUEST || hostif_traptype == SAI_HOSTIF_TRAP_TYPE_ARP_RESPONSE) {
         /* do nothing */
         return SAI_STATUS_NOT_SUPPORTED;
     }
 
-    mrvl_hostif_trap_list_get(value,mrvl_sai_hostif_trap_table[internal_hostif_trapid].vlanList_count,
-                              mrvl_sai_hostif_trap_table[internal_hostif_trapid].hostif_vlanlist_header);    
+    mrvl_hostif_trap_list_get(value,mrvl_sai_hostif_trap_table[internal_hostif_traptype].vlanList_count,
+                              mrvl_sai_hostif_trap_table[internal_hostif_traptype].hostif_vlanlist_header);    
       
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 
 }
-
+#if 0
 /** trap channel to use [sai_hostif_trap_channel_t] */
 sai_status_t mrvl_hostif_trap_channel_set(_In_ const sai_object_key_t *key,
                                           _In_ const sai_attribute_value_t *value,
@@ -1773,63 +1811,7 @@ sai_status_t mrvl_hostif_trap_channel_get(_In_ const sai_object_key_t   *key,
     return SAI_STATUS_SUCCESS;
 
 }
-
-/**
- * Routine Description:
- *   @brief Set trap attribute value.
- *
- * Arguments:
- *    @param[in] hostif_trap_id - host interface trap id
- *    @param[in] attr - attribute
- *
- * Return Values:
- *    @return SAI_STATUS_SUCCESS on success
- *            Failure status code on error
- */
-sai_status_t mrvl_sai_set_host_interface_trap_attribute(_In_ sai_hostif_trap_id_t hostif_trapid,
-                                                        _In_ const sai_attribute_t *attr)
-{   
-    const sai_object_key_t key = { .data = hostif_trapid };
-    char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t status;
-
-    MRVL_SAI_LOG_ENTER();    
-
-    mrvl_sai_host_interface_trap_key_to_str(hostif_trapid, key_str);
-    status = mrvl_sai_utl_set_attribute(&key, key_str, host_interface_trap_attribs, host_interface_trap_vendor_attribs, attr);
-    MRVL_SAI_API_RETURN(status);
-
-
-}
-
-/**
- * Routine Description:
- *   @brief Get trap attribute value.
- *
- * Arguments:
- *    @param[in] hostif_trap_id - host interface trap id
- *    @param[in] attr_count - number of attributes
- *    @param[in,out] attr_list - array of attributes
- *
- * Return Values:
- *    @return SAI_STATUS_SUCCESS on success
- *            Failure status code on error
- */
-sai_status_t mrvl_sai_get_host_interface_trap_attribute(_In_ sai_hostif_trap_id_t hostif_trapid,
-                                                        _In_ uint32_t attr_count,
-                                                        _Inout_ sai_attribute_t *attr_list)
-{
-    const sai_object_key_t key = { .data = hostif_trapid };
-    char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t status;
-
-    MRVL_SAI_LOG_ENTER();
-    
-    mrvl_sai_host_interface_trap_key_to_str(hostif_trapid, key_str);
-    status = mrvl_sai_utl_get_attributes(&key, key_str, host_interface_trap_attribs, host_interface_trap_vendor_attribs,
-                                       attr_count, attr_list);
-    MRVL_SAI_API_RETURN(status);
-}
+#endif
 
 /**
  * Routine Description:
@@ -1894,7 +1876,7 @@ sai_status_t mrvl_sai_recv_host_interface_packet(_In_ sai_object_id_t  hif_id,
 
     attr_list[0].id = SAI_HOSTIF_ATTR_TYPE;
     attr_list[0].value.s32 = SAI_HOSTIF_TYPE_NETDEV;
-    attr_list[1].id = SAI_HOSTIF_ATTR_RIF_OR_PORT_ID;
+    attr_list[1].id = SAI_HOSTIF_ATTR_OBJ_ID;
     attr_list[1].value.u32 = pktPtr.inPortNum;
     attr_list[2].id = SAI_HOSTIF_ATTR_NAME;
     if (SAI_STATUS_SUCCESS !=
@@ -1967,7 +1949,7 @@ sai_status_t mrvl_sai_send_host_interface_packet(_In_ sai_object_id_t  hif_id,
     if (SAI_HOSTIF_TYPE_NETDEV == type->s32) {
         if (SAI_STATUS_SUCCESS !=
             (status =
-                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_ATTR_RIF_OR_PORT_ID, &rif_port,
+                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_ATTR_OBJ_ID, &rif_port,
                                      &rif_port_index))) {
             MRVL_SAI_LOG_ERR("Missing mandatory attribute rif port id on send packet of host with netdev type\n");
             MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
@@ -2000,7 +1982,7 @@ sai_status_t mrvl_sai_send_host_interface_packet(_In_ sai_object_id_t  hif_id,
 
     /* retreive ingress port */
     /* TODO inPortNum is constant. need to change it by adding support in the get function */
-    hif_attr_list.id = SAI_HOSTIF_ATTR_RIF_OR_PORT_ID;    
+    hif_attr_list.id = SAI_HOSTIF_ATTR_OBJ_ID;    
 
     if (SAI_STATUS_SUCCESS !=
         (status =
@@ -2011,7 +1993,7 @@ sai_status_t mrvl_sai_send_host_interface_packet(_In_ sai_object_id_t  hif_id,
 
     if (SAI_STATUS_SUCCESS !=
         (status =
-            mrvl_sai_utl_find_attrib_in_list(1, &hif_attr_list, SAI_HOSTIF_ATTR_RIF_OR_PORT_ID, &rif_port,
+            mrvl_sai_utl_find_attrib_in_list(1, &hif_attr_list, SAI_HOSTIF_ATTR_OBJ_ID, &rif_port,
                                              &rif_port_index))) {
         MRVL_SAI_LOG_ERR("Missing mandatory attribute ingress port id on send packet of host\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
@@ -2048,32 +2030,147 @@ sai_status_t mrvl_sai_send_host_interface_packet(_In_ sai_object_id_t  hif_id,
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
+/**
+ * @brief Create host interface table entry
+ *
+ * @param[out] hif_table_entry Host interface table entry
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_create_hostif_table_entry(
+        _Out_ sai_object_id_t *hif_table_entry,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
 
+/**
+ * @brief Remove host interface table entry
+ *
+ * @param[in] hif_table_entry Host interface table entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_hostif_table_entry(
+        _In_ sai_object_id_t hif_table_entry)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set host interface table entry attribute
+ *
+ * @param[in] hif_table_entry Host interface table entry
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_set_hostif_table_entry_attribute(
+        _In_ sai_object_id_t hif_table_entry,
+        _In_ const sai_attribute_t *attr)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get host interface table entry attribute
+ *
+ * @param[in] hif_table_entry Host interface table entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_get_hostif_table_entry_attribute(
+        _In_ sai_object_id_t hif_table_entry,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+
+ * @brief Create host interface trap group
+ *
+ * @param[out] hostif_trap_group_id Host interface trap group id
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+ */
 sai_status_t mrvl_sai_create_hostif_trap_group(
     _Out_ sai_object_id_t *hostif_trap_group_id,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
-    _In_ const sai_attribute_t *attr_list
-    ){
+    _In_ const sai_attribute_t *attr_list)
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 
 }
+/**
+
+ * @brief Remove host interface trap group
+ *
+ * @param[in] hostif_trap_group_id Host interface trap group id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+ */
+
 sai_status_t mrvl_sai_remove_hostif_trap_group(
-    _In_ sai_object_id_t hostif_trap_group_id
-    ){
+    _In_ sai_object_id_t hostif_trap_group_id)
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 
 }
+/**
+
+
+ * @brief Set host interface trap group attribute value.
+ *
+ * @param[in] hostif_trap_group_id Host interface trap group id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_set_hostif_trap_group_attribute
 (
     _In_ sai_object_id_t hostif_trap_group_id,
     _In_ const sai_attribute_t *attr
-){
+)
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 
 }
+/**
+
+
+ * @brief Get host interface trap group attribute value.
+ *
+ * @param[in] hostif_trap_group_id Host interface trap group id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error 
+ */
 
 sai_status_t mrvl_sai_get_hostif_trap_group_attribute(
     _In_ sai_object_id_t hostif_trap_group_id,
@@ -2084,20 +2181,171 @@ sai_status_t mrvl_sai_get_hostif_trap_group_attribute(
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 
 }
+/**
+ * @brief Create host interface trap
+ *
+ * @param[out] hostif_trap_id Host interface trap id
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_create_hostif_trap(
+        _Out_ sai_object_id_t *hostif_trap_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove host interface trap
+ *
+ * @param[in] hostif_trap_id Host interface trap id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_hostif_trap(
+        _In_ sai_object_id_t hostif_trap_id)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set trap attribute value.
+ *
+ * @param[in] hostif_trap_id Host interface trap id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
+ */
+sai_status_t mrvl_sai_set_hostif_trap_attribute(
+        _In_ sai_object_id_t hostif_trap_id,
+        _In_ const sai_attribute_t *attr)
+{
+    const sai_object_key_t key = { .key.object_id = hostif_trap_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();    
+
+    mrvl_sai_host_interface_trap_key_to_str(hostif_trap_id, key_str);
+    status = mrvl_sai_utl_set_attribute(&key, key_str, host_interface_trap_attribs, host_interface_trap_vendor_attribs, attr);
+    MRVL_SAI_API_RETURN(status);
+}
+
+/**
+
+
+ * @brief Get trap attribute value.
+ *
+ * @param[in] hostif_trap_id Host interface trap id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
+ */
+sai_status_t mrvl_sai_get_hostif_trap_attribute(
+        _In_ sai_object_id_t hostif_trap_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    const sai_object_key_t key = { .key.object_id = hostif_trap_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+    
+    mrvl_sai_host_interface_trap_key_to_str(hostif_trap_id, key_str);
+    status = mrvl_sai_utl_get_attributes(&key, key_str, host_interface_trap_attribs, host_interface_trap_vendor_attribs,
+                                       attr_count, attr_list);
+    MRVL_SAI_API_RETURN(status);
+}
+
+/**
+ * @brief Create host interface user defined trap
+ *
+ * @param[out] hostif_user_defined_trap_id Host interface user defined trap id
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_create_hostif_user_defined_trap(
+        _Out_ sai_object_id_t *hostif_user_defined_trap_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove host interface user defined trap
+ *
+ * @param[in] hostif_user_defined_trap_id Host interface user defined trap id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_hostif_user_defined_trap(
+        _In_ sai_object_id_t hostif_user_defined_trap_id)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set user defined trap attribute value.
+ *
+ * @param[in] hostif_user_defined_trap_id Host interface user defined trap id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+ */
+
 sai_status_t mrvl_sai_set_hostif_user_defined_trap_attribute(
-    _In_ sai_hostif_user_defined_trap_id_t hostif_user_defined_trapid,
+    _In_ sai_object_id_t hostif_user_defined_trapid,
     _In_ const sai_attribute_t *attr
-    ){
+    )
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 
 }
+/**
+
+
+ * @brief Get user defined trap attribute value.
+ *
+ * @param[in] hostif_user_defined_trap_id Host interface user defined trap id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
+ */
+
 sai_status_t mrvl_sai_get_hostif_user_defined_trap_attribute(
-    _In_ sai_hostif_user_defined_trap_id_t hostif_user_defined_trapid,
+    _In_ sai_object_id_t hostif_user_defined_trapid,
     _In_ uint32_t attr_count,
-    _Inout_ sai_attribute_t *attr_list
-    )
-    {
+    _Inout_ sai_attribute_t *attr_list)
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
 }
@@ -2109,14 +2357,27 @@ const sai_hostif_api_t host_interface_api = {
     mrvl_sai_remove_host_interface,
     mrvl_sai_set_host_interface_attribute,
     mrvl_sai_get_host_interface_attribute,
+
+    mrvl_sai_create_hostif_table_entry,
+    mrvl_sai_remove_hostif_table_entry,
+    mrvl_sai_set_hostif_table_entry_attribute,
+    mrvl_sai_get_hostif_table_entry_attribute,
+
     mrvl_sai_create_hostif_trap_group,
     mrvl_sai_remove_hostif_trap_group,
     mrvl_sai_set_hostif_trap_group_attribute,
     mrvl_sai_get_hostif_trap_group_attribute,
-    mrvl_sai_set_host_interface_trap_attribute,
-    mrvl_sai_get_host_interface_trap_attribute,
+
+    mrvl_sai_create_hostif_trap,
+    mrvl_sai_remove_hostif_trap,
+    mrvl_sai_set_hostif_trap_attribute,
+    mrvl_sai_get_hostif_trap_attribute,
+
+    mrvl_sai_create_hostif_user_defined_trap,
+    mrvl_sai_remove_hostif_user_defined_trap,
     mrvl_sai_set_hostif_user_defined_trap_attribute,
     mrvl_sai_get_hostif_user_defined_trap_attribute,
+
     mrvl_sai_recv_host_interface_packet,
     mrvl_sai_send_host_interface_packet
 };

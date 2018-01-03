@@ -23,10 +23,20 @@
 #define __MODULE__ SAI_FDB
 
 extern uint32_t                  mrvl_sai_switch_aging_time;
-
+sai_fdb_event_notification_fn    on_fdb_event;
 
 #define MRVL_SAI_FDB_CONVERT_EVENT_TYPE_MAC(fpa_type, sai_type)\
         (sai_type = (fpa_type == FPA_EVENT_ADDRESS_UPDATE_NEW_E)?SAI_FDB_EVENT_LEARNED:(fpa_type == FPA_EVENT_ADDRESS_UPDATE_AGED_E)?SAI_FDB_EVENT_AGED:SAI_FDB_EVENT_FLUSHED)
+
+static sai_status_t mrvl_sai_fdb_endpoint_ip_get_prv(_In_ const sai_object_key_t   *key,
+                                             _Inout_ sai_attribute_value_t *value,
+                                             _In_ uint32_t                  attr_index,
+                                             _Inout_ vendor_cache_t        *cache,
+                                             void                          *arg);
+
+static sai_status_t mrvl_sai_fdb_endpoint_ip_set_prv(_In_ const sai_object_key_t      *key,
+                                             _In_ const sai_attribute_value_t *value,
+                                             void                             *arg);
 
 static void mrvl_sai_fdb_key_to_str_prv(_In_ const sai_fdb_entry_t* fdb_entry, _Out_ char *key_str)
 {
@@ -40,6 +50,26 @@ static void mrvl_sai_fdb_key_to_str_prv(_In_ const sai_fdb_entry_t* fdb_entry, _
              fdb_entry->vlan_id);
 }
 
+sai_status_t mrvl_sai_fdb_endpoint_ip_get_prv(_In_ const sai_object_key_t   *key,
+                                             _Inout_ sai_attribute_value_t *value,
+                                             _In_ uint32_t                  attr_index,
+                                             _Inout_ vendor_cache_t        *cache,
+                                             void                          *arg)
+{
+     MRVL_SAI_LOG_ENTER();
+     memcpy((value->ipaddr.addr.ip4), 0, sizeof(sai_ip4_t));
+     MRVL_SAI_LOG_EXIT();
+     return SAI_STATUS_SUCCESS;
+}
+
+static sai_status_t mrvl_sai_fdb_endpoint_ip_set_prv(_In_ const sai_object_key_t      *key,
+                                             _In_ const sai_attribute_value_t *value,
+                                             void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
 static sai_status_t mrvl_sai_fdb_get_entry_prv(_In_ const sai_fdb_entry_t* fdb_entry,
                                            _Inout_ FPA_FLOW_TABLE_ENTRY_STC *fpa_flow_entry)
 {
@@ -55,7 +85,7 @@ static sai_status_t mrvl_sai_fdb_get_entry_prv(_In_ const sai_fdb_entry_t* fdb_e
 static sai_status_t mrvl_sai_fdb_type_set_prv(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg)
 {
     MRVL_SAI_LOG_ENTER();
-    if (value->u32 != SAI_FDB_ENTRY_STATIC) {
+    if (value->u32 != SAI_FDB_ENTRY_TYPE_STATIC) {
         return SAI_STATUS_NOT_SUPPORTED;
     }
     MRVL_SAI_LOG_EXIT();
@@ -69,7 +99,7 @@ static sai_status_t mrvl_sai_fdb_port_set_prv(_In_ const sai_object_key_t *key, 
 {
     sai_status_t status;
     uint32_t     port_id, group;
-    const sai_fdb_entry_t *fdb_entry = key->fdb_entry;
+    const sai_fdb_entry_t *fdb_entry = &key->key.fdb_entry;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
     FPA_STATUS fpa_status;
     FPA_GROUP_ENTRY_IDENTIFIER_STC    parsed_group_identifier;
@@ -84,7 +114,7 @@ static sai_status_t mrvl_sai_fdb_port_set_prv(_In_ const sai_object_key_t *key, 
         return status;
     }
     fpaLibGroupIdentifierParse(fpa_flow_entry.data.l2_bridging.groupId, &parsed_group_identifier);
-    status = mrvl_sai_utl_create_l2_int_group(port_id, parsed_group_identifier.vlanId, SAI_VLAN_PORT_TAGGED, false, &group);
+    status = mrvl_sai_utl_create_l2_int_group(port_id, parsed_group_identifier.vlanId, SAI_VLAN_TAGGING_MODE_TAGGED, false, &group);
     if (status != SAI_STATUS_SUCCESS) {
         return status; 
     }
@@ -104,7 +134,7 @@ static sai_status_t mrvl_sai_fdb_action_set_prv(_In_ const sai_object_key_t *key
 {
     sai_status_t status;
     FPA_STATUS fpa_status;
-    const sai_fdb_entry_t *fdb_entry = key->fdb_entry;
+    const sai_fdb_entry_t *fdb_entry = &key->key.fdb_entry;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
     uint32_t group;
     FPA_GROUP_ENTRY_IDENTIFIER_STC    parsed_group_identifier;
@@ -134,7 +164,7 @@ static sai_status_t mrvl_sai_fdb_action_set_prv(_In_ const sai_object_key_t *key
         /* continue to forward*/   
     case SAI_PACKET_ACTION_FORWARD: /** Forward Packet in data plane. */
         fpaLibGroupIdentifierParse(fpa_flow_entry.data.l2_bridging.groupId, &parsed_group_identifier);
-        status = mrvl_sai_utl_create_l2_int_group(parsed_group_identifier.portNum, parsed_group_identifier.vlanId, SAI_VLAN_PORT_TAGGED, false, &group);
+        status = mrvl_sai_utl_create_l2_int_group(parsed_group_identifier.portNum, parsed_group_identifier.vlanId, SAI_VLAN_TAGGING_MODE_TAGGED, false, &group);
         if (status != SAI_STATUS_SUCCESS) {
             return status; 
         }
@@ -165,7 +195,7 @@ static sai_status_t mrvl_sai_fdb_type_get_prv(_In_ const sai_object_key_t   *key
                                _Inout_ vendor_cache_t        *cache,
                                void                          *arg)
 {
-    const sai_fdb_entry_t    *fdb_entry = key->fdb_entry;
+    const sai_fdb_entry_t    *fdb_entry = &key->key.fdb_entry;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
     sai_status_t             status;
     
@@ -175,9 +205,9 @@ static sai_status_t mrvl_sai_fdb_type_get_prv(_In_ const sai_object_key_t   *key
         return status;
     }
     if (fpa_flow_entry.timeoutIdleTime == 0) {
-        value->u32 = SAI_FDB_ENTRY_STATIC; 
+        value->u32 = SAI_FDB_ENTRY_TYPE_STATIC; 
     } else {
-        value->u32 = SAI_FDB_ENTRY_DYNAMIC; 
+        value->u32 = SAI_FDB_ENTRY_TYPE_DYNAMIC; 
     }
 
     MRVL_SAI_LOG_EXIT();
@@ -198,13 +228,15 @@ static sai_status_t mrvl_sai_fdb_port_get_prv(_In_ const sai_object_key_t   *key
                                void                          *arg)
 {
     sai_status_t status;
-    const sai_fdb_entry_t *fdb_entry = key->fdb_entry;
+    const sai_fdb_entry_t *fdb_entry = &key->key.fdb_entry;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
     FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier;
     uint32_t port;
     
     MRVL_SAI_LOG_ENTER();
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_fdb_get_entry_prv(fdb_entry, &fpa_flow_entry))) {
+        MRVL_SAI_LOG_ERR("Failed to get fdb entry\n");
+        value->oid = SAI_NULL_OBJECT_ID;
         return status;
     }
     if ((fpa_flow_entry.data.l2_bridging.clearActions) ||
@@ -217,6 +249,8 @@ static sai_status_t mrvl_sai_fdb_port_get_prv(_In_ const sai_object_key_t   *key
     }
     
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port, &value->oid))) {
+        MRVL_SAI_LOG_ERR("Failed to create object port\n");
+        value->oid = SAI_NULL_OBJECT_ID;
         return status;
     }
 
@@ -232,7 +266,7 @@ static sai_status_t mrvl_sai_fdb_action_get_prv(_In_ const sai_object_key_t   *k
                                  void                          *arg)
 {
     sai_status_t status;
-    const sai_fdb_entry_t *fdb_entry = key->fdb_entry;
+    const sai_fdb_entry_t *fdb_entry = &key->key.fdb_entry;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
 
     MRVL_SAI_LOG_ENTER();
@@ -256,52 +290,58 @@ static sai_status_t mrvl_sai_fdb_action_get_prv(_In_ const sai_object_key_t   *k
 static const sai_attribute_entry_t        mrvl_sai_fdb_attribs[] = {
     { SAI_FDB_ENTRY_ATTR_TYPE, true, true, true, true,
       "FDB entry type", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_FDB_ENTRY_ATTR_PORT_ID, true, true, true, true,
-      "FDB entry port id", SAI_ATTR_VAL_TYPE_U32},
     { SAI_FDB_ENTRY_ATTR_PACKET_ACTION, true, true, true, true,
       "FDB entry packet action", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID, true, true, true, true,
+      "FDB entry port id", SAI_ATTR_VAL_TYPE_U32},
+    { SAI_FDB_ENTRY_ATTR_ENDPOINT_IP, true, true, false, true,
+      "FDB tunnel endpoint IP", SAI_ATTR_VAL_TYPE_S32},
+    
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
+
 static const sai_vendor_attribute_entry_t mrvl_sai_fdb_vendor_attribs[] = {
     { SAI_FDB_ENTRY_ATTR_TYPE,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_fdb_type_get_prv, NULL,
       mrvl_sai_fdb_type_set_prv, NULL },
-    { SAI_FDB_ENTRY_ATTR_PORT_ID,
-      { true, false, true, true },
-      { true, false, true, true },
-      mrvl_sai_fdb_port_get_prv, NULL,
-      mrvl_sai_fdb_port_set_prv, NULL },
     { SAI_FDB_ENTRY_ATTR_PACKET_ACTION,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_fdb_action_get_prv, NULL,
-      mrvl_sai_fdb_action_set_prv, NULL }
+      mrvl_sai_fdb_action_set_prv, NULL },
+    { SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_sai_fdb_port_get_prv, NULL,
+      mrvl_sai_fdb_port_set_prv, NULL },
+    { SAI_FDB_ENTRY_ATTR_ENDPOINT_IP,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_sai_fdb_endpoint_ip_get_prv, NULL,
+      mrvl_sai_fdb_endpoint_ip_set_prv, NULL }
+    
 };
 
 
-/*
- * Routine Description:
- *    Create FDB entry
+/**
+ * @brief Create FDB entry
  *
- * Arguments:
- *    [in] fdb_entry - fdb entry
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry,
+sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
                                    _In_ uint32_t               attr_count,
                                    _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
-    const sai_attribute_value_t *type, *action, *port;
-    uint32_t                     type_index, action_index, port_index, port_id;
+    const sai_attribute_value_t *type, *action, *port, *ip;
+    uint32_t                     type_index, action_index, port_index, port_id, ip_index;
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     FPA_FLOW_TABLE_ENTRY_STC     flowEntry;
@@ -328,16 +368,17 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry,
     MRVL_SAI_LOG_NTC("Create FDB entry %s\n", key_str);
     MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
 
-    assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_attrib_in_list(attr_count,
-                                                     attr_list,
-                                                     SAI_FDB_ENTRY_ATTR_TYPE,
-                                                     &type,
-                                                     &type_index));
+    assert(SAI_STATUS_SUCCESS == 
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_TYPE, &type, &type_index));
+
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_PACKET_ACTION, &action, &action_index));
 
     assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_PORT_ID, &port, &port_index));
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_ENDPOINT_IP, &ip, &ip_index));
+
+    assert(SAI_STATUS_SUCCESS ==
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID, &port, &port_index));
 
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port->oid, SAI_OBJECT_TYPE_PORT, &port_id))) {
     	MRVL_SAI_API_RETURN(status);
@@ -349,7 +390,7 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry,
         MRVL_SAI_API_RETURN(status);
     }
     /* set fdb entry */
-    if (type->u32 == SAI_FDB_ENTRY_DYNAMIC){
+    if (type->u32 == SAI_FDB_ENTRY_TYPE_DYNAMIC){
         if(mrvl_sai_switch_aging_time > 0){
             flowEntry.timeoutIdleTime = mrvl_sai_switch_aging_time;
         } else {
@@ -382,7 +423,7 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry,
         flowEntry.data.l2_bridging.outputPort = SAI_OUTPUT_CONTROLLER;
         /* continue to forward*/   
     case SAI_PACKET_ACTION_FORWARD: /** Forward Packet in data plane. */
-        status = mrvl_sai_utl_create_l2_int_group(port_id, fdb_entry->vlan_id, SAI_VLAN_PORT_TAGGED, false, &groupId);
+        status = mrvl_sai_utl_create_l2_int_group(port_id, fdb_entry->vlan_id, SAI_VLAN_TAGGING_MODE_TAGGED, false, &groupId);
         if (status != SAI_STATUS_SUCCESS) {
         	MRVL_SAI_API_RETURN(status);
         }
@@ -408,18 +449,14 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry,
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Remove FDB entry
+/**
+ * @brief Remove FDB entry
  *
- * Arguments:
- *    [in] fdb_entry - fdb entry
+ * @param[in] fdb_entry FDB entry
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_remove_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry)
+sai_status_t mrvl_sai_remove_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry)
 {
     char key_str[MAX_KEY_STR_LEN];
     FPA_STATUS                   fpa_status;
@@ -446,24 +483,20 @@ sai_status_t mrvl_sai_remove_fdb_entry(_In_ const sai_fdb_entry_t* fdb_entry)
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Get fdb entry attribute value
+/**
+ * @brief Get FDB entry attribute value
  *
- * Arguments:
- *    [in] fdb_entry - fdb entry
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
 sai_status_t mrvl_sai_get_fdb_entry_attribute(_In_ const sai_fdb_entry_t* fdb_entry,
                                           _In_ uint32_t               attr_count,
                                           _Inout_ sai_attribute_t    *attr_list)
 {
-    const sai_object_key_t key = { .fdb_entry = fdb_entry };
+    const sai_object_key_t key  = { .key.fdb_entry = *fdb_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -479,22 +512,18 @@ sai_status_t mrvl_sai_get_fdb_entry_attribute(_In_ const sai_fdb_entry_t* fdb_en
     MRVL_SAI_API_RETURN(status);
 }
 
-
-/*
- * Routine Description:
- *    Set fdb entry attribute value
+/**
+ * @brief Set FDB entry attribute value
  *
- * Arguments:
- *    [in] fdb_entry - fdb entry
- *    [in] attr - attribute
+ * @param[in] fdb_entry FDB entry
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
+
 sai_status_t mrvl_sai_set_fdb_entry_attribute(_In_ const sai_fdb_entry_t* fdb_entry, _In_ const sai_attribute_t *attr)
 {
-    const sai_object_key_t key = {.fdb_entry = fdb_entry };
+    const sai_object_key_t key = {.key.fdb_entry = *fdb_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -511,19 +540,18 @@ sai_status_t mrvl_sai_set_fdb_entry_attribute(_In_ const sai_fdb_entry_t* fdb_en
 }
 
 
-/*
- * Routine Description:
- *    Remove all FDB entries by attribute set in sai_fdb_flush_attr
+/**
+ * @brief Remove all FDB entries by attribute set in sai_fdb_flush_attr
  *
- * Arguments:
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_flush_fdb_entries(_In_ uint32_t attr_count, _In_ const sai_attribute_t *attr_list)
+sai_status_t mrvl_sai_flush_fdb_entries(_In_ sai_object_id_t switch_id,
+                                        _In_ uint32_t attr_count, 
+                                        _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
     const sai_attribute_value_t *port, *vlan, *type;
@@ -542,7 +570,7 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ uint32_t attr_count, _In_ const sai
     fpa_flow_entry.cookie = 0;
     
     if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_FLUSH_ATTR_PORT_ID,
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_FLUSH_ATTR_BRIDGE_PORT_ID,
                                  &port, &port_index))) {
         if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port->oid, SAI_OBJECT_TYPE_PORT, &port_id))) {
         	MRVL_SAI_API_RETURN(status);
@@ -566,7 +594,7 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ uint32_t attr_count, _In_ const sai
 	memset(&parsed_group_identifier, 0, sizeof(parsed_group_identifier)); 
 	
 	fpa_flow_entry.entryType = FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E;
-    if ((type_exist) && (type->s32 == SAI_FDB_FLUSH_ENTRY_STATIC)){
+    if ((type_exist) && (type->s32 == SAI_FDB_FLUSH_ENTRY_TYPE_STATIC)){
 		fpa_flow_entry.timeoutIdleTime = 0; 
     } else {
         fpa_flow_entry.timeoutIdleTime = 1; 
@@ -612,7 +640,7 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
     fdb_event->fdb_entry.vlan_id = fpa_au_event->vid;
     MRVL_SAI_FDB_CONVERT_EVENT_TYPE_MAC(fpa_au_event->type, fdb_event->event_type);
     /* Attributes */
-	fdb_event->attr[0].id = SAI_FDB_ENTRY_ATTR_PORT_ID;
+	fdb_event->attr[0].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
 	switch (fpa_au_event->interfaceType) {
 	case FPA_INTERFACE_PORT_E:
 		type = SAI_OBJECT_TYPE_PORT;
@@ -640,13 +668,13 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
     fdb_event->attr[1].value.u32 = SAI_PACKET_ACTION_FORWARD;
 
     fdb_event->attr[2].id = SAI_FDB_ENTRY_ATTR_TYPE;
-    fdb_event->attr[2].value.u32 = SAI_FDB_ENTRY_DYNAMIC;
+    fdb_event->attr[2].value.u32 = SAI_FDB_ENTRY_TYPE_DYNAMIC;
     return SAI_STATUS_SUCCESS;
 }
 
 /*
  * Routine Description:
- *    Waits on AU events and call SAI callback in succh event
+ *    Waits on AU events and call SAI callback in such event
  *
  * Arguments:
  *    void
@@ -663,14 +691,12 @@ unsigned mrvl_sai_fdb_wait_for_au_event(void *args)
     sai_attribute_t   fdb_attr[3];
     sai_fdb_event.attr = (sai_attribute_t *)fdb_attr;
     sai_fdb_event.attr_count = 3;
-    sai_fdb_event_notification_fn on_fdb_event;
     MRVL_SAI_LOG_ENTER();
 
 
     while (1) {
         fpa_status = fpaLibBridgingAuMsgGet(SAI_DEFAULT_ETH_SWID_CNS, false, &fpa_au_event);
         if (fpa_status == FPA_OK) {
-            on_fdb_event = mrvl_sai_notification_callbacks.on_fdb_event;
             /* Call SAI callback */
             if (on_fdb_event) {
                 /* Convert FPA event to fdb_entry */

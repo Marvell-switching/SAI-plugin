@@ -27,9 +27,9 @@
 static mrvl_sai_nbr_table_t mrvl_sai_nbr_table[SAI_NEIGHBOR_TABLE_SIZE_CNS] = {};
 
 static const sai_attribute_entry_t mrvl_sai_neighbor_attribs[] = {
-    { SAI_NEIGHBOR_ATTR_DST_MAC_ADDRESS, true, true, true, true,
+    { SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS, true, true, true, true,
       "Neighbor destination MAC", SAI_ATTR_VAL_TYPE_MAC },
-    { SAI_NEIGHBOR_ATTR_PACKET_ACTION, false, true, true, true,
+    { SAI_NEIGHBOR_ENTRY_ATTR_PACKET_ACTION, false, true, true, true,
       "Neighbor L3 forwarding action", SAI_ATTR_VAL_TYPE_S32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
@@ -53,12 +53,12 @@ static sai_status_t mrvl_sai_neighbor_action_set_prv(_In_ const sai_object_key_t
                                       void                             *arg);
 
 static const sai_vendor_attribute_entry_t mrvl_sai_neighbor_vendor_attribs[] = {
-    { SAI_NEIGHBOR_ATTR_DST_MAC_ADDRESS,
+    { SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_neighbor_mac_get_prv, NULL,
       mrvl_sai_neighbor_mac_set_prv, NULL },
-    { SAI_NEIGHBOR_ATTR_PACKET_ACTION,
+    { SAI_NEIGHBOR_ENTRY_ATTR_PACKET_ACTION,
       { true, false, false, true },
       { true, false, true, true },
       mrvl_sai_neighbor_action_get_prv, NULL,
@@ -103,23 +103,22 @@ sai_status_t mrvl_sai_neighbor_dump(void)
 
 int mrvl_sai_add_route_direct(
 		uint32_t                        group,
-		uint32_t						rif_idx,
-		sai_ip4_t 						ip4
+		uint32_t                        rif_idx,
+		const sai_ip_address_t         *ip,
+        uint64_t                        cookie
 )
 {
-    FPA_FLOW_TABLE_ENTRY_STC       flow_entry;
-    FPA_STATUS                     fpa_status;
-    uint32_t          	     		vr_Id;
-    sai_status_t                   sai_status;
-    uint64_t                       cookie;
+    FPA_FLOW_TABLE_ENTRY_STC        flow_entry;
+    FPA_STATUS                      fpa_status;
+    uint32_t                        vr_Id;
+    sai_status_t                    sai_status;
 
     /* check if exist */
-	cookie = (uint64_t)ip4;
-	cookie = cookie<<32;
-	cookie |= rif_idx;
-
 	flow_entry.cookie =  cookie;
-    fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
+    if (ip->addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+        fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
+    else
+        fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_IPV6_E, &flow_entry);
     if (fpa_status==FPA_OK)
     {
     	/* already exist */
@@ -130,59 +129,75 @@ int mrvl_sai_add_route_direct(
 	{
 		return 0;
 	}
-    fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
-    flow_entry.data.l3_unicast.groupId = group;
-    flow_entry.data.l3_unicast.match.vrfId = vr_Id;
-    flow_entry.data.l3_unicast.match.dstIp4 = ip4;
-    flow_entry.data.l3_unicast.match.dstIp4Mask = 0xffffffff;
-    flow_entry.data.l3_unicast.match.etherType = 0x800;
-    flow_entry.cookie =  cookie;
-    fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
+
+    if (ip->addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+    {
+        fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
+        flow_entry.data.l3_unicast.groupId = group;
+        flow_entry.data.l3_unicast.match.vrfId = vr_Id;
+        flow_entry.data.l3_unicast.match.dstIp4 = ip->addr.ip4;
+        flow_entry.data.l3_unicast.match.dstIp4Mask = 0xffffffff;
+        flow_entry.data.l3_unicast.match.etherType = 0x800;
+        flow_entry.cookie =  cookie;
+        fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
+    }
+    else
+    {
+        fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_IPV6_E, &flow_entry);
+        flow_entry.data.l3_unicast.groupId = group;
+        flow_entry.data.l3_unicast.match.vrfId = vr_Id;
+        memcpy(&flow_entry.data.l3_unicast.match.dstIp6, &ip->addr.ip6, sizeof(sai_ip6_t));
+        memset(&flow_entry.data.l3_unicast.match.dstIp6Mask, 0xff, sizeof(flow_entry.data.l3_unicast.match.dstIp6Mask));
+        flow_entry.data.l3_unicast.match.etherType = 0x86dd;
+        flow_entry.cookie =  cookie;
+        fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_IPV6_E, &flow_entry);
+    }
     return (fpa_status==FPA_OK);
 }
 
 int mrvl_sai_del_route_direct(
-		sai_ip4_t 						ip4,
-		uint32_t						rif_idx
+		const sai_ip_address_t         *ip,
+		uint32_t                        rif_idx,
+        uint64_t                        cookie
 )
 {
-	   FPA_STATUS                     fpa_status;
-	   uint64_t                       cookie;
-	   cookie = (uint64_t)ip4;
-	   cookie = cookie<<32;
-	   cookie |= rif_idx;
-	   fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, cookie);
-       return  (fpa_status==FPA_OK);
+    FPA_STATUS                     fpa_status;
+    if (ip->addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+        fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, cookie);
+    else
+        fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_IPV6_E, cookie);
+
+    return  (fpa_status==FPA_OK);
 }
 
+/**
 
-/*
- * Routine Description:
- *    Create neighbor entry
- *
- * Arguments:
- *    [in] neighbor_entry - neighbor entry
- *    [in] attr_count - number of attributes
- *    [in] attrs - array of attributes
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+
+ * @brief Create neighbor entry
  *
  * Note: IP address expected in Network Byte Order.
+ *
+ * @param[in] neighbor_entry Neighbor entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_create_neighbor_entry(_In_ const sai_neighbor_entry_t* neighbor_entry,
-                                        _In_ uint32_t                    attr_count,
-                                        _In_ const sai_attribute_t      *attr_list)
+
+sai_status_t mrvl_sai_create_neighbor_entry(_In_ const sai_neighbor_entry_t *neighbor_entry,
+                                            _In_ uint32_t                    attr_count,
+                                            _In_ const sai_attribute_t      *attr_list)
 {
     sai_status_t                 status;
-    const sai_attribute_value_t *mac, *action;
+    const sai_attribute_value_t *mac, *action, *value;
     uint32_t                     mac_index, action_index, rif_idx, nbr_idx, rif_first_nbr, group;
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     bool                        is_exist;
     uint32_t                    temp, nh_idx,i;
     sai_packet_action_t         act;
+    char                        debug_str[52];
+    uint8_t                    *ptr; 
 
     int route_status;
 
@@ -217,10 +232,10 @@ sai_status_t mrvl_sai_create_neighbor_entry(_In_ const sai_neighbor_entry_t* nei
     }
     
     assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEIGHBOR_ATTR_DST_MAC_ADDRESS, &mac, &mac_index));
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS, &mac, &mac_index));
     
     if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEIGHBOR_ATTR_PACKET_ACTION, &action, &action_index))) {
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEIGHBOR_ENTRY_ATTR_PACKET_ACTION, &action, &action_index))) {
         if (SAI_PACKET_ACTION_FORWARD != action->s32){
             MRVL_SAI_LOG_ERR("Action not supported %d\n", action->s32);
             MRVL_SAI_API_RETURN(SAI_STATUS_NOT_SUPPORTED);
@@ -292,10 +307,25 @@ sai_status_t mrvl_sai_create_neighbor_entry(_In_ const sai_neighbor_entry_t* nei
         MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
 
-    if (neighbor_entry->ip_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
-    	route_status = mrvl_sai_add_route_direct(group, rif_idx, neighbor_entry->ip_address.addr.ip4);
-		MRVL_SAI_LOG_NTC("ADD direct route to neigbor group %d, rif_idx %d, ipv4 %d, status %d\n",
-				group, rif_idx, neighbor_entry->ip_address.addr.ip4, route_status);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE, &value, &action_index)))
+    {
+        route_status = mrvl_sai_add_route_direct(group, rif_idx, &neighbor_entry->ip_address, (uint64_t)&mrvl_sai_nbr_table[nbr_idx]);
+        if (neighbor_entry->ip_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+        {
+            ptr = (uint8_t *)&neighbor_entry->ip_address.addr.ip4;
+            sprintf(debug_str, "%d.%d.%d.%d", ptr[0], ptr[1], ptr[2], ptr[3]);
+	        MRVL_SAI_LOG_NTC("ADD direct route to neighbor group %d, rif_idx %d, ipv4 %s, status %d\n", group, rif_idx, debug_str, route_status);
+        }
+        else
+        {
+            ptr = (uint8_t *)&neighbor_entry->ip_address.addr.ip6;
+            sprintf(debug_str, "%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x",
+                                ptr[0], ptr[1], ptr[2], ptr[3],
+                                ptr[4], ptr[5], ptr[6], ptr[7],
+                                ptr[8], ptr[9], ptr[10], ptr[11],
+                                ptr[12], ptr[13], ptr[14], ptr[15]);
+            MRVL_SAI_LOG_NTC("ADD direct route to neighbor group %d, rif_idx %d, ipv6 %s, status %d\n", group, rif_idx, debug_str, route_status);
+        }
     }
 
     MRVL_SAI_LOG_EXIT();
@@ -336,26 +366,25 @@ static sai_status_t mrvl_sai_neighbor_remove_entry_prv(uint32_t first_nbr, uint3
 }
 
 
-/*
- * Routine Description:
- *    Remove neighbor entry
- *
- * Arguments:
- *    [in] neighbor_entry - neighbor entry
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+/**
+
+ * @brief Remove neighbor entry
  *
  * Note: IP address expected in Network Byte Order.
+ *
+ * @param[in] neighbor_entry Neighbor entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_remove_neighbor_entry(_In_ const sai_neighbor_entry_t* neighbor_entry)
+
+sai_status_t mrvl_sai_remove_neighbor_entry(_In_ const sai_neighbor_entry_t *neighbor_entry)
 {
     sai_status_t    status;
     char            key_str[MAX_KEY_STR_LEN];
     uint32_t        rif_idx, nbr_idx, rif_first_nbr, new_first_idx, nh_idx;
-
-    int route_status;
+    int             route_status;
+    char            debug_str[52];
+    uint8_t        *ptr; 
 
     MRVL_SAI_LOG_ENTER();
 
@@ -374,10 +403,22 @@ sai_status_t mrvl_sai_remove_neighbor_entry(_In_ const sai_neighbor_entry_t* nei
     	MRVL_SAI_API_RETURN(status);
     }
 
+    route_status = mrvl_sai_del_route_direct(&neighbor_entry->ip_address, rif_idx, (uint64_t)&mrvl_sai_nbr_table[nbr_idx]);
     if ( neighbor_entry->ip_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
     {
-    	route_status = mrvl_sai_del_route_direct(neighbor_entry->ip_address.addr.ip4, rif_idx );
-    	MRVL_SAI_LOG_NTC("REMOVE direct route to neigbor rif_idx %d, ipv4 %d, status %d\n", rif_idx, neighbor_entry->ip_address.addr.ip4, route_status);
+        ptr = (uint8_t *)&neighbor_entry->ip_address.addr.ip4;
+        sprintf(debug_str, "%d.%d.%d.%d", ptr[0], ptr[1], ptr[2], ptr[3]);
+    	MRVL_SAI_LOG_NTC("REMOVE direct route to neighbor rif_idx %d, ipv4 %s, status %d\n", rif_idx, debug_str, route_status);
+    }
+    else
+    {
+        ptr = (uint8_t *)&neighbor_entry->ip_address.addr.ip6;
+        sprintf(debug_str, "%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x",
+                            ptr[0], ptr[1], ptr[2], ptr[3],
+                            ptr[4], ptr[5], ptr[6], ptr[7],
+                            ptr[8], ptr[9], ptr[10], ptr[11],
+                            ptr[12], ptr[13], ptr[14], ptr[15]);
+        MRVL_SAI_LOG_NTC("REMOVE direct route to neighbor rif_idx %d, ipv6 %s, status %d\n", rif_idx, debug_str, route_status);
     }
 
     status = mrvl_sai_rif_get_first_nbr_id(rif_idx, &rif_first_nbr);
@@ -420,22 +461,21 @@ sai_status_t mrvl_sai_remove_neighbor_entry(_In_ const sai_neighbor_entry_t* nei
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Set neighbor attribute value
+/**
+
+
+ * @brief Set neighbor entry attribute value
  *
- * Arguments:
- *    [in] neighbor_entry - neighbor entry
- *    [in] attr - attribute
+ * @param[in] neighbor_entry Neighbor entry
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_set_neighbor_attribute(_In_ const sai_neighbor_entry_t* neighbor_entry,
-                                         _In_ const sai_attribute_t      *attr)
+
+sai_status_t mrvl_sai_set_neighbor_entry_attribute(_In_ const sai_neighbor_entry_t *neighbor_entry,
+                                                   _In_ const sai_attribute_t      *attr)
 {
-    const sai_object_key_t key = { .neighbor_entry = neighbor_entry };
+    const sai_object_key_t key = { .key.neighbor_entry = neighbor_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
     
@@ -451,24 +491,21 @@ sai_status_t mrvl_sai_set_neighbor_attribute(_In_ const sai_neighbor_entry_t* ne
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
- * Routine Description:
- *    Get neighbor attribute value
+/**
+ * @brief Get neighbor entry attribute value
  *
- * Arguments:
- *    [in] neighbor_entry - neighbor entry
- *    [in] attr_count - number of attributes
- *    [inout] attrs - array of attributes
+ * @param[in] neighbor_entry Neighbor entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_get_neighbor_attribute(_In_ const sai_neighbor_entry_t* neighbor_entry,
-                                         _In_ uint32_t                    attr_count,
-                                         _Inout_ sai_attribute_t         *attr_list)
+
+sai_status_t mrvl_sai_get_neighbor_entry_attribute(_In_ const sai_neighbor_entry_t *neighbor_entry,
+                                                   _In_ uint32_t                    attr_count,
+                                                   _Inout_ sai_attribute_t         *attr_list)
 {
-    const sai_object_key_t key = { .neighbor_entry = neighbor_entry };
+    const sai_object_key_t key = { .key.neighbor_entry = neighbor_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -568,7 +605,7 @@ static sai_status_t mrvl_sai_neighbor_mac_get_prv(_In_ const sai_object_key_t   
 {
     sai_status_t                status;
     uint32_t                    nbr_id, rif_idx;
-    const sai_neighbor_entry_t* neighbor_entry = key->neighbor_entry;
+    const sai_neighbor_entry_t *neighbor_entry = &key->key.neighbor_entry;
 
     
     MRVL_SAI_LOG_ENTER();
@@ -626,7 +663,7 @@ static sai_status_t mrvl_sai_neighbor_mac_set_prv(_In_ const sai_object_key_t *k
     sai_status_t                status;
     uint32_t                    nbr_id, rif_idx;
     sai_mac_t                   mac;
-    const sai_neighbor_entry_t* neighbor_entry = key->neighbor_entry;
+    const sai_neighbor_entry_t *neighbor_entry = &key->key.neighbor_entry;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -679,9 +716,11 @@ static sai_status_t mrvl_sai_neighbor_action_set_prv(_In_ const sai_object_key_t
  */
 sai_status_t mrvl_sai_remove_all_neighbor_entries(void)
 {
-    sai_status_t         status;
-    uint32_t             rif_idx, nbr_idx, delete_idx, nh_idx;
-    int route_status;
+    sai_status_t        status;
+    uint32_t            rif_idx, nbr_idx, delete_idx, nh_idx;
+    int                 route_status;
+    char                debug_str[52];
+    uint8_t            *ptr; 
 
     MRVL_SAI_LOG_ENTER();
 
@@ -698,10 +737,22 @@ sai_status_t mrvl_sai_remove_all_neighbor_entries(void)
         }
         do {
 
+            route_status = mrvl_sai_del_route_direct(&mrvl_sai_nbr_table[nbr_idx].inet_address, rif_idx,  (uint64_t)&mrvl_sai_nbr_table[nbr_idx]);
             if ( mrvl_sai_nbr_table[nbr_idx].inet_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
             {
-            	route_status = mrvl_sai_del_route_direct(mrvl_sai_nbr_table[nbr_idx].inet_address.addr.ip4, rif_idx );
-            	MRVL_SAI_LOG_NTC("REMOVE direct route to neigbor rif_idx %d, ipv4 %d, status %d\n", rif_idx, mrvl_sai_nbr_table[nbr_idx].inet_address.addr.ip4, route_status);
+                ptr = (uint8_t *)&mrvl_sai_nbr_table[nbr_idx].inet_address.addr.ip4;
+                sprintf(debug_str, "%d.%d.%d.%d", ptr[0], ptr[1], ptr[2], ptr[3]);
+            	MRVL_SAI_LOG_NTC("REMOVE direct route to neighbor rif_idx %d, ipv4 %s, status %d\n", rif_idx, debug_str, route_status);
+            }
+            else
+            {
+                ptr = (uint8_t *)&mrvl_sai_nbr_table[nbr_idx].inet_address.addr.ip6;
+                sprintf(debug_str, "%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x",
+                                    ptr[0], ptr[1], ptr[2], ptr[3],
+                                    ptr[4], ptr[5], ptr[6], ptr[7],
+                                    ptr[8], ptr[9], ptr[10], ptr[11],
+                                    ptr[12], ptr[13], ptr[14], ptr[15]);
+                MRVL_SAI_LOG_NTC("REMOVE direct route to neighbor rif_idx %d, ipv6 %s, status %d\n", rif_idx, debug_str, route_status);
             }
 
             status = mrvl_sai_next_hop_update_nbr_id(rif_idx, MRVL_SAI_INVALID_ID_CNS, &mrvl_sai_nbr_table[nbr_idx].inet_address, &nh_idx);
@@ -723,7 +774,7 @@ sai_status_t mrvl_sai_remove_all_neighbor_entries(void)
 const sai_neighbor_api_t neighbor_api = {
     mrvl_sai_create_neighbor_entry,
     mrvl_sai_remove_neighbor_entry,
-    mrvl_sai_set_neighbor_attribute,
-    mrvl_sai_get_neighbor_attribute,
+    mrvl_sai_set_neighbor_entry_attribute,
+    mrvl_sai_get_neighbor_entry_attribute,
     mrvl_sai_remove_all_neighbor_entries
 };

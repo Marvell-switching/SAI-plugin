@@ -27,10 +27,10 @@ static mrvl_sai_lag_group_table_t mrvl_sai_lag_group_table[SAI_LAG_MAX_GROUPS_CN
 static const sai_attribute_entry_t  mrvl_sai_lag_attribs[] = {
     { SAI_LAG_ATTR_PORT_LIST, false, false, false, true,
       "LAG port list", SAI_ATTR_VAL_TYPE_OBJLIST },
-    { SAI_LAG_ATTR_INGRESS_ACL_LIST, false, false, false, false,
-      "LAG bind point for ingress ACL objects", SAI_ATTR_VAL_TYPE_OBJLIST },
-    { SAI_LAG_ATTR_EGRESS_ACL_LIST, false, false, false, false,
-      "LAG bind point for egress ACL objects", SAI_ATTR_VAL_TYPE_OBJLIST },
+    { SAI_LAG_ATTR_INGRESS_ACL, false, false, true, true,
+      "LAG bind point for ingress ACL object", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_LAG_ATTR_EGRESS_ACL, false, false, true, true,
+      "LAG bind point for egress ACL object", SAI_ATTR_VAL_TYPE_OID },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
@@ -41,22 +41,32 @@ static sai_status_t mrvl_sai_lag_port_list_get_prv(_In_ const sai_object_key_t  
                                                    _Inout_ vendor_cache_t        *cache,
                                                    void                          *arg);
 
+static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *key,
+                                       _In_ const sai_attribute_value_t *value,
+                                       void                             *arg);
+
+static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
+                                       _Inout_ sai_attribute_value_t *value,
+                                       _In_ uint32_t                  attr_index,
+                                       _Inout_ vendor_cache_t        *cache,
+                                       void                          *arg);
+
 static const sai_vendor_attribute_entry_t  mrvl_sai_lag_vendor_attribs[] = {
     { SAI_LAG_ATTR_PORT_LIST,
       { false, false, false, true },
       { false, false, false, true },
       mrvl_sai_lag_port_list_get_prv, NULL,
       NULL, NULL },
-    { SAI_LAG_ATTR_INGRESS_ACL_LIST,
-      { false, false, false, false },
-      { false, false, false, false },
-      NULL, NULL,
-      NULL, NULL },
-    { SAI_LAG_ATTR_EGRESS_ACL_LIST,
-      { false, false, false, false },
-      { false, false, false, false },
-      NULL, NULL,
-      NULL, NULL },
+    { SAI_LAG_ATTR_INGRESS_ACL,
+      { false, false, true, true },
+      { false, false, true, true },
+      mrvl_lag_acl_binding_get, (void*)SAI_LAG_ATTR_INGRESS_ACL,
+      mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_INGRESS_ACL },
+    { SAI_LAG_ATTR_EGRESS_ACL,
+      { false, false, true, true },
+      { false, false, true, true },
+      mrvl_lag_acl_binding_get, (void*)SAI_LAG_ATTR_EGRESS_ACL,
+      mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_EGRESS_ACL}
 };
 
 static const sai_attribute_entry_t  mrvl_sai_lag_member_attribs[] = {
@@ -160,8 +170,9 @@ static sai_status_t mrvl_sai_lag_port_list_get_prv(
     uint32_t         lag_id;   
     sai_object_id_t  lag_oid; 
 
-    lag_oid = key->object_id;        
+    lag_oid = key->key.object_id;        
 
+    MRVL_SAI_LOG_ENTER();
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_id)) {
         MRVL_SAI_LOG_ERR("invalid lag_oid %d\n",lag_oid);
         return SAI_STATUS_INVALID_PARAMETER;
@@ -182,6 +193,7 @@ static sai_status_t mrvl_sai_lag_port_list_get_prv(
         return SAI_STATUS_FAILURE;
     }
 
+    MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
@@ -198,7 +210,7 @@ static sai_status_t mrvl_sai_lag_member_lag_id_get_prv(
     uint32_t         port_id, lag_id;
     sai_object_id_t  lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
     
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
         MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
@@ -225,7 +237,7 @@ static sai_status_t mrvl_sai_lag_member_port_id_get_prv(
     uint32_t         port_id, lag_id;
     sai_object_id_t  lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
 
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
         MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
@@ -251,7 +263,7 @@ static sai_status_t mrvl_sai_lag_member_egress_disable_get_prv(
     uint32_t            port_id, lag_id;
     sai_object_id_t     lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
 
     /* to check data is valid */
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
@@ -272,7 +284,7 @@ static sai_status_t mrvl_sai_lag_member_egress_disable_set_prv(
     uint32_t         port_id, lag_id;
     sai_object_id_t  lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
 
     /* to check data is valid */
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
@@ -298,7 +310,7 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_get_prv(
     uint32_t            port_id, lag_id;
     sai_object_id_t     lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
 
     /* to check data is valid */
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
@@ -319,7 +331,7 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_set_prv(
     uint32_t         port_id, lag_id;
     sai_object_id_t  lag_member_oid;
 
-    lag_member_oid = key->object_id;
+    lag_member_oid = key->key.object_id;
 
     /* to check data is valid */
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
@@ -334,16 +346,87 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_set_prv(
     return SAI_STATUS_SUCCESS;
 }
 
-/*
-    \brief Create LAG Member
-    \param[out] lag_member_id LAG Member id
-    \param[in] attr_count number of attributes
-    \param[in] attr_list array of attributes
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+
+static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *key,
+                                       _In_ const sai_attribute_value_t *value,
+                                       _In_ void                        *arg)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t     lag;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_LAG, &lag))) {
+        return status;
+    }
+
+    if (lag > SAI_LAG_MAX_GROUPS_CNS){
+        MRVL_SAI_LOG_ERR("Invalid lag %d\n", lag);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    if (value->oid == SAI_NULL_OBJECT_ID){
+    	/* unbind action */
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_port(arg, lag))){
+            MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLE\n", lag);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+    else {
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_port(arg, value->oid, lag))){
+            MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLES\n", lag);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return status;
+}
+
+static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
+                                       _Inout_ sai_attribute_value_t *value,
+                                       _In_ uint32_t                  attr_index,
+                                       _Inout_ vendor_cache_t        *cache,
+                                       void                          *arg){
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t     lag;
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_LAG, &lag))) {
+        return status;
+    }
+
+    if (lag > SAI_LAG_MAX_GROUPS_CNS){
+        MRVL_SAI_LOG_ERR("Invalid lag %d\n", lag);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_port(arg, lag, value))){
+        MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per lag %d\n", lag);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return status;
+
+}
+
+/**
+ * @brief Create LAG Member
+ *
+ * @param[out] lag_member_id LAG Member id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_create_lag_member(
     _Out_ sai_object_id_t          *lag_member_oid,
+    _In_ sai_object_id_t            switch_id,
     _In_ uint32_t                   attr_count,
     _In_ const sai_attribute_t      *attr_list)
 {
@@ -421,12 +504,14 @@ sai_status_t mrvl_sai_create_lag_member(
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
-    \brief Remove LAG Member
-    \param[in] lag_member_id LAG Member id
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+/**
+ * @brief Remove LAG Member
+ *
+ * @param[in] lag_member_id LAG Member id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_remove_lag_member(
     _In_ sai_object_id_t    lag_member_oid
 )
@@ -464,18 +549,22 @@ sai_status_t mrvl_sai_remove_lag_member(
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
-    \brief Set LAG Member Attribute
-    \param[in] lag_member_id LAG Member id
-    \param[in] attr Structure containing ID and value to be set
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+
+/**
+ * @brief Set LAG Member Attribute
+ *
+ * @param[in] lag_member_id LAG Member id
+ * @param[in] attr Structure containing ID and value to be set
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+ */
+
 sai_status_t mrvl_sai_set_lag_member_attribute(
     _In_ sai_object_id_t        lag_member_oid, 
     _In_ const sai_attribute_t  *attr)
 {
-    const sai_object_key_t key = { .object_id = lag_member_oid };
+    const sai_object_key_t key = { .key.object_id = lag_member_oid };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t           status;
 
@@ -491,20 +580,22 @@ sai_status_t mrvl_sai_set_lag_member_attribute(
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
-    \brief Get LAG Member Attribute
-    \param[in] lag_member_id LAG Member id
-    \param[in] attr_count Number of attributes to be get
-    \param[in,out] attr_list List of structures containing ID and value to be get
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+/**
+ * @brief Get LAG Member Attribute
+ *
+ * @param[in] lag_member_id LAG Member id
+ * @param[in] attr_count Number of attributes to be get
+ * @param[inout] attr_list List of structures containing ID and value to be get
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_get_lag_member_attribute(
     _In_ sai_object_id_t     lag_member_oid,
     _In_ uint32_t            attr_count,
     _Inout_ sai_attribute_t *attr_list)
 {
-    const sai_object_key_t key = { .object_id = lag_member_oid };
+    const sai_object_key_t key = { .key.object_id = lag_member_oid };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t           status;
 
@@ -521,17 +612,20 @@ sai_status_t mrvl_sai_get_lag_member_attribute(
     MRVL_SAI_API_RETURN(status);
 }
 
+/**
+ * @brief Create LAG
+ *
+ * @param[out] lag_id LAG id
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
 
-/*
-    \brief Create LAG
-    \param[out] lag_id LAG id
-    \param[in] attr_count number of attributes
-    \param[in] attr_list array of attributes
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
 sai_status_t mrvl_sai_create_lag( 
     _Out_ sai_object_id_t       *lag_oid,
+    _In_ sai_object_id_t switch_id,
     _In_ uint32_t               attr_count,
     _In_ const sai_attribute_t  *attr_list)
 {
@@ -558,9 +652,9 @@ sai_status_t mrvl_sai_create_lag(
 
     /* lag attributes SAI_LAG_ATTR_INGRESS_ACL_LIST and SAI_LAG_ATTR_EGRESS_ACL_LIST are not supported */
     assert(SAI_STATUS_SUCCESS !=
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL_LIST, &attr_ing_acl_list, &index));
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL, &attr_ing_acl_list, &index));
     assert(SAI_STATUS_SUCCESS !=
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL_LIST, &attr_egr_acl_list, &index));
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL, &attr_egr_acl_list, &index));
 
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_lag_attribs, MAX_LIST_VALUE_STR_LEN, list_str);    
     MRVL_SAI_LOG_NTC("Create lag, %s\n", list_str);    
@@ -596,12 +690,15 @@ sai_status_t mrvl_sai_create_lag(
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);    
 }
 
-/*
-    \brief Remove LAG
-    \param[in] lag_id LAG id
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+
+/**
+ * @brief Remove LAG
+ *
+ * @param[in] lag_id LAG id
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_remove_lag(
     _In_ sai_object_id_t    lag_oid
 )
@@ -678,18 +775,20 @@ sai_status_t mrvl_sai_remove_lag(
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
-    \brief Set LAG Attribute
-    \param[in] lag_id LAG id
-    \param[in] attr Structure containing ID and value to be set
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+/**
+ * @brief Set LAG Attribute
+ *
+ * @param[in] lag_id LAG id
+ * @param[in] attr Structure containing ID and value to be set
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_set_lag_attribute(
         _In_ sai_object_id_t        lag_oid, 
         _In_ const sai_attribute_t  *attr)
 {
-    const sai_object_key_t key = { .object_id = lag_oid };
+    const sai_object_key_t key = { .key.object_id = lag_oid };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t           status;    
 
@@ -704,21 +803,23 @@ sai_status_t mrvl_sai_set_lag_attribute(
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
-    \brief Get LAG Attribute
-    \param[in] lag_id LAG id
-    \param[in] attr_count Number of attributes to be get
-    \param[in,out] attr_list List of structures containing ID and value to be get
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: Failure status code on error
-*/
+/**
+ * @brief Get LAG Attribute
+ *
+ * @param[in] lag_id LAG id
+ * @param[in] attr_count Number of attributes to be get
+ * @param[inout] attr_list List of structures containing ID and value to be get
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_get_lag_attribute(
     _In_ sai_object_id_t        lag_oid,
     _In_ uint32_t               attr_count,
     _Inout_ sai_attribute_t     *attr_list
 )
 {
-    const sai_object_key_t key = { .object_id = lag_oid };
+    const sai_object_key_t key = { .key.object_id = lag_oid };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t           status;    
 
@@ -733,6 +834,65 @@ sai_status_t mrvl_sai_get_lag_attribute(
     MRVL_SAI_API_RETURN(status);
 }
 
+/**
+ * @brief Bulk objects creation.
+ *
+ * @param[in] switch_id SAI Switch object id
+ * @param[in] object_count Number of objects to create
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to create.
+ * @param[in] attr_list List of attributes for every object.
+ * @param[in] type Bulk operation type.
+ *
+ * @param[out] object_id List of object ids returned
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are created or #SAI_STATUS_FAILURE when
+ * any of the objects fails to create. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
+ */
+
+sai_status_t mrvl_sai_create_lag_members(
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t object_count,
+        _In_ const uint32_t *attr_count,
+        _In_ const sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_object_id_t *object_id,
+        _Out_ sai_status_t *object_statuses)
+{
+
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
+/**
+ * @brief Bulk objects removal.
+ *
+ * @param[in] object_count Number of objects to create
+ * @param[in] object_id List of object ids
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or #SAI_STATUS_FAILURE when
+ * any of the objects fails to remove. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
+ */
+
+sai_status_t mrvl_sai_remove_lag_members(
+        _In_ uint32_t object_count,
+        _In_ const sai_object_id_t *object_id,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
 const sai_lag_api_t lag_api = {
     mrvl_sai_create_lag,
     mrvl_sai_remove_lag,
@@ -741,5 +901,7 @@ const sai_lag_api_t lag_api = {
     mrvl_sai_create_lag_member,
     mrvl_sai_remove_lag_member,
     mrvl_sai_set_lag_member_attribute,
-    mrvl_sai_get_lag_member_attribute
+    mrvl_sai_get_lag_member_attribute,
+    mrvl_sai_create_lag_members,
+    mrvl_sai_remove_lag_members
 };

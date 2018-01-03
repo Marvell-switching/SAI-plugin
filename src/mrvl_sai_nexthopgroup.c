@@ -25,8 +25,13 @@ static const sai_attribute_entry_t mrvl_sai_next_hop_group_attribs[] = {
       "Next hop group entries count", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_NEXT_HOP_GROUP_ATTR_TYPE, true, true, false, true,
       "Next hop group type", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_LIST, true, true, true, true,
+    { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_MEMBER_LIST, true, true, true, true,
       "Next hop group hop list", SAI_ATTR_VAL_TYPE_OBJLIST },
+    { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+};
+
+static const sai_attribute_entry_t mrvl_sai_next_hop_group_member_attribs[] = {
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
@@ -63,14 +68,15 @@ static const sai_vendor_attribute_entry_t mrvl_sai_next_hop_group_vendor_attribs
       { true, false, false, true },
       mrvl_sai_next_hop_group_type_get_prv, NULL,
       NULL, NULL },
-    { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_LIST,
+    { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_MEMBER_LIST,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_next_hop_group_hop_list_get_prv, NULL,
       mrvl_sai_next_hop_group_hop_list_set_prv, NULL },
 };
 
-
+static const sai_vendor_attribute_entry_t mrvl_sai_next_hop_group_member_vendor_attribs[] = {
+};
 
 /* State DB *************/
 /*typedef struct _mrvl_sai_next_hop_group_t {
@@ -273,22 +279,23 @@ static void mrvl_sai_next_hop_group_key_to_str(_In_ sai_object_id_t next_hop_gro
     snprintf(key_str, MAX_KEY_STR_LEN, "next hop group id %u", nhg);
 }
 
-/*
- * Routine Description:
- *    Create next hop group
+/**
+ * @brief Create next hop group
  *
- * Arguments:
- *    [out] next_hop_group_id - next hop group id
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
+ * @param[out] next_hop_group_id Next hop group id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
  */
-sai_status_t mrvl_sai_create_next_hop_group(_Out_ sai_object_id_t* next_hop_group_id,
-                                        _In_ uint32_t                  attr_count,
-                                        _In_ const sai_attribute_t    *attr_list)
+
+sai_status_t mrvl_sai_create_next_hop_group(_Out_ sai_object_id_t *next_hop_group_id,
+                                            _In_ sai_object_id_t   switch_id,
+                                            _In_ uint32_t          attr_count,
+                                            _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
     const sai_attribute_value_t *type, *hop_list;
@@ -318,11 +325,11 @@ sai_status_t mrvl_sai_create_next_hop_group(_Out_ sai_object_id_t* next_hop_grou
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count,
                                attr_list,
-                               SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_LIST,
+                               SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_MEMBER_LIST,
                                &hop_list,
                                &hop_list_index));
 
-    if (SAI_NEXT_HOP_GROUP_ECMP != type->s32) {
+    if (SAI_NEXT_HOP_GROUP_TYPE_ECMP != type->s32) {
         MRVL_SAI_LOG_ERR("Invalid next hop group type %d on create\n", type->s32);
         status = SAI_STATUS_INVALID_ATTR_VALUE_0 + type_index;
         MRVL_SAI_API_RETURN(status);
@@ -367,17 +374,16 @@ sai_status_t mrvl_sai_create_next_hop_group(_Out_ sai_object_id_t* next_hop_grou
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Remove next hop group
+/**
+
+ * @brief Remove next hop group
  *
- * Arguments:
- *    [in] next_hop_group_id - next hop group id
+ * @param[in] next_hop_group_id Next hop group id
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
  */
+
 sai_status_t mrvl_sai_remove_next_hop_group(_In_ sai_object_id_t next_hop_group_id)
 {
     char         key_str[MAX_KEY_STR_LEN];
@@ -408,22 +414,24 @@ sai_status_t mrvl_sai_remove_next_hop_group(_In_ sai_object_id_t next_hop_group_
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Set Next Hop Group attribute
+/**
+
+
+ * @brief Set Next Hop Group attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - next_hop_group_id
- *    [in] attr - attribute
+ * @param[in] sai_object_id_t Next hop group id
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_set_next_hop_group_attribute(_In_ sai_object_id_t next_hop_group_id,
-                                               _In_ const sai_attribute_t  *attr)
+                                                   _In_ const sai_attribute_t  *attr)
 {
-    const sai_object_key_t key = { .object_id = next_hop_group_id };
+    const sai_object_key_t key = { .key.object_id = next_hop_group_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -434,24 +442,27 @@ sai_status_t mrvl_sai_set_next_hop_group_attribute(_In_ sai_object_id_t next_hop
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
- * Routine Description:
- *    Get Next Hop Group attribute
+/**
+
+
+
+ * @brief Get Next Hop Group attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - next_hop_group_id
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
+ * @param[in] sai_object_id_t Next hop group ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_get_next_hop_group_attribute(_In_ sai_object_id_t next_hop_group_id,
                                                _In_ uint32_t                attr_count,
                                                _Inout_ sai_attribute_t     *attr_list)
 {
-    const sai_object_key_t key = { .object_id = next_hop_group_id };
+    const sai_object_key_t key = { .key.object_id = next_hop_group_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -476,7 +487,7 @@ static sai_status_t mrvl_sai_next_hop_group_type_get_prv(_In_ const sai_object_k
 {
     MRVL_SAI_LOG_ENTER();
 
-    value->s32 = SAI_NEXT_HOP_GROUP_ECMP;
+    value->s32 = SAI_NEXT_HOP_GROUP_TYPE_ECMP;
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
@@ -489,7 +500,7 @@ static sai_status_t mrvl_sai_next_hop_group_count_get_prv(_In_ const sai_object_
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
-    sai_object_id_t     next_hop_group_id = key->object_id;
+    sai_object_id_t     next_hop_group_id = key->key.object_id;
     uint32_t            nhg_idx;
     
     MRVL_SAI_LOG_ENTER();
@@ -518,7 +529,7 @@ static sai_status_t mrvl_sai_next_hop_group_hop_list_get_prv(_In_ const sai_obje
                                               void                          *arg)
 {
     sai_status_t        status;
-    sai_object_id_t     next_hop_group_id = key->object_id;
+    sai_object_id_t     next_hop_group_id = key->key.object_id;
     uint32_t            nhg_idx;
 
     MRVL_SAI_LOG_ENTER();
@@ -553,7 +564,7 @@ static sai_status_t mrvl_sai_next_hop_group_hop_list_set_prv(_In_ const sai_obje
                                               void                             *arg)
 {
     sai_status_t    status;
-    sai_object_id_t next_hop_group_id = key->object_id;
+    sai_object_id_t next_hop_group_id = key->key.object_id;
     uint32_t        nhg_idx, i, numChanged;
     sai_object_list_t objlist;
     
@@ -583,6 +594,7 @@ static sai_status_t mrvl_sai_next_hop_group_hop_list_set_prv(_In_ const sai_obje
     return status;
 }
 
+#if 0
 /*
  * Routine Description:
  *    Add next hop to a group
@@ -696,12 +708,173 @@ sai_status_t mrvl_sai_remove_next_hop_from_group(_In_ sai_object_id_t  next_hop_
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
+#endif
+/**
+ * @brief Create next hop group member
+ *
+ * @param[out] next_hop_group_member_id Next hop group member id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_create_next_hop_group_member (
+        _Out_ sai_object_id_t* next_hop_group_member_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    char key_str[MAX_KEY_STR_LEN];
+
+    MRVL_SAI_LOG_ENTER();
+    snprintf(key_str, MAX_KEY_STR_LEN, "nexthop group member %llx", (long long int)*next_hop_group_member_id);
+    /*TODO*/
+    MRVL_SAI_LOG_NTC("Create  %s\n", key_str);
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
+/**
+ * @brief Remove next hop group member
+ *
+ * @param[in] next_hop_group_member_id Next hop group member ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_next_hop_group_member(
+        _In_ sai_object_id_t next_hop_group_member_id)
+{
+    char key_str[MAX_KEY_STR_LEN];
+
+    MRVL_SAI_LOG_ENTER();
+    snprintf(key_str, MAX_KEY_STR_LEN, "nexthop group member %llx", (long long int)next_hop_group_member_id);
+    MRVL_SAI_LOG_NTC("Delete  %s\n", key_str);
+    /*TODO*/
+    MRVL_SAI_LOG_EXIT();
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+/**
+ * @brief Set Next Hop Group attribute
+ *
+ * @param[in] sai_object_id_t Next hop group member ID
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_set_next_hop_group_member_attribute(
+        _In_ sai_object_id_t next_hop_group_member_id,
+        _In_ const sai_attribute_t *attr)
+{
+    const sai_object_key_t key = { .key.object_id = next_hop_group_member_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+/*TODO*/
+    MRVL_SAI_LOG_ENTER();
+    snprintf(key_str, MAX_KEY_STR_LEN, "nexthop group member %llx", (long long int)next_hop_group_member_id);
+    return mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_next_hop_group_member_attribs, mrvl_sai_next_hop_group_member_vendor_attribs, attr);
+
+}
+
+/**
+ * @brief Get Next Hop Group attribute
+ *
+ * @param[in] sai_object_id_t Next hop group member ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_get_next_hop_group_member_attribute(
+        _In_ sai_object_id_t next_hop_group_member_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    const sai_object_key_t key = { .key.object_id = next_hop_group_member_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+    sai_status_t status;
+/*TODO*/
+    MRVL_SAI_LOG_ENTER();
+    snprintf(key_str, MAX_KEY_STR_LEN, "nexthop group member %llx", (long long int)next_hop_group_member_id);
+    status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_next_hop_group_member_attribs, mrvl_sai_next_hop_group_member_vendor_attribs, attr_count, attr_list);
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+
+}
+
+/**
+ * @brief Bulk objects creation.
+ *
+ * @param[in] switch_id SAI Switch object id
+ * @param[in] object_count Number of objects to create
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to create.
+ * @param[in] attr_list List of attributes for every object.
+ * @param[in] type Bulk operation type.
+ *
+ * @param[out] object_id List of object ids returned
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are created or #SAI_STATUS_FAILURE when
+ * any of the objects fails to create. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
+ */
+
+sai_status_t mrvl_sai_create_next_hop_group_members(
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t object_count,
+        _In_ const uint32_t *attr_count,
+        _In_ const sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_object_id_t *object_id,
+        _Out_ sai_status_t *object_statuses)
+{
+
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
+/**
+ * @brief Bulk objects removal.
+ *
+ * @param[in] object_count Number of objects to create
+ * @param[in] object_id List of object ids
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or #SAI_STATUS_FAILURE when
+ * any of the objects fails to remove. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
+ */
+
+sai_status_t mrvl_sai_remove_next_hop_group_members(
+        _In_ uint32_t object_count,
+        _In_ const sai_object_id_t *object_id,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
+
 
 const sai_next_hop_group_api_t next_hop_group_api = {
     mrvl_sai_create_next_hop_group,
     mrvl_sai_remove_next_hop_group,
     mrvl_sai_set_next_hop_group_attribute,
     mrvl_sai_get_next_hop_group_attribute,
-    mrvl_sai_add_next_hop_to_group,
-    mrvl_sai_remove_next_hop_from_group
+
+    mrvl_sai_create_next_hop_group_member,
+    mrvl_sai_remove_next_hop_group_member,
+    mrvl_sai_set_next_hop_group_member_attribute,
+    mrvl_sai_get_next_hop_group_member_attribute,
+    mrvl_sai_create_next_hop_group_members,
+    mrvl_sai_remove_next_hop_group_members,
 };

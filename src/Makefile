@@ -21,7 +21,12 @@ FILES := \
  mrvl_sai_route.c \
  mrvl_sai_router.c \
  mrvl_sai_stubs.c \
- mrvl_sai_lag.c
+ mrvl_sai_lag.c \
+ mrvl_sai_scheduler_group.c \
+ mrvl_sai_stp.c \
+ mrvl_sai_hash.c \
+ meta/saimetadata.c \
+ meta/saimetadatautils.c 
  
 
 CWD := $(dir $(lastword $(MAKEFILE_LIST)))

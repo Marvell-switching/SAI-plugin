@@ -25,7 +25,10 @@
 #define MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_id) ((vlan_id)>=1 && (vlan_id)<4095)
 
 
-static const sai_attribute_entry_t mrvl_sai_vlan_attribs[] = {   
+static const sai_attribute_entry_t mrvl_sai_vlan_attribs[] = {  
+    {   SAI_VLAN_ATTR_VLAN_ID, true, true, false, true,
+        "Vlan id", SAI_ATTR_VAL_TYPE_U16
+    }, 
     {   SAI_VLAN_ATTR_MEMBER_LIST, false, false, false, true,
         "Vlan member list", SAI_ATTR_VAL_TYPE_OBJLIST
     },
@@ -33,7 +36,7 @@ static const sai_attribute_entry_t mrvl_sai_vlan_attribs[] = {
         "Vlan Maximum number of learned MAC addresses", SAI_ATTR_VAL_TYPE_U32
     },
     {   SAI_VLAN_ATTR_STP_INSTANCE, false, false, true, true,
-        "Vlan associated STP instance", SAI_ATTR_VAL_TYPE_U64
+        "Vlan associated STP instance", SAI_ATTR_VAL_TYPE_OID
     },
     {   SAI_VLAN_ATTR_LEARN_DISABLE, false, false, true, true,
         "disable learning on a VLAN", SAI_ATTR_VAL_TYPE_BOOL
@@ -47,16 +50,48 @@ static const sai_attribute_entry_t mrvl_sai_vlan_member_attribs[] = {
     {   SAI_VLAN_MEMBER_ATTR_VLAN_ID, true, true, false, true,
         "Vlan id", SAI_ATTR_VAL_TYPE_U16
     },
-    {   SAI_VLAN_MEMBER_ATTR_PORT_ID, true, true, false, true,
+    {   SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID, true, true, false, true,
         "Port id", SAI_ATTR_VAL_TYPE_OID
     },
-    {   SAI_VLAN_MEMBER_ATTR_TAGGING_MODE, false, true, true, true,
+    {   SAI_VLAN_MEMBER_ATTR_VLAN_TAGGING_MODE, false, true, true, true,
         "Vlan tagging mode", SAI_ATTR_VAL_TYPE_S32
     },
     {   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
         "", SAI_ATTR_VAL_TYPE_UNDETERMINED
     }
 };
+
+static sai_status_t mrvl_sai_vlan_id_get_prv(_In_ const sai_object_key_t   *key,
+                                             _Inout_ sai_attribute_value_t *value,
+                                             _In_ uint32_t                  attr_index,
+                                             _Inout_ vendor_cache_t        *cache,
+                                              void                          *arg)
+{
+    uint32_t vlan_idx;
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        return status;
+    }
+    value->u16 = vlan_idx;
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+static sai_status_t mrvl_sai_vlan_id_set_prv(_In_ const sai_object_key_t      *key,
+                                             _In_ const sai_attribute_value_t *value,
+                                              void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    if (value->u16 != 0) {
+        return SAI_STATUS_NOT_IMPLEMENTED;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
 
 /* Maximum number of learned MAC addresses [uint32_t]
  * zero means learning limit disable. (default to zero). */
@@ -100,7 +135,7 @@ static sai_status_t mrvl_sai_vlan_stp_get_prv(_In_ const sai_object_key_t   *key
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP_INSTANCE, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 0, &value->oid))) {
         return status;
     }
 
@@ -117,7 +152,7 @@ static sai_status_t mrvl_sai_vlan_stp_set_prv(_In_ const sai_object_key_t *key, 
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(value->oid, SAI_OBJECT_TYPE_STP_INSTANCE, &stp_id))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(value->oid, SAI_OBJECT_TYPE_STP, &stp_id))) {
         return status;
     }
     if (stp_id != 0) { /* only default parameter is supported */
@@ -173,13 +208,17 @@ static sai_status_t mrvl_sai_vlan_member_list_get_prv(_In_ const sai_object_key_
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
-    sai_vlan_id_t   vlan = key->vlan_id;
-    uint32_t        list_size, port, counter = 0, vlan_member;
+    uint32_t        list_size, port, counter = 0, vlan_member, vlan;
     uint64_t        cookie;
     FPA_STATUS      fpa_status;
     FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry;
     
     MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VLAN, &vlan)) {
+        return SAI_STATUS_FAILURE;
+    }
+
     list_size = value->objlist.count;
     for (port = 0; port < SAI_MAX_NUM_OF_PORTS; port++) {
         cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan, port);
@@ -212,8 +251,8 @@ static sai_status_t mrvl_sai_vlan_member_get_prv(_In_ const sai_object_key_t   *
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
-    sai_object_id_t  vlan_member_id = key->object_id;
-    uint32_t         vlan_member;
+     sai_object_id_t  vlan_member_id = key->key.object_id;
+     uint32_t         vlan_member;
     
     MRVL_SAI_LOG_ENTER();
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vlan_member_id, SAI_OBJECT_TYPE_VLAN_MEMBER, &vlan_member)) {
@@ -232,7 +271,7 @@ static sai_status_t mrvl_sai_vlan_member_port_get_prv(_In_ const sai_object_key_
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
-    sai_object_id_t  vlan_member_id = key->object_id;
+    sai_object_id_t  vlan_member_id = key->key.object_id;
     uint32_t         vlan_member;
 
     MRVL_SAI_LOG_ENTER();
@@ -247,14 +286,14 @@ static sai_status_t mrvl_sai_vlan_member_port_get_prv(_In_ const sai_object_key_
 }
 
 /** VLAN tagging mode [sai_vlan_tagging_mode_t] (CREATE_AND_SET)
-     * (default to SAI_VLAN_PORT_UNTAGGED) */
+ *     (default to SAI_VLAN_TAGGING_MODE_UNTAGGED) */
 static sai_status_t mrvl_sai_vlan_member_tagging_get_prv(_In_ const sai_object_key_t   *key,
                                            _Inout_ sai_attribute_value_t *value,
                                            _In_ uint32_t                  attr_index,
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
-    sai_object_id_t  vlan_member_id = key->object_id;
+    sai_object_id_t  vlan_member_id = key->key.object_id;
     uint32_t         vlan_member;
     sai_vlan_tagging_mode_t tag_mode;
     
@@ -271,10 +310,10 @@ static sai_status_t mrvl_sai_vlan_member_tagging_get_prv(_In_ const sai_object_k
 }
 
 /** VLAN tagging mode [sai_vlan_tagging_mode_t] (CREATE_AND_SET)
-     * (default to SAI_VLAN_PORT_UNTAGGED) */
+ *     (default to SAI_VLAN_TAGGING_MODE_UNTAGGED) */
 static sai_status_t mrvl_sai_vlan_member_tagging_set_prv(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg)
 {
-    sai_object_id_t  vlan_member_id = key->object_id;
+    sai_object_id_t  vlan_member_id = key->key.object_id;
     uint32_t         vlan_member;
     sai_vlan_tagging_mode_t tag_mode;
 
@@ -292,9 +331,15 @@ static sai_status_t mrvl_sai_vlan_member_tagging_set_prv(_In_ const sai_object_k
 
 
 static const sai_vendor_attribute_entry_t mrvl_sai_vlan_vendor_attribs[] = {
+    {   SAI_VLAN_ATTR_VLAN_ID,
+        { true, true, true, true },
+        { true, true, true, true },
+        mrvl_sai_vlan_id_get_prv, NULL,
+        mrvl_sai_vlan_id_set_prv, NULL
+    },
     {   SAI_VLAN_ATTR_MEMBER_LIST,
-        { false, false, false, true },
-        { false, false, false, true },
+        { true, true, true, true },
+        { true, true, true, true },
         mrvl_sai_vlan_member_list_get_prv, NULL,
         NULL, NULL
     },
@@ -324,13 +369,13 @@ static const sai_vendor_attribute_entry_t mrvl_sai_vlan_member_vendor_attribs[] 
         mrvl_sai_vlan_member_get_prv, NULL,
         NULL, NULL
     },
-    {   SAI_VLAN_MEMBER_ATTR_PORT_ID,
+    {   SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID,
         { true, false, false, true },
         { true, false, false, true },
         mrvl_sai_vlan_member_port_get_prv, NULL,
         NULL, NULL
     },
-    {   SAI_VLAN_MEMBER_ATTR_TAGGING_MODE,
+    {   SAI_VLAN_MEMBER_ATTR_VLAN_TAGGING_MODE,
         { true, false, true, true },
         { true, false, true, true },
         mrvl_sai_vlan_member_tagging_get_prv, NULL,
@@ -354,21 +399,25 @@ static void mrvl_sai_vlan_member_key_to_str(_In_ sai_object_id_t vlan_member_id,
     snprintf(key_str, MAX_KEY_STR_LEN, "vlan %u port %d", ((vlan_member >> 16) & 0xFFFF), (vlan_member & 0xFFFF));
 }
 
-/*
- * Routine Description:
- *    Set VLAN attribute Value
+/**
+ * @brief Set VLAN Attribute
  *
- * Arguments:
- *    [in] vlan_id - VLAN id
- *    [in] attr - attribute
+ * @param[in] vlan_id VLAN ID
+ * @param[in] attr Attribute structure containing ID and value
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
+
+
  */
-sai_status_t mrvl_sai_set_vlan_attribute(_In_ sai_vlan_id_t vlan_id, _In_ const sai_attribute_t *attr)
+
+sai_status_t mrvl_sai_set_vlan_attribute(_In_ sai_object_id_t vlan_id,
+                                         _In_ const sai_attribute_t *attr)
+
 {
-    const sai_object_key_t key = { .vlan_id = vlan_id };
+    const sai_object_key_t key = { .key.object_id = vlan_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -379,25 +428,27 @@ sai_status_t mrvl_sai_set_vlan_attribute(_In_ sai_vlan_id_t vlan_id, _In_ const 
     MRVL_SAI_API_RETURN(status);
 }
 
+/**
+ * @brief Get VLAN Attribute
+ *
+ * @param[in] vlan_id VLAN ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list List of attribute structures containing ID and value
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
 
-/*
- * Routine Description:
- *    Get VLAN attribute Value
- *
- * Arguments:
- *    [in] vlan_id - VLAN id
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+
+
+
+
  */
-sai_status_t mrvl_sai_get_vlan_attribute(_In_ sai_vlan_id_t       vlan_id,
-                                     _In_ uint32_t            attr_count,
-                                     _Inout_ sai_attribute_t *attr_list)
+
+sai_status_t mrvl_sai_get_vlan_attribute(_In_ sai_object_id_t vlan_id,
+                                         _In_ const uint32_t attr_count,
+                                         _Inout_ sai_attribute_t *attr_list)
+
 {
-    const sai_object_key_t key = { .vlan_id = vlan_id };
+    const sai_object_key_t key = { .key.object_id = vlan_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -427,58 +478,97 @@ sai_status_t mrvl_sai_remove_all_vlans(void)
     return SAI_STATUS_SUCCESS;
 }
 
+/**
 
-/*
- * Routine Description:
- *    Create a VLAN
+ * @brief Create a VLAN
  *
- * Arguments:
- *    [in] vlan_id - VLAN id
+ * @param[out] vlan_id VLAN ID
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributessrc/mrvl_sai_vlan.c:519:105: error: 'list_str' undeclared (first use in this function)
+
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_create_vlan(_In_ sai_vlan_id_t vlan_id)
+sai_status_t mrvl_sai_create_vlan(_Out_ sai_object_id_t *vlan_id,
+                                  _In_ sai_object_id_t switch_id,
+                                  _In_ uint32_t attr_count,
+                                  _In_ const sai_attribute_t *attr_list)
 {
     char key_str[MAX_KEY_STR_LEN];
+    uint32_t vlan_idx = 0;
+    sai_status_t status;
+    const sai_attribute_value_t *attr_val       = NULL;
+    uint32_t                    attr_idx;
 
     MRVL_SAI_LOG_ENTER();
-    mrvl_sai_vlan_key_to_str(vlan_id, key_str);
-    MRVL_SAI_LOG_NTC("Create vlan %s\n", key_str);
+
+    if (NULL == vlan_id) {
+        MRVL_SAI_LOG_ERR("NULL vlan_id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+        (status =
+             mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_vlan_attribs, mrvl_sai_vlan_vendor_attribs,
+                                    SAI_OPERATION_CREATE))) {
+        MRVL_SAI_LOG_ERR("Failed attribs check\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_vlan_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
+    MRVL_SAI_LOG_NTC("Create vlan_id, %s\n", key_str);
+
+    /* check mandatory attribute SAI_VLAN_ATTR_VLAN_ID */
+    assert(SAI_STATUS_SUCCESS ==
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_ATTR_VLAN_ID, &attr_val, &attr_idx));
+    vlan_idx = attr_val->u16;
+
+    /* create SAI VLAN object */    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, vlan_idx, vlan_id))) {
+        MRVL_SAI_API_RETURN(status);
+    }
 
     /* make sure the given vlan_id satisfies the spec*/
-    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_id)) {
-        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_id);
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
     }
+
+    mrvl_sai_vlan_key_to_str(vlan_idx, key_str);
+    MRVL_SAI_LOG_NTC("Create vlan %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
+/**
+ * @brief Remove VLAN
+ *
+ * @param[in] vlan_id VLAN member ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
 
-/*
- * Routine Description:
- *    Remove a VLAN
- *
- * Arguments:
- *    [in] vlan_id - VLAN id
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+
  */
-sai_status_t mrvl_sai_remove_vlan(_In_ sai_vlan_id_t vlan_id)
+
+sai_status_t mrvl_sai_remove_vlan(_In_ sai_object_id_t vlan_id)
 {
     char key_str[MAX_KEY_STR_LEN];
+    uint32_t vlan_idx = 0;
 
     MRVL_SAI_LOG_ENTER();
     mrvl_sai_vlan_key_to_str(vlan_id, key_str);
     MRVL_SAI_LOG_NTC("Remove vlan %s\n", key_str);
 
-    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_id)) {
-        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_id);
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vlan_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx)) {
+        MRVL_SAI_LOG_ERR("invalid vlan_idx %d\n",vlan_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_idx <= 4094\n", vlan_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
     }
     
@@ -487,24 +577,27 @@ sai_status_t mrvl_sai_remove_vlan(_In_ sai_vlan_id_t vlan_id)
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
  
+/**
+ * @brief Create VLAN Member
+ *
+ * @param[out] vlan_member_id VLAN member ID
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
  
-/*
-    \brief Create VLAN Member
-    \param[out] vlan_member_id VLAN member ID
-    \param[in] attr_count number of attributes
-    \param[in] attr_list array of attributes
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: failure status code on error
-*/
-sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
+sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t *vlan_member_id,
+                                         _In_ sai_object_id_t switch_id,
                                          _In_ uint32_t attr_count,
                                          _In_ const sai_attribute_t *attr_list)
 {
-    char                        key_str[MAX_KEY_STR_LEN];
     char                        list_str[MAX_LIST_VALUE_STR_LEN];
     const sai_attribute_value_t *vlan_val, *port_val, *tagging_val;
     uint32_t                    vlan_index, port_index, tagging_index;
     uint32_t                    port_idx;
+    uint32_t                    vlan_idx;
     sai_status_t                status;
     sai_vlan_tagging_mode_t     tagging_mode;
     uint32_t                    group, vlan_member;
@@ -515,7 +608,6 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
     MRVL_SAI_LOG_ENTER();
     MRVL_SAI_LOG_NTC("Create vlan member\n");
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_vlan_member_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
-    MRVL_SAI_LOG_NTC("Create FDB entry %s\n", key_str);
     MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
     if (NULL == vlan_member_id) {
         MRVL_SAI_LOG_ERR("NULL vlan_member_id entry param\n");
@@ -531,26 +623,29 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
     
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_VLAN_ID, &vlan_val, &vlan_index));
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(vlan_val->oid, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        MRVL_SAI_API_RETURN(status);
+    }
 
     assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_PORT_ID, &port_val, &port_index));
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID, &port_val, &port_index));
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port_val->oid, SAI_OBJECT_TYPE_PORT, &port_idx))) {
     	MRVL_SAI_API_RETURN(status);
     }
 
     if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_TAGGING_MODE, &tagging_val, &tagging_index))) {
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_VLAN_TAGGING_MODE, &tagging_val, &tagging_index))) {
         tagging_mode = tagging_val->s32;
     } else {
-        tagging_mode = SAI_VLAN_PORT_UNTAGGED;
+        tagging_mode = SAI_VLAN_TAGGING_MODE_UNTAGGED;
     }
-    if (tagging_mode >= SAI_VLAN_PORT_PRIORITY_TAGGED){
+    if (tagging_mode >= SAI_VLAN_TAGGING_MODE_PRIORITY_TAGGED){
         MRVL_SAI_LOG_ERR("Vlan port priority tagged %d not supported\n", tagging_mode);
         MRVL_SAI_API_RETURN(SAI_STATUS_NOT_SUPPORTED);
     }
 
-    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_val->u16)) {
-        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_val->u16);
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
     }
     
@@ -561,7 +656,7 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
     }
 
     /* add group L2 interface, if group exist update tagging mode */
-    status = mrvl_sai_utl_create_l2_int_group(port_idx, vlan_val->u16, tagging_mode, true, &group);
+    status = mrvl_sai_utl_create_l2_int_group(port_idx, vlan_idx, tagging_mode, true, &group);
     if (status != SAI_STATUS_SUCCESS)
     	MRVL_SAI_API_RETURN(status);
     
@@ -573,9 +668,9 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
     }
         
     /* set vlan entry */
-    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan_val->u16, port_idx);
+    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan_idx, port_idx);
     fpa_flow_entry.cookie = cookie; 
-    fpa_flow_entry.data.vlan.vlanId     = vlan_val->u16;
+    fpa_flow_entry.data.vlan.vlanId     = vlan_idx;
     fpa_flow_entry.data.vlan.vlanIdMask = FPA_FLOW_VLAN_MASK_TAG;
     fpa_flow_entry.data.vlan.inPort = port_idx;
     fpa_flow_entry.data.vlan.newTagVid = FPA_FLOW_VLAN_IGNORE_VAL;
@@ -587,7 +682,7 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
         status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
         MRVL_SAI_API_RETURN(status);
     } 
-    vlan_member = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan_val->u16, port_idx);
+    vlan_member = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan_idx, port_idx);
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN_MEMBER, vlan_member, vlan_member_id))) {
     	MRVL_SAI_API_RETURN(status);
     }
@@ -595,13 +690,15 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t* vlan_member_id,
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
+/**
+ * @brief Remove VLAN Member
+ *
+ * @param[in] vlan_member_id VLAN member ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
 
-/*
-    \brief Remove VLAN Member
-    \param[in] vlan_member_id VLAN member ID
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: failure status code on error
-*/
+ */
+
 sai_status_t mrvl_sai_remove_vlan_member(_In_ sai_object_id_t  vlan_member_id)
 {
     char                        key_str[MAX_KEY_STR_LEN];
@@ -657,18 +754,19 @@ sai_status_t mrvl_sai_remove_vlan_member(_In_ sai_object_id_t  vlan_member_id)
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
+/**
+ * @brief Set VLAN Member Attribute
+ *
+ * @param[in] vlan_member_id VLAN member ID
+ * @param[in] attr Attribute structure containing ID and value
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
 
-/*
-    \brief Set VLAN Member Attribute
-    \param[in] vlan_member_id VLAN member ID
-    \param[in] attr attribute structure containing ID and value
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: failure status code on error
-*/
 sai_status_t mrvl_sai_set_vlan_member_attribute(_In_ sai_object_id_t vlan_member_id,
                                                 _In_ const sai_attribute_t *attr)
 {
-    const sai_object_key_t key = { .object_id = vlan_member_id };
+    const sai_object_key_t key = { .key.object_id = vlan_member_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -679,19 +777,21 @@ sai_status_t mrvl_sai_set_vlan_member_attribute(_In_ sai_object_id_t vlan_member
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
-    \brief Get VLAN Member Attribute
-    \param[in] vlan_member_id VLAN member ID
-    \param[in] attr_count number of attributes
-    \param[in,out] attr_list list of attribute structures containing ID and value
-    \return Success: SAI_STATUS_SUCCESS
-            Failure: failure status code on error
-*/
+/**
+ * @brief Get VLAN Member Attribute
+ *
+ * @param[in] vlan_member_id VLAN member ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list List of attribute structures containing ID and value
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+
 sai_status_t mrvl_sai_get_vlan_member_attribute(_In_ sai_object_id_t vlan_member_id,
                                                 _In_ const uint32_t attr_count,
                                                 _Inout_ sai_attribute_t *attr_list)
 {
-    const sai_object_key_t key = { .object_id = vlan_member_id };
+    const sai_object_key_t key = { .key.object_id = vlan_member_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -702,24 +802,88 @@ sai_status_t mrvl_sai_get_vlan_member_attribute(_In_ sai_object_id_t vlan_member
     MRVL_SAI_API_RETURN(status);
 }
 
-/*
- * Routine Description:
- *   Get vlan statistics counters.
+/**
+ * @brief Bulk objects creation.
  *
- * Arguments:
- *    [in] vlan_id - VLAN id
- *    [in] counter_ids - specifies the array of counter ids
- *    [in] number_of_counters - number of counters in the array
- *    [out] counters - array of resulting counter values.
+ * @param[in] switch_id SAI Switch object id
+ * @param[in] object_count Number of objects to create
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to create.
+ * @param[in] attr_list List of attributes for every object.
+ * @param[in] type Bulk operation type.
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @param[out] object_id List of object ids returned
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are created or #SAI_STATUS_FAILURE when
+ * any of the objects fails to create. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
  */
-sai_status_t mrvl_sai_get_vlan_stats(_In_ sai_vlan_id_t                  vlan_id,
-                                 _In_ const sai_vlan_stat_counter_t *counter_ids,
-                                 _In_ uint32_t                       number_of_counters,
-                                 _Out_ uint64_t                    * counters)
+sai_status_t mrvl_create_vlan_members (
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t object_count,
+        _In_ const uint32_t *attr_count,
+        _In_ const sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_object_id_t *object_id,
+        _Out_ sai_status_t *object_statuses)
+{
+
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_NTC("Create vlan members\n");
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+ 
+
+/**
+ * @brief Bulk objects removal.
+ *
+ * @param[in] object_count Number of objects to create
+ * @param[in] object_id List of object ids
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to allocate the buffer.
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or #SAI_STATUS_FAILURE when
+ * any of the objects fails to remove. When there is failure, Caller is expected to go through the
+ * list of returned statuses to find out which fails and which succeeds.
+ */
+
+sai_status_t mrvl_remove_vlan_members(
+        _In_ uint32_t object_count,
+        _In_ const sai_object_id_t *object_id,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses)
+{
+
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_NTC("Remove vlan members\n");
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+ 
+/**
+
+
+ * @brief Get vlan statistics counters.
+ *
+ * @param[in] vlan_id VLAN id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ * @param[out] counters Array of resulting counter values.
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
+ */
+
+sai_status_t mrvl_sai_get_vlan_stats(_In_ sai_object_id_t vlan_id,
+                                     _In_ uint32_t number_of_counters,
+                                     _In_ const sai_vlan_stat_t *counter_ids,
+                                     _Out_ uint64_t *counters)
 {
     uint32_t ii;
 
@@ -746,22 +910,23 @@ sai_status_t mrvl_sai_get_vlan_stats(_In_ sai_vlan_id_t                  vlan_id
     MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 }
 
-/*
- * Routine Description:
- *   Clear vlan statistics counters.
+/**
+
+ * @brief Clear vlan statistics counters.
  *
- * Arguments:
- *    [in] vlan_id - VLAN id
- *    [in] counter_ids - specifies the array of counter ids
- *    [in] number_of_counters - number of counters in the array
+ * @param[in] vlan_id Vlan id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
-sai_status_t mrvl_sai_clear_vlan_stats(_In_ sai_vlan_id_t                  vlan_id,
-                                 _In_ const sai_vlan_stat_counter_t *counter_ids,
-                                 _In_ uint32_t                       number_of_counters)
+
+sai_status_t mrvl_sai_clear_vlan_stats(_In_ sai_object_id_t vlan_id,
+                                       _In_ uint32_t number_of_counters,
+                                       _In_ const sai_vlan_stat_t *counter_ids)
 {
 
     UNREFERENCED_PARAMETER(vlan_id);
@@ -788,6 +953,8 @@ const sai_vlan_api_t vlan_api = {
     mrvl_sai_remove_vlan_member,
     mrvl_sai_set_vlan_member_attribute,
     mrvl_sai_get_vlan_member_attribute,
+    mrvl_create_vlan_members,
+    mrvl_remove_vlan_members, 
     mrvl_sai_get_vlan_stats,
     mrvl_sai_clear_vlan_stats
 };

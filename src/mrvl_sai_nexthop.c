@@ -149,24 +149,24 @@ sai_status_t mrvl_sai_next_hop_get_match_id(_In_  uint32_t          nh_idx ,
     return SAI_STATUS_SUCCESS;
 }
 
-/*
- * Routine Description:
- *    Create next hop
- *
- * Arguments:
- *    [out] next_hop_id - next hop id
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+/**
+
+ * @brief Create next hop
  *
  * Note: IP address expected in Network Byte Order.
+ *
+ * @param[out] next_hop_id Next hop id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_create_next_hop(_Out_ sai_object_id_t   * next_hop_id,
-                                  _In_ uint32_t               attr_count,
-                                  _In_ const sai_attribute_t *attr_list)
+
+sai_status_t mrvl_sai_create_next_hop(_Out_ sai_object_id_t      *next_hop_id,
+                                      _In_ sai_object_id_t        switch_id,
+                                      _In_ uint32_t               attr_count,
+                                      _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                status;
     const sai_attribute_value_t *type, *ip, *rif;
@@ -196,7 +196,7 @@ sai_status_t mrvl_sai_create_next_hop(_Out_ sai_object_id_t   * next_hop_id,
 
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_NEXT_HOP_ATTR_TYPE, &type, &type_index));
-    if (SAI_NEXT_HOP_IP != type->s32) {
+    if (SAI_NEXT_HOP_TYPE_IP != type->s32) {
         MRVL_SAI_LOG_ERR("Invalid next hop type %d on create\n", type->s32);
         status =  SAI_STATUS_INVALID_ATTR_VALUE_0 + type_index;
         MRVL_SAI_API_RETURN(status);
@@ -475,17 +475,17 @@ sai_status_t mrvl_sai_next_hop_get_rif_id(uint32_t nh_idx, uint32_t *rif_idx)
     return SAI_STATUS_SUCCESS;
 }
 
-/*
- * Routine Description:
- *    Remove next hop
+/**
+
+
+ * @brief Remove next hop
  *
- * Arguments:
- *    [in] next_hop_id - next hop id
+ * @param[in] next_hop_id Next hop id
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
  */
+
 sai_status_t mrvl_sai_remove_next_hop(_In_ sai_object_id_t next_hop_id)
 {
     char key_str[MAX_KEY_STR_LEN];
@@ -528,21 +528,23 @@ sai_status_t mrvl_sai_remove_next_hop(_In_ sai_object_id_t next_hop_id)
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/*
- * Routine Description:
- *    Set Next Hop attribute
+/**
+
+
+ * @brief Set Next Hop attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - next_hop_id
- *    [in] attr - attribute
+ * @param[in] next_hop_id Next hop id
+ * @param[in] attr Attribute
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
+
+
  */
+
 sai_status_t mrvl_sai_set_next_hop_attribute(_In_ sai_object_id_t next_hop_id, _In_ const sai_attribute_t *attr)
 {
-    const sai_object_key_t key = { .object_id = next_hop_id };
+    const sai_object_key_t key = { .key.object_id = next_hop_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -553,25 +555,23 @@ sai_status_t mrvl_sai_set_next_hop_attribute(_In_ sai_object_id_t next_hop_id, _
     MRVL_SAI_API_RETURN(status);
 }
 
+/**
 
-/*
- * Routine Description:
- *    Get Next Hop attribute
+ * @brief Get Next Hop attribute
  *
- * Arguments:
- *    [in] sai_object_id_t - next_hop_id
- *    [in] attr_count - number of attributes
- *    [inout] attr_list - array of attributes
+ * @param[in] next_hop_id Next hop id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
  *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+
  */
+
 sai_status_t mrvl_sai_get_next_hop_attribute(_In_ sai_object_id_t   next_hop_id,
-                                         _In_ uint32_t            attr_count,
-                                         _Inout_ sai_attribute_t *attr_list)
+                                             _In_ uint32_t            attr_count,
+                                             _Inout_ sai_attribute_t *attr_list)
 {
-    const sai_object_key_t key = { .object_id = next_hop_id };
+    const sai_object_key_t key = { .key.object_id = next_hop_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -591,7 +591,7 @@ static sai_status_t mrvl_sai_next_hop_type_get_prv(_In_ const sai_object_key_t  
 {
     MRVL_SAI_LOG_ENTER();
 
-    value->s32 = SAI_NEXT_HOP_IP;
+    value->s32 = SAI_NEXT_HOP_TYPE_IP;
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
@@ -607,7 +607,7 @@ static sai_status_t mrvl_sai_next_hop_ip_get_prv(_In_ const sai_object_key_t   *
     uint32_t nh_idx;
     
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_NEXT_HOP, &nh_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_NEXT_HOP, &nh_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }
@@ -632,7 +632,7 @@ static sai_status_t mrvl_sai_next_hop_rif_get_prv(_In_ const sai_object_key_t   
     sai_status_t    status;
     
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->object_id, SAI_OBJECT_TYPE_NEXT_HOP, &nh_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_NEXT_HOP, &nh_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
     }

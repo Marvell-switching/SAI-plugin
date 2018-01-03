@@ -27,11 +27,11 @@
 static void* mrvl_sai_route_hash_ptr;
 
 static const sai_attribute_entry_t mrvl_sai_route_attribs[] = {
-    { SAI_ROUTE_ATTR_PACKET_ACTION, false, true, true, true,
+    { SAI_ROUTE_ENTRY_ATTR_PACKET_ACTION, false, true, true, true,
       "Route packet action", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_ROUTE_ATTR_TRAP_PRIORITY, false, true, true, true,
+    { SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY, false, true, true, true,
       "Route trap priority", SAI_ATTR_VAL_TYPE_U8 },
-    { SAI_ROUTE_ATTR_NEXT_HOP_ID, false, true, true, true,
+    { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID, false, true, true, true,
       "Route next hop ID", SAI_ATTR_VAL_TYPE_U32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
@@ -63,28 +63,28 @@ static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key
                                         void                             *arg);
 
 static const sai_vendor_attribute_entry_t mrvl_sai_route_vendor_attribs[] = {
-    { SAI_ROUTE_ATTR_PACKET_ACTION,
+    { SAI_ROUTE_ENTRY_ATTR_PACKET_ACTION,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_route_packet_action_get_prv, NULL,
       mrvl_sai_route_packet_action_set_prv, NULL },
-    { SAI_ROUTE_ATTR_TRAP_PRIORITY,
+    { SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_route_trap_priority_get_prv, NULL,
       mrvl_sai_route_trap_priority_set_prv, NULL },
-    { SAI_ROUTE_ATTR_NEXT_HOP_ID,
+    { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID,
       { true, false, true, true },
       { true, false, true, true },
       mrvl_sai_route_next_hop_id_get_prv, NULL,
       mrvl_sai_route_next_hop_id_set_prv, NULL },
 };
-static void mrvl_sai_route_key_to_str(_In_ const sai_unicast_route_entry_t* unicast_route_entry, _Out_ char *key_str)
+static void mrvl_sai_route_key_to_str(_In_ const sai_route_entry_t* route_entry, _Out_ char *key_str)
 {
     int res;
 
     res = snprintf(key_str, MAX_KEY_STR_LEN, "route ");
-    mrvl_sai_utl_ipprefix_to_str(unicast_route_entry->destination, MAX_KEY_STR_LEN - res, key_str + res);
+    mrvl_sai_utl_ipprefix_to_str(route_entry->destination, MAX_KEY_STR_LEN - res, key_str + res);
 }
 
 
@@ -145,7 +145,7 @@ sai_status_t mrvl_sai_route_init(void)
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_create_route_prv(_In_ const sai_unicast_route_entry_t* unicast_route_entry,
+sai_status_t mrvl_sai_create_route_prv(_In_ const sai_route_entry_t* route_entry,
                                        _In_ mrvl_sai_route_hash_entry_t  *entry)
 {
     FPA_FLOW_TABLE_ENTRY_STC       flow_entry;
@@ -159,7 +159,7 @@ sai_status_t mrvl_sai_create_route_prv(_In_ const sai_unicast_route_entry_t* uni
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
+    if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
         fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
     }
     else {
@@ -193,15 +193,15 @@ sai_status_t mrvl_sai_create_route_prv(_In_ const sai_unicast_route_entry_t* uni
         }
     }
 
-    if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
-        flow_entry.data.l3_unicast.match.dstIp4 = unicast_route_entry->destination.addr.ip4;
-        flow_entry.data.l3_unicast.match.dstIp4Mask = unicast_route_entry->destination.mask.ip4;
+    if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
+        flow_entry.data.l3_unicast.match.dstIp4 = route_entry->destination.addr.ip4;
+        flow_entry.data.l3_unicast.match.dstIp4Mask = route_entry->destination.mask.ip4;
         flow_entry.data.l3_unicast.match.etherType = 0x800;
     }
     else {
         for (i=0; i<16; i++) {
-            flow_entry.data.l3_unicast.match.dstIp6.s6_addr[i] = unicast_route_entry->destination.addr.ip6[i];
-            flow_entry.data.l3_unicast.match.dstIp6Mask.s6_addr[i] = unicast_route_entry->destination.mask.ip6[i];
+            flow_entry.data.l3_unicast.match.dstIp6.s6_addr[i] = route_entry->destination.addr.ip6[i];
+            flow_entry.data.l3_unicast.match.dstIp6Mask.s6_addr[i] = route_entry->destination.mask.ip6[i];
         }
         flow_entry.data.l3_unicast.match.etherType = 0x86dd;
     }
@@ -209,7 +209,7 @@ sai_status_t mrvl_sai_create_route_prv(_In_ const sai_unicast_route_entry_t* uni
     flow_entry.data.l3_unicast.match.vrfId = entry->key.vr_id;
 
     flow_entry.cookie = entry->data.cookie;
-    if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
+    if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
         fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, &flow_entry);
     }
     else {
@@ -224,13 +224,13 @@ sai_status_t mrvl_sai_create_route_prv(_In_ const sai_unicast_route_entry_t* uni
 
 
 static sai_status_t mrvl_sai_route_get_rif_nbr_prv(_In_  uint32_t rif_idx ,
-                                                   _In_  const sai_unicast_route_entry_t* unicast_route_entry,
+                                                   _In_  const sai_route_entry_t* route_entry,
                                                    _Out_ uint32_t *nbr_idx)
 {
     sai_status_t        status;
     sai_packet_action_t nbr_miss_act;
 
-    status = mrvl_sai_get_match_neighbor_id(rif_idx, (const sai_ip_address_t *)&unicast_route_entry->destination, nbr_idx);
+    status = mrvl_sai_get_match_neighbor_id(rif_idx, (const sai_ip_address_t *)&route_entry->destination, nbr_idx);
     if (status != SAI_STATUS_SUCCESS) {
         /* neighbor doesn't exist - check default miss action*/
         MRVL_SAI_LOG_DBG("Can't find neighbor get default\n");
@@ -248,25 +248,20 @@ static sai_status_t mrvl_sai_route_get_rif_nbr_prv(_In_  uint32_t rif_idx ,
     return SAI_STATUS_SUCCESS;
 }
 
+/**
 
-/*
- * Routine Description:
- *    Create Route
- *
- * Arguments:
- *    [in] unicast_route_entry - route entry
- *    [in] attr_count - number of attributes
- *    [in] attr_list - array of attributes
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+ * @brief Create Route
  *
  * Note: IP prefix/mask expected in Network Byte Order.
  *
+ * @param[in] route_entry Route entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
 
-sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast_route_entry,
+sai_status_t mrvl_sai_create_route_entry(_In_ const sai_route_entry_t* route_entry,
                                _In_ uint32_t                         attr_count,
                                _In_ const sai_attribute_t           *attr_list)
 {
@@ -281,7 +276,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
     uint32_t						trap_ext=0;
     MRVL_SAI_LOG_ENTER();
 
-    if (NULL == unicast_route_entry) {
+    if (NULL == route_entry) {
         MRVL_SAI_LOG_ERR("NULL unicast_route_entry param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
@@ -293,7 +288,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
         MRVL_SAI_API_RETURN(status);
     }
 
-    mrvl_sai_route_key_to_str(unicast_route_entry, key_str);
+    mrvl_sai_route_key_to_str(route_entry, key_str);
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_route_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
     MRVL_SAI_LOG_NTC("Create %s\n", key_str);
     MRVL_SAI_LOG_NTC("Attribs %s\n", list_str);
@@ -301,7 +296,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
 
     if (SAI_STATUS_SUCCESS ==
         (status =
-             mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ATTR_TRAP_PRIORITY, &priority, &priority_index))) {
+             mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY, &priority, &priority_index))) {
         if (priority->u8 != 0) {
             MRVL_SAI_LOG_ERR("priority %d is not supported\n", priority->u8);
             MRVL_SAI_API_RETURN(SAI_STATUS_NOT_SUPPORTED);
@@ -310,7 +305,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
     memset(&entry, 0, sizeof(entry));
 
     if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ATTR_PACKET_ACTION, &action, &action_index))) {
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ENTRY_ATTR_PACKET_ACTION, &action, &action_index))) {
         entry.data.action = action->s32;
         if ((entry.data.action != SAI_PACKET_ACTION_FORWARD) &&
             (entry.data.action != SAI_PACKET_ACTION_TRAP)    &&
@@ -324,13 +319,13 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
 
 #ifdef DEMO_TRY
 /* default rouet always set to trap for arp to me WA , TODO: */
-    if ( unicast_route_entry->destination.addr.ip4 == 0 )
+    if ( route_entry->destination.addr.ip4 == 0 )
     {
         entry.data.action = SAI_PACKET_ACTION_TRAP;
     }
 #endif
 
-    status = mrvl_sai_utl_object_to_type(unicast_route_entry->vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &entry.key.vr_id);
+    status = mrvl_sai_utl_object_to_type(route_entry->vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &entry.key.vr_id);
     if (status != SAI_STATUS_SUCCESS) {
         MRVL_SAI_LOG_ERR("vrid is invalid\n");
         MRVL_SAI_API_RETURN(status);
@@ -341,18 +336,18 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4){
-        memcpy(&entry.key.destination.addr.ip4, &unicast_route_entry->destination.addr.ip4, sizeof(sai_ip4_t));
-        memcpy(&entry.key.destination.mask.ip4, &unicast_route_entry->destination.mask.ip4, sizeof(sai_ip4_t));
+    if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4){
+        memcpy(&entry.key.destination.addr.ip4, &route_entry->destination.addr.ip4, sizeof(sai_ip4_t));
+        memcpy(&entry.key.destination.mask.ip4, &route_entry->destination.mask.ip4, sizeof(sai_ip4_t));
         entry.key.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
     } else {
-        memcpy(&entry.key.destination.addr.ip6, &unicast_route_entry->destination.addr.ip6, sizeof(sai_ip6_t));
-        memcpy(&entry.key.destination.mask.ip6, &unicast_route_entry->destination.mask.ip6, sizeof(sai_ip6_t));
+        memcpy(&entry.key.destination.addr.ip6, &route_entry->destination.addr.ip6, sizeof(sai_ip6_t));
+        memcpy(&entry.key.destination.mask.ip6, &route_entry->destination.mask.ip6, sizeof(sai_ip6_t));
         entry.key.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV6;
     }
 
     if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ATTR_NEXT_HOP_ID, &next_hop, &next_hop_index))) {
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID, &next_hop, &next_hop_index))) {
 
         if (mrvl_sai_utl_is_object_type(next_hop->oid, SAI_OBJECT_TYPE_NEXT_HOP) == SAI_STATUS_SUCCESS){
             status = mrvl_sai_utl_object_to_type(next_hop->oid, SAI_OBJECT_TYPE_NEXT_HOP, &nh_idx);
@@ -392,29 +387,29 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
             trap_ext = 1;
             //entry.data.action = SAI_PACKET_ACTION_TRAP;
             #if 0
-            if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
+            if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
                 /* working only if route ip mask is 32 */
-                if (unicast_route_entry->destination.mask.ip4 != 0xFFFFFFFF) {
+                if (route_entry->destination.mask.ip4 != 0xFFFFFFFF) {
                     MRVL_SAI_LOG_ERR("Invalid router mask for rif interface\n");
                     MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
                 }
             }
-            else
+            else_entry
             {
                 /* working only if route ip mask is 128 */
-                if (unicast_route_entry->destination.mask.ip6[0] != 0xFF && unicast_route_entry->destination.mask.ip6[1] != 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[2] != 0xFF && unicast_route_entry->destination.mask.ip6[3] != 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[4] != 0xFF && unicast_route_entry->destination.mask.ip6[5] != 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[6] != 0xFF && unicast_route_entry->destination.mask.ip6[7] != 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[8] != 0xFF && unicast_route_entry->destination.mask.ip6[9] != 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[10]!= 0xFF && unicast_route_entry->destination.mask.ip6[11]!= 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[12]!= 0xFF && unicast_route_entry->destination.mask.ip6[13]!= 0xFF &&
-                    unicast_route_entry->destination.mask.ip6[14]!= 0xFF && unicast_route_entry->destination.mask.ip6[15]!= 0xFF) {
+                if (route_entry->destination.mask.ip6[0] != 0xFF && route_entry->destination.mask.ip6[1] != 0xFF &&
+                    route_entry->destination.mask.ip6[2] != 0xFF && route_entry->destination.mask.ip6[3] != 0xFF &&
+                    route_entry->destination.mask.ip6[4] != 0xFF && route_entry->destination.mask.ip6[5] != 0xFF &&
+                    route_entry->destination.mask.ip6[6] != 0xFF && route_entry->destination.mask.ip6[7] != 0xFF &&
+                    route_entry->destination.mask.ip6[8] != 0xFF && route_entry->destination.mask.ip6[9] != 0xFF &&
+                    route_entry->destination.mask.ip6[10]!= 0xFF && route_entry->destination.mask.ip6[11]!= 0xFF &&
+                    route_entry->destination.mask.ip6[12]!= 0xFF && route_entry->destination.mask.ip6[13]!= 0xFF &&
+                    route_entry->destination.mask.ip6[14]!= 0xFF && route_entry->destination.mask.ip6[15]!= 0xFF) {
                     MRVL_SAI_LOG_ERR("Invalid router mask for rif interface\n");
                     MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
                 }
             }
-            status = mrvl_sai_route_get_rif_nbr_prv(rif_idx, unicast_route_entry, &nbr_idx);
+            status = mrvl_sai_route_get_rif_nbr_prv(rif_idx, route_entry, &nbr_idx);
             if (status != SAI_STATUS_SUCCESS) {
             	MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
             }       
@@ -458,7 +453,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
     used_entry_ptr->data.key_ptr = &used_entry_ptr->key;
     used_entry_ptr->data.cookie = (uint32_t)((PTR_TO_INT)used_entry_ptr);
     entry.data.cookie = used_entry_ptr->data.cookie;
-    status = mrvl_sai_create_route_prv(unicast_route_entry, &entry);
+    status = mrvl_sai_create_route_prv(route_entry, &entry);
     if (status != SAI_STATUS_SUCCESS) {
         if (status == SAI_STATUS_ITEM_ALREADY_EXISTS) {
             MRVL_SAI_LOG_ERR("mrvl_sai_create_route_prv failed - ALREADY_EXISTS\n");
@@ -490,7 +485,7 @@ sai_status_t mrvl_sai_create_route(_In_ const sai_unicast_route_entry_t* unicast
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
-static sai_status_t mrvl_sai_get_route_prv(const sai_unicast_route_entry_t* unicast_route_entry,
+static sai_status_t mrvl_sai_get_route_prv(const sai_route_entry_t* route_entry,
                                    mrvl_sai_route_hash_entry_t         **route_get_entry)
 {
     mrvl_sai_route_hash_entry_t entry;
@@ -498,13 +493,13 @@ static sai_status_t mrvl_sai_get_route_prv(const sai_unicast_route_entry_t* unic
     bool                        vr_is_valid;
     MRVL_SAI_LOG_ENTER();
 
-    if (NULL == unicast_route_entry) {
+    if (NULL == route_entry) {
         MRVL_SAI_LOG_ERR("NULL unicast_route_entry param\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
     memset(&entry,0, sizeof(entry));
-    status = mrvl_sai_utl_object_to_type(unicast_route_entry->vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &entry.key.vr_id);
+    status = mrvl_sai_utl_object_to_type(route_entry->vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &entry.key.vr_id);
     if (status != SAI_STATUS_SUCCESS) {
         MRVL_SAI_LOG_ERR("vrid is invalid\n");
         return status;
@@ -515,13 +510,13 @@ static sai_status_t mrvl_sai_get_route_prv(const sai_unicast_route_entry_t* unic
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-     if (unicast_route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4){
-         memcpy(&entry.key.destination.addr.ip4, &unicast_route_entry->destination.addr.ip4, sizeof(sai_ip4_t));
-         memcpy(&entry.key.destination.mask.ip4, &unicast_route_entry->destination.mask.ip4, sizeof(sai_ip4_t));
+     if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4){
+         memcpy(&entry.key.destination.addr.ip4, &route_entry->destination.addr.ip4, sizeof(sai_ip4_t));
+         memcpy(&entry.key.destination.mask.ip4, &route_entry->destination.mask.ip4, sizeof(sai_ip4_t));
          entry.key.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
      } else {
-         memcpy(&entry.key.destination.addr.ip6, &unicast_route_entry->destination.addr.ip6, sizeof(sai_ip6_t));
-         memcpy(&entry.key.destination.mask.ip6, &unicast_route_entry->destination.mask.ip6, sizeof(sai_ip6_t));
+         memcpy(&entry.key.destination.addr.ip6, &route_entry->destination.addr.ip6, sizeof(sai_ip6_t));
+         memcpy(&entry.key.destination.mask.ip6, &route_entry->destination.mask.ip6, sizeof(sai_ip6_t));
          entry.key.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV6;
      }
 
@@ -533,20 +528,17 @@ static sai_status_t mrvl_sai_get_route_prv(const sai_unicast_route_entry_t* unic
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
-/*
- * Routine Description:
- *    Remove Route
- *
- * Arguments:
- *    [in] unicast_route_entry - route entry
- *
- * Return Values:
- *    SAI_STATUS_SUCCESS on success
- *    Failure status code on error
+/**
+ * @brief Remove Route
  *
  * Note: IP prefix/mask expected in Network Byte Order.
+ *
+ * @param[in] route_entry Route entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
-sai_status_t mrvl_sai_remove_route(_In_ const sai_unicast_route_entry_t* unicast_route_entry)
+
+sai_status_t mrvl_sai_remove_route_entry(_In_ const sai_route_entry_t* route_entry)
 {
 
     char           key_str[MAX_KEY_STR_LEN];
@@ -556,10 +548,10 @@ sai_status_t mrvl_sai_remove_route(_In_ const sai_unicast_route_entry_t* unicast
 
     MRVL_SAI_LOG_ENTER();
 
-    mrvl_sai_route_key_to_str(unicast_route_entry, key_str);
+    mrvl_sai_route_key_to_str(route_entry, key_str);
     MRVL_SAI_LOG_NTC("Remove route %s\n", key_str);
 
-    status = mrvl_sai_get_route_prv(unicast_route_entry, &used_entry_ptr);
+    status = mrvl_sai_get_route_prv(route_entry, &used_entry_ptr);
 	if ((used_entry_ptr == NULL) || (used_entry_ptr->data.valid == false) || (status != SAI_STATUS_SUCCESS)) {
 		MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
 	}
@@ -600,7 +592,7 @@ sai_status_t mrvl_sai_route_remove_all(void)
 {
 
     sai_status_t                status;
-    sai_unicast_route_entry_t   unicast_route_entry;
+    sai_route_entry_t           route_entry;
     mrvl_sai_route_hash_entry_t *entry_ptr;
     mrvl_sai_route_hash_key_t   key;
 
@@ -608,7 +600,7 @@ sai_status_t mrvl_sai_route_remove_all(void)
     /* get first entry */
     entry_ptr = (mrvl_sai_route_hash_entry_t*)mrvl_sai_utl_GetNextSort(mrvl_sai_route_hash_ptr, NULL);
     while (entry_ptr != NULL) {
-        if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, entry_ptr->key.vr_id, &unicast_route_entry.vr_id)) {
+        if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, entry_ptr->key.vr_id, &route_entry.vr_id)) {
             return SAI_STATUS_FAILURE;
         }
         memcpy(&key, &entry_ptr->key, sizeof(mrvl_sai_route_hash_key_t));
@@ -623,8 +615,8 @@ sai_status_t mrvl_sai_route_remove_all(void)
              (entry_ptr->key.destination.mask.ip6[10]!= 0) && (entry_ptr->key.destination.mask.ip6[11]!= 0) &&
              (entry_ptr->key.destination.mask.ip6[12]!= 0) && (entry_ptr->key.destination.mask.ip6[13]!= 0) &&
              (entry_ptr->key.destination.mask.ip6[14]!= 0) && (entry_ptr->key.destination.mask.ip6[15]!= 0))) { /* we can't delete default entry*/
-            memcpy(&unicast_route_entry.destination, &entry_ptr->key.destination, sizeof(sai_ip_prefix_t));
-            status = mrvl_sai_remove_route(&unicast_route_entry);
+            memcpy(&route_entry.destination, &entry_ptr->key.destination, sizeof(sai_ip_prefix_t));
+            status = mrvl_sai_remove_route_entry(&route_entry);
             if (status !=SAI_STATUS_SUCCESS) {
                 return status;
             }
@@ -640,28 +632,28 @@ sai_status_t mrvl_sai_route_remove_all(void)
  *    Set route attribute value
  *
  * Arguments:
- *    [in] unicast_route_entry - route entry
+ *    [in] route_entry - route entry
  *    [in] attr - attribute
  *
  * Return Values:
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_set_route_attribute(_In_ const sai_unicast_route_entry_t* unicast_route_entry,
+sai_status_t mrvl_sai_set_route_entry_attribute(_In_ const sai_route_entry_t* route_entry,
                                       _In_ const sai_attribute_t           *attr)
 {
-    const sai_object_key_t key = { .unicast_route_entry = unicast_route_entry };
+    const sai_object_key_t key = { .key.route_entry = route_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (NULL == unicast_route_entry) {
+    if (NULL == route_entry) {
         MRVL_SAI_LOG_ERR("NULL unicast_route_entry param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    mrvl_sai_route_key_to_str(unicast_route_entry, key_str);
+    mrvl_sai_route_key_to_str(route_entry, key_str);
     status = mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_route_attribs, mrvl_sai_route_vendor_attribs, attr);
     MRVL_SAI_API_RETURN(status);
 }
@@ -671,7 +663,7 @@ sai_status_t mrvl_sai_set_route_attribute(_In_ const sai_unicast_route_entry_t* 
  *    Get route attribute value
  *
  * Arguments:
- *    [in] unicast_route_entry - route entry
+ *    [in] route_entry - route entry
  *    [in] attr_count - number of attributes
  *    [inout] attr_list - array of attributes
  *
@@ -679,22 +671,22 @@ sai_status_t mrvl_sai_set_route_attribute(_In_ const sai_unicast_route_entry_t* 
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_get_route_attribute(_In_ const sai_unicast_route_entry_t* unicast_route_entry,
+sai_status_t mrvl_sai_get_route_entry_attribute(_In_ const sai_route_entry_t* route_entry,
                                       _In_ uint32_t                         attr_count,
                                       _Inout_ sai_attribute_t              *attr_list)
 {
-    const sai_object_key_t key = { .unicast_route_entry = unicast_route_entry };
+    const sai_object_key_t key = { .key.route_entry = route_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (NULL == unicast_route_entry) {
+    if (NULL == route_entry) {
         MRVL_SAI_LOG_ERR("NULL unicast_route_entry param\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    mrvl_sai_route_key_to_str(unicast_route_entry, key_str);
+    mrvl_sai_route_key_to_str(route_entry, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_route_attribs, mrvl_sai_route_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);
 }
@@ -710,12 +702,12 @@ static sai_status_t mrvl_sai_route_packet_action_get_prv(_In_ const sai_object_k
 {
 
     sai_status_t                     status;
-    const sai_unicast_route_entry_t* unicast_route_entry = key->unicast_route_entry;
+    const sai_route_entry_t* route_entry = &key->key.route_entry;
     mrvl_sai_route_hash_entry_t *route_get_entry;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(unicast_route_entry, &route_get_entry))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(route_entry, &route_get_entry))) {
         return status;
     }
 
@@ -743,12 +735,12 @@ static sai_status_t mrvl_sai_route_next_hop_id_get_prv(_In_ const sai_object_key
 {
 
     sai_status_t                     status;
-    const sai_unicast_route_entry_t* unicast_route_entry = key->unicast_route_entry;
+    const sai_route_entry_t* route_entry = &key->key.route_entry;
     mrvl_sai_route_hash_entry_t *route_get_entry;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(unicast_route_entry, &route_get_entry))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(route_entry, &route_get_entry))) {
         return status;
     }
 
@@ -770,7 +762,7 @@ static sai_status_t mrvl_sai_route_next_hop_id_get_prv(_In_ const sai_object_key
 }
 
 
-static sai_status_t mrvl_sai_modify_route_prv(const sai_unicast_route_entry_t  *unicast_route_entry,
+static sai_status_t mrvl_sai_modify_route_prv(const sai_route_entry_t  *route_entry,
                                               mrvl_sai_route_hash_entry_t      *route_get_entry)
 {
 
@@ -784,7 +776,7 @@ static sai_status_t mrvl_sai_modify_route_prv(const sai_unicast_route_entry_t  *
         return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
     }
 
-    status = mrvl_sai_create_route_prv(unicast_route_entry, route_get_entry);
+    status = mrvl_sai_create_route_prv(route_entry, route_get_entry);
     if (status != SAI_STATUS_SUCCESS) {
         MRVL_SAI_LOG_ERR("mrvl_sai_modify_route_prv: Failed to add entry %x to L3_UNICAST table status = %d\n", route_get_entry->data.cookie, status);
         return status;
@@ -801,14 +793,14 @@ static sai_status_t mrvl_sai_route_packet_action_set_prv(_In_ const sai_object_k
 {
 
     sai_status_t                     status;
-    const sai_unicast_route_entry_t* unicast_route_entry = key->unicast_route_entry;
+    const sai_route_entry_t* route_entry = &key->key.route_entry;
     mrvl_sai_route_hash_entry_t *route_get_entry;
     uint32_t    nbr_idx;
     bool        nbr_changed = false;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(unicast_route_entry, &route_get_entry))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(route_entry, &route_get_entry))) {
         return status;
     }
     if ((value->s32 != SAI_PACKET_ACTION_FORWARD) &&
@@ -833,7 +825,7 @@ static sai_status_t mrvl_sai_route_packet_action_set_prv(_In_ const sai_object_k
                     route_get_entry->data.nbr_idx = nbr_idx;
                 }
             } else if (route_get_entry->data.nh_type == SAI_OBJECT_TYPE_ROUTER_INTERFACE) {
-                status = mrvl_sai_route_get_rif_nbr_prv(route_get_entry->data.nh_idx, unicast_route_entry, &nbr_idx);
+                status = mrvl_sai_route_get_rif_nbr_prv(route_get_entry->data.nh_idx, route_entry, &nbr_idx);
                 if (status != SAI_STATUS_SUCCESS) {
                     return SAI_STATUS_FAILURE;
                 }
@@ -845,7 +837,7 @@ static sai_status_t mrvl_sai_route_packet_action_set_prv(_In_ const sai_object_k
                 }
             }
         }
-        status = mrvl_sai_modify_route_prv(unicast_route_entry, route_get_entry);
+        status = mrvl_sai_modify_route_prv(route_entry, route_get_entry);
         if (status != SAI_STATUS_SUCCESS) {
             MRVL_SAI_LOG_ERR("mrvl_sai_route_packet_action_set_prv: Failed to modify action %d\n", value->s32);
             mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &route_get_entry->key);
@@ -890,13 +882,13 @@ static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key
 {
 
     sai_status_t                     status;
-    const sai_unicast_route_entry_t* unicast_route_entry = key->unicast_route_entry;
+    const sai_route_entry_t* route_entry = &key->key.route_entry;
     mrvl_sai_route_hash_entry_t      *route_get_entry;
     uint32_t                         nh_idx, nh_type;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(unicast_route_entry, &route_get_entry))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_route_prv(route_entry, &route_get_entry))) {
         return status;
     }
 
@@ -925,7 +917,7 @@ static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key
             if (nh_type == SAI_OBJECT_TYPE_NEXT_HOP) {
                 status = mrvl_sai_next_hop_get_nbr_id(nh_idx, &route_get_entry->data.nbr_idx);
             }else {
-                status = mrvl_sai_route_get_rif_nbr_prv(nh_idx, unicast_route_entry, &route_get_entry->data.nbr_idx);
+                status = mrvl_sai_route_get_rif_nbr_prv(nh_idx, route_entry, &route_get_entry->data.nbr_idx);
                 if (status != SAI_STATUS_SUCCESS) {
                     return SAI_STATUS_FAILURE;
                 }
@@ -935,7 +927,7 @@ static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key
         route_get_entry->data.nh_valid = true;
         route_get_entry->data.nh_type = nh_type;
         route_get_entry->data.nh_idx = nh_idx;
-        status = mrvl_sai_modify_route_prv(unicast_route_entry, route_get_entry);
+        status = mrvl_sai_modify_route_prv(route_entry, route_get_entry);
         if (status != SAI_STATUS_SUCCESS) {
             MRVL_SAI_LOG_ERR("mrvl_sai_route_packet_action_set_prv: Failed to modify action %d\n", value->s32);
             mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &route_get_entry->key);
@@ -963,22 +955,22 @@ static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key
 /* update route table about the change in neighbor */
 sai_status_t mrvl_sai_route_update_nbr_id(mrvl_sai_route_hash_data_t *route_entry_data, uint32_t nbr_idx)
 {
-    mrvl_sai_route_hash_entry_t *route_entry;
-    sai_unicast_route_entry_t   unicast_route_entry;
+    mrvl_sai_route_hash_entry_t *mrvl_route_entry;
+    sai_route_entry_t   route_entry;
     sai_status_t                status;
 
     /* point to route entry */
     /*route_entry = (mrvl_sai_route_hash_entry_t *)((PTR_TO_INT)route_entry_data - sizeof(mrvl_sai_route_hash_key_t));*/
-    route_entry = (mrvl_sai_route_hash_entry_t *)route_entry_data->key_ptr;
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, route_entry->key.vr_id, &unicast_route_entry.vr_id)) {
+    mrvl_route_entry = (mrvl_sai_route_hash_entry_t *)route_entry_data->key_ptr;
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, mrvl_route_entry->key.vr_id, &route_entry.vr_id)) {
         return SAI_STATUS_FAILURE;
     }
-    memcpy(&unicast_route_entry.destination, &route_entry->key.destination, sizeof(sai_ip_prefix_t));
-    route_entry->data.nbr_idx = nbr_idx;
-    status = mrvl_sai_modify_route_prv(&unicast_route_entry, route_entry);
+    memcpy(&route_entry.destination, &mrvl_route_entry->key.destination, sizeof(sai_ip_prefix_t));
+    mrvl_route_entry->data.nbr_idx = nbr_idx;
+    status = mrvl_sai_modify_route_prv(&route_entry, mrvl_route_entry);
     if (status != SAI_STATUS_SUCCESS) {
         MRVL_SAI_LOG_ERR("mrvl_sai_route_update_nbr_id: Failed to modify route %d\n");
-        mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &route_entry->key);
+        mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &mrvl_route_entry->key);
     }
     return status;
 
@@ -987,38 +979,38 @@ sai_status_t mrvl_sai_route_update_nbr_id(mrvl_sai_route_hash_data_t *route_entr
 /* update route table about the change in neighbor only if ip match*/
 sai_status_t mrvl_sai_route_update_nbr_id_if_match(mrvl_sai_route_hash_data_t *route_entry_data, sai_ip_address_t *inet_address, uint32_t nbr_idx)
 {
-    mrvl_sai_route_hash_entry_t *route_entry;
-    sai_unicast_route_entry_t   unicast_route_entry;
+    mrvl_sai_route_hash_entry_t *mrvl_route_entry;
+    sai_route_entry_t   route_entry;
     sai_status_t                status;
 
     /* point to route entry */
     /*route_entry = (mrvl_sai_route_hash_entry_t *)((PTR_TO_INT)route_entry_data - sizeof(mrvl_sai_route_hash_key_t));*/
-    route_entry = (mrvl_sai_route_hash_entry_t *)route_entry_data->key_ptr;
+    mrvl_route_entry = (mrvl_sai_route_hash_entry_t *)route_entry_data->key_ptr;
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, route_entry->key.vr_id, &unicast_route_entry.vr_id)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, mrvl_route_entry->key.vr_id, &route_entry.vr_id)) {
         return SAI_STATUS_FAILURE;
     }
     /* check for match */
     if (((inet_address->addr_family == SAI_IP_ADDR_FAMILY_IPV4) &&
-        (memcmp(&route_entry->key.destination.addr.ip4, &inet_address->addr.ip4, sizeof(sai_ip4_t)) == 0) &&
-        (route_entry->key.destination.mask.ip4 == 0xFFFFFFFF)) ||
+        (memcmp(&mrvl_route_entry->key.destination.addr.ip4, &inet_address->addr.ip4, sizeof(sai_ip4_t)) == 0) &&
+        (mrvl_route_entry->key.destination.mask.ip4 == 0xFFFFFFFF)) ||
         ((inet_address->addr_family == SAI_IP_ADDR_FAMILY_IPV6) &&
-        (memcmp(&route_entry->key.destination.addr.ip6, &inet_address->addr.ip6, sizeof(sai_ip6_t)) == 0) &&
-        (route_entry->key.destination.mask.ip6[0] == 0xFF) && (route_entry->key.destination.mask.ip6[1] == 0xFF) &&
-        (route_entry->key.destination.mask.ip6[2] == 0xFF) && (route_entry->key.destination.mask.ip6[3] == 0xFF) &&
-        (route_entry->key.destination.mask.ip6[4] == 0xFF) && (route_entry->key.destination.mask.ip6[5] == 0xFF) &&
-        (route_entry->key.destination.mask.ip6[6] == 0xFF) && (route_entry->key.destination.mask.ip6[7] == 0xFF) &&
-        (route_entry->key.destination.mask.ip6[8] == 0xFF) && (route_entry->key.destination.mask.ip6[9] == 0xFF) &&
-        (route_entry->key.destination.mask.ip6[10]== 0xFF) && (route_entry->key.destination.mask.ip6[11]== 0xFF) &&
-        (route_entry->key.destination.mask.ip6[12]== 0xFF) && (route_entry->key.destination.mask.ip6[13]== 0xFF) &&
-        (route_entry->key.destination.mask.ip6[14]== 0xFF) && (route_entry->key.destination.mask.ip6[15]== 0xFF)))
+        (memcmp(&mrvl_route_entry->key.destination.addr.ip6, &inet_address->addr.ip6, sizeof(sai_ip6_t)) == 0) &&
+        (mrvl_route_entry->key.destination.mask.ip6[0] == 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[1] == 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[2] == 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[3] == 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[4] == 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[5] == 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[6] == 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[7] == 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[8] == 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[9] == 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[10]== 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[11]== 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[12]== 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[13]== 0xFF) &&
+        (mrvl_route_entry->key.destination.mask.ip6[14]== 0xFF) && (mrvl_route_entry->key.destination.mask.ip6[15]== 0xFF)))
         {
-            memcpy(&unicast_route_entry.destination, &route_entry->key.destination, sizeof(sai_ip_prefix_t));
-            route_entry->data.nbr_idx = nbr_idx;
-            status = mrvl_sai_modify_route_prv(&unicast_route_entry, route_entry);
+            memcpy(&route_entry.destination, &mrvl_route_entry->key.destination, sizeof(sai_ip_prefix_t));
+            mrvl_route_entry->data.nbr_idx = nbr_idx;
+            status = mrvl_sai_modify_route_prv(&route_entry, mrvl_route_entry);
             if (status != SAI_STATUS_SUCCESS) {
                 MRVL_SAI_LOG_ERR("mrvl_sai_route_update_nbr_id: Failed to modify route %d\n");
-                mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &route_entry->key);
+                mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &mrvl_route_entry->key);
         }
     }
 
@@ -1026,8 +1018,8 @@ sai_status_t mrvl_sai_route_update_nbr_id_if_match(mrvl_sai_route_hash_data_t *r
 }
 
 const sai_route_api_t route_api = {
-    mrvl_sai_create_route,
-    mrvl_sai_remove_route,
-    mrvl_sai_set_route_attribute,
-    mrvl_sai_get_route_attribute,
+    mrvl_sai_create_route_entry,
+    mrvl_sai_remove_route_entry,
+    mrvl_sai_set_route_entry_attribute,
+    mrvl_sai_get_route_entry_attribute,
 };
