@@ -38,6 +38,7 @@ extern const sai_next_hop_group_api_t next_hop_group_api;
 extern const sai_route_api_t        route_api;
 extern const sai_virtual_router_api_t virtual_router_api;
 extern const sai_lag_api_t		    lag_api;
+extern const sai_scheduler_group_api_t	scheduler_group_api;
 /* stubs */
 extern const sai_buffer_api_t		buffer_api;
 extern const sai_hash_api_t		hash_api;
@@ -47,11 +48,17 @@ extern const sai_qos_map_api_t		qos_map_api;
 extern const sai_queue_api_t		queue_api;
 extern const sai_samplepacket_api_t	samplepacket_api;
 extern const sai_scheduler_api_t	scheduler_api;
-extern const sai_scheduler_group_api_t	scheduler_group_api;
 extern const sai_stp_api_t		stp_api;
 extern const sai_tunnel_api_t		tunnel_api;
 extern const sai_udf_api_t		udf_api;
 extern const sai_wred_api_t		wred_api;
+extern const sai_l2mc_api_t		l2mc_api;
+extern const sai_ipmc_api_t		ipmc_api;
+extern const sai_rpf_group_api_t		rpf_api;
+extern const sai_l2mc_group_api_t		l2mc_group_api;
+extern const sai_ipmc_group_api_t		ipmc_group_api;
+extern const sai_mcast_fdb_api_t		mcast_fdb_api;
+extern const sai_bridge_api_t		bridge_api;
 
 #ifdef _LP64
 typedef uint64_t PTR_TO_INT;
@@ -75,6 +82,9 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_DEFAULT_FDB_AGING_TIME_CNS  0
 #define SAI_SWITCH_DEFAULT_MAC_MODE_CNS 0 /*Unique MAC address per port(1) or same for all ports(0)*/
 #define SAI_MAX_NUM_OF_PORTS	54
+#define SAI_MAX_NUM_OF_LANES    4
+#define MAX_QUEUES 8
+#define CPU_PORT                63
 
 #define SAI_OUTPUT_CONTROLLER               FPA_OUTPUT_CONTROLLER
 #define SAI_ROUTER_INTERFACE_TABLE_SIZE_CNS 128
@@ -86,9 +96,10 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_ECMP_DEFAULT_HASH_ALGORITHM_CNS SAI_HASH_ALGORITHM_CRC
 #define SAI_LAG_MAX_MEMBERS_IN_GROUP_CNS    64
 #define SAI_LAG_MAX_GROUPS_CNS              (1024+1) /* LAG '0' is not valid in CPSS. LAG group range 1..SAI_LAG_MAX_GROUPS_CNS */
+#define SAI_ACL_MIN_PRIORITY_CNS            0
+#define SAI_ACL_MAX_PRIORITY_CNS            32*1024
 
-extern sai_switch_notification_t mrvl_sai_notification_callbacks;
-
+extern uint32_t SAI_SYS_PORT_MAPPING[SAI_MAX_NUM_OF_PORTS];
 /*
 *  SAI operation type
 *  Values must start with 0 base and be without gaps
@@ -110,7 +121,7 @@ typedef enum _sai_attribute_value_type_t
     SAI_ATTR_VAL_TYPE_UNDETERMINED,
     SAI_ATTR_VAL_TYPE_BOOL,
     SAI_ATTR_VAL_TYPE_CHARDATA,
-    SAI_ATTR_VAL_TYPE_U8,
+    SAI_ATTR_VAL_TYPE_U8, 
     SAI_ATTR_VAL_TYPE_S8,
     SAI_ATTR_VAL_TYPE_U16,
     SAI_ATTR_VAL_TYPE_S16,
@@ -123,12 +134,26 @@ typedef enum _sai_attribute_value_type_t
     SAI_ATTR_VAL_TYPE_IPV6,
     SAI_ATTR_VAL_TYPE_IPADDR,
     SAI_ATTR_VAL_TYPE_OID,
+    SAI_ATTR_VAL_TYPE_U8LIST,/* todo add support */
+    SAI_ATTR_VAL_TYPE_S8LIST,/* todo add support */
     SAI_ATTR_VAL_TYPE_OBJLIST,
     SAI_ATTR_VAL_TYPE_U32LIST,
     SAI_ATTR_VAL_TYPE_S32LIST,
     SAI_ATTR_VAL_TYPE_VLANLIST,
     SAI_ATTR_VAL_TYPE_ACLFIELD,
     SAI_ATTR_VAL_TYPE_ACLACTION,
+    SAI_ATTR_VAL_TYPE_PTR,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_MAC,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S8,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S16,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S32,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U64,
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S64
 } sai_attribute_value_type_t;
 
 
@@ -141,15 +166,6 @@ typedef struct _sai_attribute_entry_t {
     const char                *attrib_name;
     sai_attribute_value_type_t type;
 } sai_attribute_entry_t;
-
-typedef union {
-    const sai_fdb_entry_t          * fdb_entry;
-    const sai_neighbor_entry_t     * neighbor_entry;
-    const sai_unicast_route_entry_t* unicast_route_entry;
-    const sai_vlan_id_t              vlan_id;
-    const sai_object_id_t            object_id;
-    const sai_uint32_t               data;
-} sai_object_key_t;
 
 typedef struct _mrvl_object_id_t {
     sai_uint8_t  object_type;
@@ -193,6 +209,8 @@ typedef struct _sai_port_info_t {
 
 #define END_FUNCTIONALITY_ATTRIBS_ID 0xFFFFFFFF
 #define MAX_ATTRIBS_NUMBUR 100
+
+sai_status_t mrvl_sai_utl_is_valid_switch(_In_ const sai_object_id_t switch_id);
 
 sai_status_t mrvl_sai_utl_check_attribs_metadata(_In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list,
@@ -246,12 +264,12 @@ sai_status_t mrvl_sai_utl_ipaddr_to_str(_In_ sai_ip_address_t value,
 
 sai_status_t mrvl_sai_utl_is_object_type(sai_object_id_t object_id, sai_object_type_t type);
 sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data);
-sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *port_id, uint32_t *lag_id);
-sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t port_id, uint32_t lag_id, sai_object_id_t *object_id);
+sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint32_t *data_ext);
+sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint32_t data_ext, sai_object_id_t *object_id);
 sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, sai_object_id_t *object_id);
 sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port,
                                      _In_ uint32_t vlan,
-                                     _In_ uint32_t tag,
+                                     _In_ sai_vlan_tagging_mode_t tagged,
                                      _In_ bool tag_overwrite,
                                       _Inout_ uint32_t *group);
 sai_status_t mrvl_sai_utl_delete_l2_int_group(_In_ uint32_t port,
@@ -311,9 +329,9 @@ extern unsigned mrvl_sai_fdb_wait_for_au_event(void *args);
 
 #define SAI_TYPE_CHECK_RANGE(type) (type < SAI_OBJECT_TYPE_MAX)
 
-#define SAI_TYPE_STR(type) SAI_TYPE_CHECK_RANGE(type) ? sai_type2str_arr[type] : "Unknown object type"
+#define SAI_TYPE_STR(type) SAI_TYPE_CHECK_RANGE(type) ? mrvl_sai_type2str_arr[type] : "Unknown object type"
 
-static __attribute__((__used__)) const char *sai_type2str_arr[] = {
+static __attribute__((__used__)) const char *mrvl_sai_type2str_arr[] = {
     /* SAI_OBJECT_TYPE_NULL = 0 */
     "NULL type",
 
@@ -344,85 +362,157 @@ static __attribute__((__used__)) const char *sai_type2str_arr[] = {
     /* SAI_OBJECT_TYPE_ACL_COUNTER = 9 */
     "ACL counter type",
 
-    /* SAI_OBJECT_TYPE_HOST_INTERFACE = 10 */
+    /* SAI_OBJECT_TYPE_ACL_RANGE = 10 */
+    "ACL range type",
+
+    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP = 11 */
+    "ACL table group",
+
+    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER = 12 */
+    "ACL table group member",
+
+    /* SAI_OBJECT_TYPE_HOST_INTERFACE = 13 */
     "Host interface type",
 
-    /* SAI_OBJECT_TYPE_MIRROR = 11 */
+    /* SAI_OBJECT_TYPE_MIRROR_SESSION = 14 */
     "Mirror type",
 
-    /* SAI_OBJECT_TYPE_SAMPLEPACKET = 12 */
+    /* SAI_OBJECT_TYPE_SAMPLEPACKET = 15 */
     "Sample packet type",
 
-    /* SAI_OBJECT_TYPE_STP_INSTANCE = 13 */
+    /* SAI_OBJECT_TYPE_STP = 16 */
     "Stp instance type",
 
-    /* SAI_OBJECT_TYPE_TRAP_GROUP = 14 */
+    /* SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP = 17 */
     "Trap group type",
 
-    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP = 15 */
-    "Acl table group type",
-
-    /* SAI_OBJECT_TYPE_POLICER = 16 */
+    /* SAI_OBJECT_TYPE_POLICER = 18 */
     "Policer type",
 
-    /* SAI_OBJECT_TYPE_WRED = 17 */
+    /* SAI_OBJECT_TYPE_WRED = 19 */
     "Wred type",
 
-    /* SAI_OBJECT_TYPE_QOS_MAPS = 18 */
+    /* SAI_OBJECT_TYPE_QOS_MAPS = 20 */
     "Qos map type",
 
-    /* SAI_OBJECT_TYPE_QUEUE = 19 */
+    /* SAI_OBJECT_TYPE_QUEUE = 21 */
     "Queue type",
 
-    /* SAI_OBJECT_TYPE_SCHEDULER = 20 */
+    /* SAI_OBJECT_TYPE_SCHEDULER = 22 */
     "scheduler type",
 
-    /* SAI_OBJECT_TYPE_SCHEDULER_GROUP = 21 */
+    /* SAI_OBJECT_TYPE_SCHEDULER_GROUP = 23 */
     "scheduler group type",
 
-    /* SAI_OBJECT_TYPE_SCHEDULER_GROUP  = 22*/
-    "scheduler group",
-    /* SAI_OBJECT_TYPE_BUFFER_POOL      = 23*/
+    /* SAI_OBJECT_TYPE_BUFFER_POOL      = 24*/
     "buffer pool",
-    /* SAI_OBJECT_TYPE_BUFFER_PROFILE   = 24*/
+
+    /* SAI_OBJECT_TYPE_BUFFER_PROFILE   = 25*/
     "buffer profile",
-     /* SAI_OBJECT_TYPE_PRIORITY_GROUP   = 25*/
-    "priority group",
-    /* SAI_OBJECT_TYPE_LAG_MEMBER       = 26*/
+
+     /* SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP   = 26*/
+    "ingress priority group",
+
+    /* SAI_OBJECT_TYPE_LAG_MEMBER       = 27*/
     "lag number",
-    /* SAI_OBJECT_TYPE_HASH             = 27*/
+
+    /* SAI_OBJECT_TYPE_HASH             = 28*/
     "hash",
-    /* SAI_OBJECT_TYPE_UDF              = 28*/
+
+    /* SAI_OBJECT_TYPE_UDF              = 29*/
     "UDF",
-    /* SAI_OBJECT_TYPE_UDF_MATCH        = 29*/
+
+    /* SAI_OBJECT_TYPE_UDF_MATCH        = 30*/
     "UDF match",
-    /* SAI_OBJECT_TYPE_UDF_GROUP        = 30*/
+
+    /* SAI_OBJECT_TYPE_UDF_GROUP        = 31*/
     "UDF group",
-    /* SAI_OBJECT_TYPE_FDB              = 31*/
-    "FDB",
-    /* SAI_OBJECT_TYPE_SWITCH           = 32*/
+
+    /* SAI_OBJECT_TYPE_FDB_ENTRY              = 32*/
+    "FDB entry",
+
+    /* SAI_OBJECT_TYPE_SWITCH           = 33*/
     "switch",
-    /* SAI_OBJECT_TYPE_TRAP             = 33*/
+
+    /* SAI_OBJECT_TYPE_HOSTIF_TRAP             = 34*/
     "trap",
-    /* SAI_OBJECT_TYPE_TRAP_USER_DEF    = 34*/
-    "trap user def",
-    /* SAI_OBJECT_TYPE_NEIGHBOR         = 35*/
+
+    /* SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY    = 35*/
+    "trap table entry",
+
+    /* SAI_OBJECT_TYPE_NEIGHBOR_ENTRY         = 36*/
     "neighbor",
-    /* SAI_OBJECT_TYPE_ROUTE            = 36*/
+
+    /* SAI_OBJECT_TYPE_ROUTE_ENTRY            = 37*/
     "route",
-    /* SAI_OBJECT_TYPE_VLAN             = 37*/
+
+    /* SAI_OBJECT_TYPE_VLAN             = 38*/
     "vlan",
-    /* SAI_OBJECT_TYPE_VLAN_MEMBER      = 38*/
-    "vlan number",
-    /* SAI_OBJECT_TYPE_PACKET           = 39*/
+
+    /* SAI_OBJECT_TYPE_VLAN_MEMBER      = 39*/
+    "vlan member",
+
+    /* SAI_OBJECT_TYPE_HOSTIF_PACKET            = 40*/
     "packet",
-    /* SAI_OBJECT_TYPE_TUNNEL_MAP       = 40*/
+
+    /* SAI_OBJECT_TYPE_TUNNEL_MAP               = 41*/
     "tunnel map",
-    /* SAI_OBJECT_TYPE_TUNNEL           = 41*/
+
+    /* SAI_OBJECT_TYPE_TUNNEL                   = 42*/
     "tunnel",
-    /* SAI_OBJECT_TYPE_TUNNEL_TABLE_ENTRY = 42*/
+
+    /* SAI_OBJECT_TYPE_TUNNEL_TERM_TABLE_ENTRY  = 43*/
     "tunnel able entry",
-    /* SAI_OBJECT_TYPE_MAX              = 43 */
+
+    /* SAI_OBJECT_TYPE_FDB_FLUSH                = 44*/
+    "fdb flush",
+
+    /* SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER    = 45*/
+    "fdb flush",
+
+    /* SAI_OBJECT_TYPE_STP_PORT                 = 46*/
+    "stp port",
+
+    /* SAI_OBJECT_TYPE_RPF_GROUP                = 47*/
+    "rpf group",
+
+    /* SAI_OBJECT_TYPE_RPF_GROUP_MEMBER         = 48*/
+    "rpf group member",
+
+    /* SAI_OBJECT_TYPE_L2MC_GROUP               = 49*/
+    "l2 mc group",
+
+    /* SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER        = 50*/
+    "l2 mc group member",
+
+    /* SAI_OBJECT_TYPE_IPMC_GROUP               = 51*/
+    "ipmc group",
+
+    /* SAI_OBJECT_TYPE_IPMC_GROUP_MEMBER        = 52*/
+    "ipmc group member",
+
+    /* SAI_OBJECT_TYPE_L2MC_ENTRY               = 53*/
+    "l2mc entry",
+
+    /* SAI_OBJECT_TYPE_IPMC_ENTRY               = 54*/
+    "ipmc entry",
+
+    /* SAI_OBJECT_TYPE_MCAST_FDB_ENTRY          = 55*/
+    "mcast fdb entry",
+
+    /* SAI_OBJECT_TYPE_HOSTIF_USER_DEFINED_TRAP = 56*/
+    "hostinf user defined trap",
+
+    /* SAI_OBJECT_TYPE_BRIDGE                   = 57*/
+    "bridge",
+
+    /* SAI_OBJECT_TYPE_BRIDGE_PORT              = 58*/
+    "bridge port",
+
+    /* SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY         = 59*/
+    "tunnel map entry",
+
+    /* SAI_OBJECT_TYPE_MAX              = 60 */
     "MAx"
 };
 
@@ -532,6 +622,10 @@ void mrvl_sai_trace_set_all (uint32_t           enable,
 #define MRVL_SAI_ROUTER_COOKIE_MAC(type, portVlan)\
         ((uint64_t)(type & 0x1)<<32)|\
         ((uint64_t)(portVlan))
+
+#define MRVL_SAI_ACL_CREATE_COOKIE_MAC(acl_table_index, acl_entry_index)\
+        ((acl_table_index & 0xFFFF)<<16)|\
+        (acl_entry_index & 0xFFFF)
 
 #define MRVL_SAI_INVALID_ID_CNS 0xFFFFFFFF
 
@@ -678,8 +772,12 @@ sai_status_t mrvl_sai_next_hop_dump(void);
 sai_status_t mrvl_sai_route_dump(void);
 
 sai_status_t mrvl_sai_host_interface_init(void);
-sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_trap_id_t hostif_trapid, _Out_ sai_packet_action_t *action);
-sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hostif_trap_id_t hostif_trapid,_Out_ bool *isSupported);
+sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_trap_type_t hostif_trapid, _Out_ sai_packet_action_t *action);
+sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hostif_trap_type_t hostif_trapid,_Out_ bool *isSupported);
+
+sai_status_t mrvl_sai_acl_table_bind_to_port(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t port);
+sai_status_t mrvl_sai_acl_table_unbind_from_port(_In_ void *arg, _In_ uint32_t port);
+sai_status_t mrvl_sai_acl_get_table_id_per_port(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
 
 #define SAI_STATUS_STUB SAI_STATUS_NOT_SUPPORTED
 sai_status_t  mrvl_sai_return(const char *func_name, int line, sai_status_t status);
@@ -704,6 +802,7 @@ char *if_indextoname(unsigned int ifindex, char *ifname);
 int mrvl_sai_netdev_set_mac(char * name, unsigned char * mac_char);
 int mrvl_sai_netdev_get_mac(char * name, unsigned char * mac_char);
 int mrvl_sai_netdev_alloc(char *dev) ;
+int mrvl_sai_netdev_set_carrier(uint32_t portId, int linkStatus);
 
 typedef struct
 {
@@ -713,5 +812,10 @@ typedef struct
 }host_fd_stc;
 
 extern host_fd_stc host_fd[];
+
+/* ACL definitions */
+#define SAI_ACL_MAX_BIND_POINT_TYPES (SAI_ACL_BIND_POINT_TYPE_SWITCH + 1) 
+#define SAI_ACL_MAX_ACTION_TYPES (SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN + 1) 
+
 
 #endif // __MRVL_SAI_H_
