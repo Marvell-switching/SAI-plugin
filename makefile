@@ -81,6 +81,7 @@ SAI_H_INC := $(SAI_H_PATH)/inc
 FPA_H_INC := $(FPA_PATH)/inc
 
 MY_CFLAGS += \
+    -I$(BASE_DIR)/linux_include/ \
     -I$(FPA_H_INC) \
     -I$(SAI_H_INC) \
 	$(SAI_INC)
