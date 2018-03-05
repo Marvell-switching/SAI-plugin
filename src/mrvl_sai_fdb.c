@@ -23,17 +23,14 @@
 #define __MODULE__ SAI_FDB
 
 extern uint32_t                  mrvl_sai_switch_aging_time;
-sai_fdb_event_notification_fn    on_fdb_event;
 
 #define MRVL_SAI_FDB_CONVERT_EVENT_TYPE_MAC(fpa_type, sai_type)\
         (sai_type = (fpa_type == FPA_EVENT_ADDRESS_UPDATE_NEW_E)?SAI_FDB_EVENT_LEARNED:(fpa_type == FPA_EVENT_ADDRESS_UPDATE_AGED_E)?SAI_FDB_EVENT_AGED:SAI_FDB_EVENT_FLUSHED)
-
 static sai_status_t mrvl_sai_fdb_endpoint_ip_get_prv(_In_ const sai_object_key_t   *key,
                                              _Inout_ sai_attribute_value_t *value,
                                              _In_ uint32_t                  attr_index,
                                              _Inout_ vendor_cache_t        *cache,
                                              void                          *arg);
-
 static sai_status_t mrvl_sai_fdb_endpoint_ip_set_prv(_In_ const sai_object_key_t      *key,
                                              _In_ const sai_attribute_value_t *value,
                                              void                             *arg);
@@ -50,18 +47,17 @@ static void mrvl_sai_fdb_key_to_str_prv(_In_ const sai_fdb_entry_t* fdb_entry, _
              fdb_entry->vlan_id);
 }
 
-sai_status_t mrvl_sai_fdb_endpoint_ip_get_prv(_In_ const sai_object_key_t   *key,
+static sai_status_t mrvl_sai_fdb_endpoint_ip_get_prv(_In_ const sai_object_key_t   *key,
                                              _Inout_ sai_attribute_value_t *value,
                                              _In_ uint32_t                  attr_index,
                                              _Inout_ vendor_cache_t        *cache,
                                              void                          *arg)
 {
      MRVL_SAI_LOG_ENTER();
-     memcpy((value->ipaddr.addr.ip4), 0, sizeof(sai_ip4_t));
+     memcpy(&(value->ipaddr.addr.ip4), 0, sizeof(sai_ip4_t));
      MRVL_SAI_LOG_EXIT();
      return SAI_STATUS_SUCCESS;
 }
-
 static sai_status_t mrvl_sai_fdb_endpoint_ip_set_prv(_In_ const sai_object_key_t      *key,
                                              _In_ const sai_attribute_value_t *value,
                                              void                             *arg)
@@ -300,7 +296,6 @@ static const sai_attribute_entry_t        mrvl_sai_fdb_attribs[] = {
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
-
 static const sai_vendor_attribute_entry_t mrvl_sai_fdb_vendor_attribs[] = {
     { SAI_FDB_ENTRY_ATTR_TYPE,
       { true, false, true, true },
@@ -322,7 +317,6 @@ static const sai_vendor_attribute_entry_t mrvl_sai_fdb_vendor_attribs[] = {
       { true, false, true, true },
       mrvl_sai_fdb_endpoint_ip_get_prv, NULL,
       mrvl_sai_fdb_endpoint_ip_set_prv, NULL }
-    
 };
 
 
@@ -340,8 +334,8 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
                                    _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
-    const sai_attribute_value_t *type, *action, *port, *ip;
-    uint32_t                     type_index, action_index, port_index, port_id, ip_index;
+    const sai_attribute_value_t *type, *action, *port;
+    uint32_t                     type_index, action_index, port_index, port_id;
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     FPA_FLOW_TABLE_ENTRY_STC     flowEntry;
@@ -374,8 +368,6 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_PACKET_ACTION, &action, &action_index));
 
-    assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_ENDPOINT_IP, &ip, &ip_index));
 
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID, &port, &port_index));
@@ -698,12 +690,12 @@ unsigned mrvl_sai_fdb_wait_for_au_event(void *args)
         fpa_status = fpaLibBridgingAuMsgGet(SAI_DEFAULT_ETH_SWID_CNS, false, &fpa_au_event);
         if (fpa_status == FPA_OK) {
             /* Call SAI callback */
-            if (on_fdb_event) {
+            if (mrvl_sai_notification_callbacks.on_fdb_event) {
                 /* Convert FPA event to fdb_entry */
                 if (SAI_STATUS_SUCCESS != mrvl_sai_fdb_event_convert_fpa_to_sai(&fpa_au_event, &sai_fdb_event)){
                     MRVL_SAI_LOG_ERR("Could not convert FPA message to SAI format\n");
                 }
-            	on_fdb_event(1,&sai_fdb_event);
+            	mrvl_sai_notification_callbacks.on_fdb_event(1,&sai_fdb_event);
             }
         } else if (fpa_status == FPA_NO_MORE) {
             MRVL_SAI_LOG_INF("No More AU messages pending\n");

@@ -40,8 +40,7 @@ sai_status_t sai_api_initialize(_In_ uint64_t flags, _In_ const service_method_t
     mrvl_sai_trace_init();
 	MRVL_SAI_LOG_ENTER();
 
-    MRVL_SAI_LOG_INF("\n my marvell sai version %s\n", sai_ver);
-
+    MRVL_SAI_LOG_INF("\n my Marvell SAI version is %s\n", sai_ver);
 
 	if ((NULL == services) || (NULL == services->profile_get_next_value) || (NULL == services->profile_get_value)) {
     	MRVL_SAI_LOG_ERR("Invalid services handle passed to SAI API initialize\n");
@@ -152,86 +151,109 @@ sai_status_t sai_api_query(_In_ sai_api_t sai_api_id, _Out_ void** api_method_ta
     	*(const sai_lag_api_t **)api_method_table= &lag_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-
+    /*!*********************************!*/
+    /*!              STUBS              !*/
+    /*!*********************************!*/
     case SAI_API_SCHEDULER_GROUP:
     	*(const sai_scheduler_group_api_t **)api_method_table= &scheduler_group_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-    /* stubs */
+
+    case SAI_API_HASH:
+    	*(const sai_hash_api_t **)api_method_table= &hash_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_QUEUE:
+    	*(const sai_queue_api_t **)api_method_table= &queue_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_STP:
+    	*(const sai_stp_api_t **)api_method_table= &stp_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_L2MC:
+        *(const sai_l2mc_api_t **)api_method_table= &l2mc_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_L2MC_GROUP:
+        *(const sai_l2mc_group_api_t **)api_method_table= &l2mc_group_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_BRIDGE:
+        *(const sai_bridge_api_t **)api_method_table= &bridge_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    case SAI_API_UDF:
+    	*(const sai_udf_api_t **)api_method_table= &udf_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+    /*!*********************************!*/
+    /*!        NOT IMPLEMENTED          !*/
+    /*!*********************************!*/
     case SAI_API_BUFFER:
     	*(const sai_buffer_api_t **)api_method_table= &buffer_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_HASH:
-    	*(const sai_hash_api_t **)api_method_table= &hash_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_MIRROR:
     	*(const sai_mirror_api_t **)api_method_table= &mirror_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_POLICER:
     	*(const sai_policer_api_t **)api_method_table= &policer_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_QOS_MAP:
     	*(const sai_qos_map_api_t **)api_method_table= &qos_map_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_QUEUE:
-    	*(const sai_queue_api_t **)api_method_table= &queue_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    
     case SAI_API_SAMPLEPACKET:
     	*(const sai_samplepacket_api_t **)api_method_table= &samplepacket_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_SCHEDULER:
     	*(const sai_scheduler_api_t **)api_method_table= &scheduler_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_STP:
-    	*(const sai_stp_api_t **)api_method_table= &stp_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_TUNNEL:
     	*(const sai_tunnel_api_t **)api_method_table= &tunnel_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_UDF:
-    	*(const sai_udf_api_t **)api_method_table= &udf_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_WRED:
     	*(const sai_wred_api_t **)api_method_table= &wred_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_L2MC:
-        *(const sai_l2mc_api_t **)api_method_table= &l2mc_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_IPMC:
         *(const sai_ipmc_api_t **)api_method_table= &ipmc_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_RPF_GROUP:
         *(const sai_rpf_group_api_t **)api_method_table= &rpf_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_L2MC_GROUP:
-        *(const sai_l2mc_group_api_t **)api_method_table= &l2mc_group_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_IPMC_GROUP:
         *(const sai_ipmc_group_api_t **)api_method_table= &ipmc_group_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     case SAI_API_MCAST_FDB:
         *(const sai_mcast_fdb_api_t **)api_method_table= &mcast_fdb_api;
-        MRVL_SAI_LOG_EXIT();
-    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-    case SAI_API_BRIDGE:
-        *(const sai_bridge_api_t **)api_method_table= &bridge_api;
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 
@@ -279,32 +301,24 @@ sai_status_t sai_api_uninitialize(void)
  */
 sai_status_t sai_log_set(_In_ sai_api_t sai_api_id, _In_ sai_log_level_t log_level)
 {
-    unsigned int severity_level;
-    
 	MRVL_SAI_LOG_ENTER();
     switch (log_level) {
     case SAI_LOG_LEVEL_DEBUG:
-        severity_level = SEVERITY_LEVEL_DBG3;
         break;
 
     case SAI_LOG_LEVEL_INFO:
-        severity_level = SEVERITY_LEVEL_INFO;
         break;
 
     case SAI_LOG_LEVEL_NOTICE:
-        severity_level = SEVERITY_LEVEL_ALERT;
         break;
 
     case SAI_LOG_LEVEL_WARN:
-        severity_level = SEVERITY_LEVEL_WARN;
         break;
 
     case SAI_LOG_LEVEL_ERROR:
-        severity_level = SEVERITY_LEVEL_ERROR;
         break;
 
     case SAI_LOG_LEVEL_CRITICAL:
-        severity_level = SEVERITY_LEVEL_ALARM;
         break;
     
     default:
@@ -365,10 +379,10 @@ sai_status_t sai_log_set(_In_ sai_api_t sai_api_id, _In_ sai_log_level_t log_lev
     	break;
 
     case SAI_API_WRED:
-        break;
+    	break;
 
     case SAI_API_QOS_MAP:
-        break;
+    	break;
 
     case SAI_API_QUEUE:
     	break;
@@ -390,28 +404,21 @@ sai_status_t sai_log_set(_In_ sai_api_t sai_api_id, _In_ sai_log_level_t log_lev
 
     case SAI_API_TUNNEL:
     	break;
-
     case SAI_API_L2MC:
         break;
-
     case SAI_API_IPMC:
         break;
-
     case SAI_API_RPF_GROUP:
         break;
-
     case SAI_API_L2MC_GROUP:
         break;
-
     case SAI_API_IPMC_GROUP:
         break;
-
     case SAI_API_MCAST_FDB:
         break;
-
     case SAI_API_BRIDGE:
-        break;
-    
+    	break;
+
     default:
     	MRVL_SAI_LOG_ERR("Invalid API type %d\n", sai_api_id);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
@@ -433,9 +440,16 @@ sai_status_t sai_log_set(_In_ sai_api_t sai_api_id, _In_ sai_log_level_t log_lev
  */
 sai_object_type_t sai_object_type_query(_In_ sai_object_id_t sai_object_id)
 {
-    MRVL_SAI_LOG_ENTER();
+    sai_object_type_t type;
 
-    sai_object_type_t type = ((mrvl_object_id_t*)&sai_object_id)->object_type;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_NULL_OBJECT_ID == sai_object_id)
+    {
+        MRVL_SAI_LOG_ERR("NULL object id\n");
+    	MRVL_SAI_LOG_EXIT();
+        return SAI_OBJECT_TYPE_NULL;
+    }
+    type = ((mrvl_object_id_t *)&sai_object_id)->object_type; 
     if SAI_TYPE_CHECK_RANGE(type) {
     	MRVL_SAI_LOG_EXIT();
         return type;
@@ -445,7 +459,6 @@ sai_object_type_t sai_object_type_query(_In_ sai_object_id_t sai_object_id)
         return SAI_OBJECT_TYPE_NULL;
     }
 }
-
 /*
  * Routine Description:
  *     Query sai switch id.
@@ -462,6 +475,12 @@ sai_object_type_t sai_object_type_query(_In_ sai_object_id_t sai_object_id)
 sai_object_id_t sai_switch_id_query(
         _In_ sai_object_id_t sai_object_id)
 {
+    if (SAI_NULL_OBJECT_ID == sai_object_id)
+    {
+        MRVL_SAI_LOG_ERR("NULL object id\n");
+    	MRVL_SAI_LOG_EXIT();
+        return SAI_OBJECT_TYPE_NULL;
+    }
     sai_object_type_t type = ((mrvl_object_id_t*)&sai_object_id)->object_type;
     MRVL_SAI_LOG_ENTER();
     if (SAI_TYPE_CHECK_RANGE(type)) 
@@ -470,7 +489,6 @@ sai_object_id_t sai_switch_id_query(
             MRVL_SAI_LOG_ERR("Object is not of type switch\n");
             MRVL_SAI_LOG_EXIT();
             return SAI_NULL_OBJECT_ID;
-
         }
         MRVL_SAI_LOG_EXIT()
         return sai_object_id;
@@ -480,7 +498,6 @@ sai_object_id_t sai_switch_id_query(
         return SAI_NULL_OBJECT_ID;
     }
 }
-
 /**
  * @brief Generate dump file. The dump file may include SAI state information and vendor SDK information.
  *
@@ -492,12 +509,18 @@ sai_status_t sai_dbg_generate_dump(
         _In_ const char *dump_file_name)
 {
     MRVL_SAI_LOG_ENTER();
-
-    if (!g_initialized) {
+    if (NULL == dump_file_name)
+    {
+        MRVL_SAI_LOG_ERR("NULL dump file\n");
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    if (!g_initialized)
+    {
     	MRVL_SAI_LOG_ERR("Can't generate debug dump before creating switch\n");
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_UNINITIALIZED);
     }
-
     MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }

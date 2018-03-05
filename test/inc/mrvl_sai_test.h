@@ -76,4 +76,11 @@ int mrvl_sai_virtual_router_add_test(_Out_ sai_object_id_t* vr_id);
 int mrvl_sai_virtual_router_remove_test(_In_ sai_object_id_t  vr_id);
 
 int mrvl_sai_l3_dump(void);
+int mrvl_sai_lag_create_test( OUT sai_object_id_t *lag_oid, 
+                              IN uint32_t lag_id, 
+                              IN sai_object_id_t switch_id, 
+                              IN uint32_t attr_count, 
+                              IN sai_attribute_t *attr_list);
+
+
 #endif // __MRVL_SAI_TEST_H_

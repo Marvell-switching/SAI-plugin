@@ -119,6 +119,7 @@ sai_next_hop_group_api_t* sai_nexthop_group_api;
 sai_route_api_t* sai_route_api;
 sai_virtual_router_api_t* sai_virtual_router_api;
 sai_lag_api_t* sai_lag_api;
+sai_bridge_api_t* sai_bridge_api;
 
 
 void mrvl_sai_test_fdb_event_notification(
@@ -430,6 +431,9 @@ int mrvl_sai_test_Initialize
 )
 {
 	sai_status_t status;
+    sai_object_id_t switch_id;
+    uint32_t attr_count = 0;
+    sai_attribute_t attr_list[1];
 
     printf("mrvl_sai_test_Initialize\n");
     status = sai_api_initialize(0, (service_method_table_t *)&mrvl_sai_test_services);
@@ -506,6 +510,23 @@ int mrvl_sai_test_Initialize
     status = sai_api_query(SAI_API_LAG, (void**)&sai_lag_api);
     if ((status != SAI_STATUS_SUCCESS) || (sai_lag_api == NULL)){
         fprintf(stderr, "sai_api_query SAI_API_LAG failed, status %d\n", status); 
+    }
+
+    status = sai_api_query(SAI_API_BRIDGE, (void**)&sai_bridge_api);
+    if ((status != SAI_STATUS_SUCCESS) || (sai_bridge_api == NULL)){
+        fprintf(stderr, "sai_api_query SAI_API_BRIDGE failed\n");
+        return(1);
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SWITCH, SAI_DEFAULT_ETH_SWID_CNS, &switch_id))) {
+        return status;
+    }
+
+    attr_list[attr_count].id = SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY;
+    attr_list[attr_count].value.ptr = mrvl_sai_test_fdb_event_notification;
+    status = sai_switch_api->set_switch_attribute(switch_id, attr_list);
+    if (status != SAI_STATUS_SUCCESS){
+        fprintf(stderr, "set SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY failed %d\n", status);
         return(1);
     }
 

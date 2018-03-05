@@ -35,31 +35,24 @@
 #define MRVL_SAI_TRACE_APP_NAME_LEN 16
 static time_t mrvl_sai_trace_start_time = 0;
 
-
 sai_status_t mrvl_sai_utl_is_valid_switch(_In_ const sai_object_id_t switch_id)
 {
     uint32_t switch_idx;
     sai_status_t status;
-
     if (SAI_NULL_OBJECT_ID == switch_id) {
         MRVL_SAI_LOG_ERR("NULL switch_id value\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
-
     if (SAI_STATUS_SUCCESS !=
         (status = mrvl_sai_utl_object_to_type(switch_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx))) {
         return status;
     }
-
     if (SAI_DEFAULT_ETH_SWID_CNS != switch_idx) {
         MRVL_SAI_LOG_ERR("invalid switch_idx value\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
-
     return SAI_STATUS_SUCCESS;
 }
-
-
 static sai_status_t mrvl_sai_utl_fill_genericlist_prv(size_t element_size, void *data, uint32_t count, void *list)
 {
     /* all list objects have same field count in the beginning of the object, and then different data,
@@ -484,6 +477,18 @@ sai_status_t mrvl_sai_utl_set_attribute(_In_ const sai_object_key_t             
 
     MRVL_SAI_LOG_ENTER();
 
+    if (NULL == key) {
+        MRVL_SAI_LOG_ERR("NULL key object\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (NULL == functionality_attr) {
+        MRVL_SAI_LOG_ERR("NULL value functionality attrib\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (NULL == functionality_vendor_attr) {
+        MRVL_SAI_LOG_ERR("NULL value functionality vendor attrib\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
     if (SAI_STATUS_SUCCESS !=
         (status = mrvl_sai_utl_check_attribs_metadata(1, attr, functionality_attr, functionality_vendor_attr, SAI_OPERATION_SET))) {
         MRVL_SAI_LOG_ERR("Failed attribs check, key:%s\n", key_str);
@@ -510,6 +515,22 @@ sai_status_t mrvl_sai_utl_get_attributes(_In_ const sai_object_key_t            
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
+    if (NULL == key) {
+        MRVL_SAI_LOG_ERR("NULL key object\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (NULL == functionality_attr) {
+        MRVL_SAI_LOG_ERR("NULL value functionality attrib\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (NULL == functionality_vendor_attr) {
+        MRVL_SAI_LOG_ERR("NULL value functionality vendor attrib\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (NULL == attr_list) {
+        MRVL_SAI_LOG_ERR("NULL value attribute list\n");
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
 
     if (SAI_STATUS_SUCCESS !=
         (status =
@@ -743,7 +764,7 @@ sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t      value,
         }
         snprintf(value_str + pos, max_length - pos, "]");
         break;
-    case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8:
+        case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8:
         snprintf(value_str, max_length, "%u", value.aclfield.data.u8);
         break;
 
@@ -785,7 +806,21 @@ sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t      value,
     case SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6:
         mrvl_sai_utl_ipv6_to_str_prv(value.aclfield.data.ip6, max_length, value_str, NULL);
         break;
-
+    case SAI_ATTR_VAL_TYPE_U32RANGE:
+        snprintf(value_str, max_length, "range [%d , %d]", value.s32range.min, value.s32range.max);
+        break;
+    case SAI_ATTR_VAL_TYPE_ACLACTION_U8:
+        pos += snprintf(value_str + pos, max_length - pos, "%s", (value.aclaction.enable)?"enabled":"disabled");
+        if (value.aclaction.enable) {
+            snprintf(value_str + pos, max_length - pos, "/ %u", value.aclaction.parameter.u8);
+        }        
+        break;
+    case SAI_ATTR_VAL_TYPE_ACLACTION_U32:
+        pos += snprintf(value_str + pos, max_length - pos, "%s", (value.aclaction.enable)?"enabled":"disabled");
+        if (value.aclaction.enable) {
+            snprintf(value_str + pos, max_length - pos, "/ %u", value.aclaction.parameter.u32);
+        }        
+        break;
     case SAI_ATTR_VAL_TYPE_ACLFIELD:
     case SAI_ATTR_VAL_TYPE_ACLACTION:
         /* TODO : implement if in case it is used */
@@ -812,6 +847,7 @@ sai_status_t mrvl_sai_utl_attr_list_to_str(_In_ uint32_t                     att
 {
     uint32_t ii, index, pos = 0;
     char     value_str[MAX_VALUE_STR_LEN];
+    MRVL_SAI_LOG_ENTER();
 
     if ((attr_count) && (NULL == attr_list)) {
         MRVL_SAI_LOG_ERR("NULL value attr list\n");
@@ -848,6 +884,7 @@ sai_status_t mrvl_sai_utl_attr_list_to_str(_In_ uint32_t                     att
         }
     }
 
+    MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
@@ -855,16 +892,19 @@ sai_status_t mrvl_sai_utl_is_object_type(sai_object_id_t object_id, sai_object_t
 {
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)&object_id;
 
+    MRVL_SAI_LOG_ENTER();
 
     if (type != mrvl_object_id->object_type) {
         return SAI_STATUS_FAILURE;
     }
 
+    MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data)
 {
+    MRVL_SAI_LOG_ENTER();
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)&object_id;
 
     if (NULL == data) {
@@ -878,6 +918,7 @@ sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_t
     }
 
     *data = mrvl_object_id->data;
+    MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
@@ -902,6 +943,7 @@ sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_obje
 
 sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, sai_object_id_t *object_id)
 {
+    MRVL_SAI_LOG_ENTER();
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)object_id;
 
     if (NULL == object_id) {
@@ -917,6 +959,8 @@ sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, s
     memset(mrvl_object_id, 0, sizeof(*mrvl_object_id));
     mrvl_object_id->data        = data;
     mrvl_object_id->object_type = type;
+	
+	MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
@@ -1898,9 +1942,9 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_add_bucket(_In_ uint32_t        gr
 {
     FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier = {0};
     FPA_GROUP_BUCKET_ENTRY_STC  bucket;
+    FPA_GROUP_TABLE_ENTRY_STC   groupEntry;
     FPA_STATUS                  fpa_status;    
     uint32_t                    port_idx;
-    FPA_GROUP_TABLE_ENTRY_STC   groupEntry;
 
     
     bucket.groupIdentifier = group_identifier; 
@@ -1932,14 +1976,14 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_add_bucket(_In_ uint32_t        gr
         }
         fpa_status = fpaLibGroupEntryBucketAdd(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
         if (fpa_status != FPA_OK){
-            MRVL_SAI_LOG_ERR("Failed - to add bucket idx %d\n", bucket.index);
+            MRVL_SAI_LOG_ERR("Failed - to add bucket idx %d\n", bucket_index);
         }        
     } else {
         fpa_status = FPA_FAIL;
     }
     if (fpa_status != FPA_OK){
         if (fpa_status != FPA_ALREADY_EXIST) {
-            MRVL_SAI_LOG_ERR("Failed to add bucket %d entry status = %d\n", bucket_index, fpa_status); 
+            MRVL_SAI_LOG_ERR("Failed to add bucket 0x%x entry status = %d\n", bucket_index, fpa_status); 
             return SAI_STATUS_FAILURE;
         } else {
             return SAI_STATUS_ITEM_ALREADY_EXISTS;
@@ -2067,17 +2111,16 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_del_bucket(_In_ uint32_t        gr
                                                          _In_ sai_object_id_t port_oid)
 {
     sai_status_t                status;
-    uint32_t                    bucket_index, groupIdentifier;
     FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier = {0};
-    FPA_STATUS                  fpa_status;    
-    uint32_t                    port_idx;
 
+    uint32_t                    bucket_index, port_idx, groupIdentifier;
+    FPA_STATUS                  fpa_status;    
     
     status = mrvl_sai_utl_l2_lag_group_bucket_get_index(group_identifier, port_oid, &bucket_index);
     if (status == SAI_STATUS_SUCCESS) {
         fpa_status = fpaLibGroupEntryBucketDelete(SAI_DEFAULT_ETH_SWID_CNS, group_identifier, bucket_index);
         if (fpa_status != FPA_OK){
-            MRVL_SAI_LOG_ERR("Failed to delete bucjet %d, status = %d\n", bucket_index, fpa_status); 
+            MRVL_SAI_LOG_ERR("Failed to delete bucket %d, status = %d\n", bucket_index, fpa_status); 
             return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
         }
         if (mrvl_sai_utl_is_object_type(port_oid, SAI_OBJECT_TYPE_PORT) == SAI_STATUS_SUCCESS)
@@ -2130,7 +2173,6 @@ sai_status_t mrvl_sai_utl_update_l2_lag_group_bucket(_In_  uint32_t        lag_i
             
     parsed_group_identifier.groupType = FPA_GROUP_L2_LAG_E; 
     parsed_group_identifier.index = lag_id;
-
     fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, &groupIdentifier);
     if (fpa_status != FPA_OK){
         MRVL_SAI_LOG_ERR("Failed to build group identifier index %d \n", lag_id);
@@ -2531,6 +2573,33 @@ void fpautilsPortDump
 	IN	 int					fd
 );
 
+void fpautilsLpmDump
+(
+    IN   uint8_t                devId,
+    IN   uint32_t               inet_type,
+	IN	 int					fd
+);
+void fpautilsFdbDump
+(
+    IN   uint8_t                devId,
+	IN	 int					fd
+);
+void fpautilsMac2MeDump
+(
+    IN   uint8_t                dev,
+	IN	 int					fd
+);
+void fpautilsVlanDump
+(
+    IN   uint8_t                dev,
+    IN   uint32_t               vlan_id,
+	IN	 int					fd
+);
+void fpautilsVlanListDump
+(
+    IN   uint8_t                dev,
+	IN	 int					fd
+);
 
 /*
  * simple_server.c
@@ -2556,7 +2625,7 @@ void * mrvl_sai_simple_server(void)
 	 socklen_t address_length;
 	 char address_str[] = "/tmp/console_socket";
 	 int nbytes;
-	 char buffer[256];
+	 char buffer[257];
 	 unsigned int cmd;
 
 	 socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
@@ -2588,7 +2657,7 @@ void * mrvl_sai_simple_server(void)
 			 nbytes = read(connection_fd, buffer, 256);
 			 buffer[nbytes] = 0;
 			 if ( strcmp(buffer,"help")==0 || strcmp(buffer,"?")==0) {
-				 dprintf(connection_fd, "Commands: help | exit | Ethernet<0..53>\n");
+				 dprintf(connection_fd, "Commands: help | exit | Ethernet<0..53> | lpm<4,6> | fdb | mac2me | vlan_list | vlan<N>\n");
 			 } else if ( strcmp(buffer,"exit")==0 || strcmp(buffer,"q")==0) {
 				 dprintf(connection_fd, "Closed\n");
 				 close(connection_fd);
@@ -2600,6 +2669,21 @@ void * mrvl_sai_simple_server(void)
 				 else {
 					 dprintf(connection_fd, "Unknown Ethernet\n");
 				 }
+             } else if ( sscanf(buffer, "lpm%d", &cmd)==1 ) {
+                if (cmd == 4 || cmd == 6) {
+                    fpautilsLpmDump(SAI_DEFAULT_ETH_SWID_CNS, cmd, connection_fd);
+                }
+                else {
+                    dprintf(connection_fd, "Unknown inet type\n");
+                }
+            } else if ( sscanf(buffer, "vlan%d", &cmd)==1 ) {
+                fpautilsVlanDump(SAI_DEFAULT_ETH_SWID_CNS, cmd, connection_fd);
+            } else if ( strcmp(buffer,"fdb")==0 ) {
+                    fpautilsFdbDump(SAI_DEFAULT_ETH_SWID_CNS, connection_fd);
+            } else if ( strcmp(buffer,"vlan_list")==0 ) {
+                fpautilsVlanListDump(SAI_DEFAULT_ETH_SWID_CNS, connection_fd);
+            } else if ( strcmp(buffer,"mac2me")==0 ) {
+                fpautilsMac2MeDump(SAI_DEFAULT_ETH_SWID_CNS, connection_fd);
 			 } else {
 				 dprintf(connection_fd, "Unknown Command\n");
 			 }

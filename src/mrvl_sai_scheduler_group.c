@@ -156,8 +156,6 @@ static sai_status_t mrvl_sched_group_child_count_get(_In_ const sai_object_key_t
     return SAI_STATUS_SUCCESS;
 }
 
-extern sai_status_t mrvl_sai_utl_fill_objlist(sai_object_id_t *data, uint32_t count, sai_object_list_t *list);
-
 /** Scheduler Group child obejct id List [sai_object_list_t] */
 static sai_status_t mrvl_sched_group_child_list_get(_In_ const sai_object_key_t   *key,
                                                     _Inout_ sai_attribute_value_t *value,
@@ -250,9 +248,19 @@ static sai_status_t mrvl_sched_group_profile_get(_In_ const sai_object_key_t   *
                                                  _Inout_ vendor_cache_t        *cache,
                                                  void                          *arg)
 {
+    sai_status_t    status;
+    uint32_t        sched_idx;
     MRVL_SAI_LOG_ENTER();
 
-    value->oid = SAI_NULL_OBJECT_ID;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_SCHEDULER_GROUP, &sched_idx))) {
+        MRVL_SAI_LOG_ERR("Error converting scheduler group object to type\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SCHEDULER, 1, &value->oid))) {
+        MRVL_SAI_LOG_ERR("Error creating scheduler object\n");
+        MRVL_SAI_API_RETURN(status);
+    }
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -276,10 +284,28 @@ sai_status_t mrvl_sched_group_parent_get(_In_ const sai_object_key_t   *key,
                                          _Inout_ vendor_cache_t        *cache,
                                          void                          *arg)
 {
+    uint32_t port;
+    sai_status_t status;
     MRVL_SAI_LOG_ENTER();
 
+    if (sai_object_type_query(key->key.object_id) == SAI_OBJECT_TYPE_QUEUE) {
+        status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_QUEUE, &port);
+    } else if (sai_object_type_query(key->key.object_id) == SAI_OBJECT_TYPE_SCHEDULER_GROUP) {
+        status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_SCHEDULER_GROUP, &port);
+    } else {
+        status = SAI_STATUS_INVALID_OBJECT_TYPE;
+        MRVL_SAI_LOG_ERR("Expected queue or scheduler group object type, type is %d\n", sai_object_type_query(key->key.object_id));
+    }
+    if (SAI_STATUS_SUCCESS != status) {
+        MRVL_SAI_LOG_EXIT();
+        MRVL_SAI_API_RETURN(status);
+    }
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SCHEDULER_GROUP, port, &value->oid))) {
+        MRVL_SAI_LOG_ERR("Error creating scheduler object\n");
+        MRVL_SAI_API_RETURN(status);
+    }
     MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* It is used also by mrvl_sai_queue.c */
@@ -404,6 +430,8 @@ static sai_status_t mrvl_create_scheduler_group(_Out_ sai_object_id_t      *sche
     
     MRVL_SAI_LOG_NTC("Created scheduler group %x at port %x level %u index %u\n",
                *scheduler_group_id, port_id, level, ext_data[1]);
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /**
@@ -468,6 +496,10 @@ static sai_status_t mrvl_get_scheduler_group_attribute(_In_ sai_object_id_t     
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == scheduler_group_id) {
+        MRVL_SAI_LOG_ERR("Invalid scheduler group id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
     sched_group_key_to_str(scheduler_group_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, sched_group_attribs, sched_group_vendor_attribs, attr_count, attr_list);
     

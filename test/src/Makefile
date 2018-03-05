@@ -10,7 +10,7 @@ FILES := \
  mrvl_sai_fdb_test.c \
  mrvl_sai_vlan_test.c  \
  mrvl_sai_acl_test.c  \
- mrvl_sai_rif_test.c \
+# mrvl_sai_rif_test.c \
  mrvl_sai_port_test.c \
  mrvl_sai_lag_test.c  \
  mrvl_sai_vr_test.c 
@@ -21,6 +21,7 @@ FILES := \
 # mrvl_sai_nexthop_test.c \
 # mrvl_sai_nexthopgroup_test.c \
 # mrvl_sai_hostif_test.c 
+#  
 
 CWD := $(dir $(lastword $(MAKEFILE_LIST)))
 

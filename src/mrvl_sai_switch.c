@@ -25,15 +25,7 @@
 
 uint32_t mrvl_sai_switch_init_first_time=1;
 
-typedef struct _sai_switch_notification_t {
-    sai_switch_state_change_notification_fn     on_switch_state_change;
-    sai_fdb_event_notification_fn               on_fdb_event;
-    sai_port_state_change_notification_fn       on_port_state_change;
-    sai_switch_shutdown_request_notification_fn on_switch_shutdown_request;
-    sai_packet_event_notification_fn            on_packet_event;
-} sai_switch_notification_t;
-
-sai_switch_notification_t     mrvl_sai_notification_callbacks = {NULL, NULL, NULL, NULL, NULL};
+sai_switch_notification_t     mrvl_sai_notification_callbacks;
 
 bool                      mrvl_switch_is_created = false;
 uint32_t                  mrvl_profile_id = 0;
@@ -386,6 +378,22 @@ static sai_status_t mrvl_sai_switch_fdb_size_get_prv(_In_ const sai_object_key_t
     return SAI_STATUS_SUCCESS;
 }
 
+/* Default SAI VLAN ID [sai_object_id_t] */
+static sai_status_t mrvl_sai_switch_default_vlan_id_get_prv(_In_ const sai_object_key_t   *key,
+                                                             _Inout_ sai_attribute_value_t *value,
+                                                             _In_ uint32_t                  attr_index,
+                                                             _Inout_ vendor_cache_t        *cache,
+                                                             void                          *arg)
+{
+    sai_status_t status;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, 1, &value->oid))) {
+    	MRVL_SAI_LOG_EXIT();
+        return status;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
 /* Default SAI STP instance ID [sai_object_id_t] */
 static sai_status_t mrvl_sai_switch_default_stp_get_prv(_In_ const sai_object_key_t   *key,
                                          _Inout_ sai_attribute_value_t *value,
@@ -396,7 +404,7 @@ static sai_status_t mrvl_sai_switch_default_stp_get_prv(_In_ const sai_object_ke
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 1, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -420,6 +428,76 @@ static sai_status_t mrvl_sai_switch_default_vr_id_get_prv(_In_ const sai_object_
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+
+/* SAI_SWITCH_ATTR_INGRESS_ACL and SAI_SWITCH_ATTR_EGRESS_ACL [sai_object_id_t]
+ * 
+ */
+
+sai_status_t mrvl_sai_switch_acl_set_prv(_In_ const sai_object_key_t      *key,
+                                       _In_ const sai_attribute_value_t *value,
+                                       _In_ void                        *arg)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+     uint32_t switch_idx;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx))) {
+        return status;
+    }
+
+    if (switch_idx != SAI_DEFAULT_ETH_SWID_CNS){
+        MRVL_SAI_LOG_ERR("Invalid switch %d\n", switch_idx);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    if (value->oid == SAI_NULL_OBJECT_ID){
+    	/* unbind action */
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_switch(arg, switch_idx))){
+            MRVL_SAI_LOG_ERR("Unable to unbind switch %d from ACL TABLE\n", switch_idx);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+    else {
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_switch(arg, value->oid, switch_idx))){
+            MRVL_SAI_LOG_ERR("Unable to bind switch %d to ACL TABLE\n", switch_idx);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return status;
+}
+
+
+static sai_status_t mrvl_sai_switch_acl_get_prv(_In_ const sai_object_key_t   *key,
+                                         _Inout_ sai_attribute_value_t *value,
+                                         _In_ uint32_t                  attr_index,
+                                         _Inout_ vendor_cache_t        *cache,
+                                         void                          *arg)
+{
+    sai_status_t status;
+    uint32_t switch_idx;
+
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_SWITCH, &switch_idx))) {
+        return status;
+    }
+
+    if (switch_idx != SAI_DEFAULT_ETH_SWID_CNS){
+        MRVL_SAI_LOG_ERR("Invalid switch %d\n", switch_idx);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_switch(arg, switch_idx, value))){
+        MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per switch %d\n", switch_idx);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -869,7 +947,7 @@ static sai_status_t mrvl_sai_switch_ecmp_hash_get_prv(_In_ const sai_object_key_
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 1, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -887,7 +965,7 @@ static sai_status_t mrvl_sai_switch_lag_hash_get_prv(_In_ const sai_object_key_t
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 1, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -935,13 +1013,8 @@ sai_status_t mrvl_sai_switch_ecmp_hash_seed_get_prv(_In_ const sai_object_key_t 
                                             _Inout_ vendor_cache_t        *cache,
                                             void                          *arg)
 {
-    sai_status_t status;
-
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 0, &value->oid))) {
-    	MRVL_SAI_LOG_EXIT();
-        return status;
-    }
+    value->u32 = 0;
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -987,17 +1060,53 @@ sai_status_t mrvl_sai_switch_ecmp_hash_symmetric_set_prv(_In_ const sai_object_k
     return SAI_STATUS_NOT_IMPLEMENTED;
 }
 
-
-sai_status_t mrvl_sai_default_bridge_id_get(_In_ const sai_object_key_t   *key,
+    /** SAI LAG default hash seed [sai_uint32_t] (default to 0) */
+sai_status_t mrvl_sai_switch_lag_hash_seed_get_prv(_In_ const sai_object_key_t   *key,
                                             _Inout_ sai_attribute_value_t *value,
                                             _In_ uint32_t                  attr_index,
                                             _Inout_ vendor_cache_t        *cache,
                                             void                          *arg)
 {
-    sai_status_t status;
-
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 0, &value->oid))) {
+    value->u32 = 0;
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+/* LAG hashing seed  [uint32_t] */
+sai_status_t mrvl_sai_switch_lag_hash_seed_set_prv(_In_ const sai_object_key_t      *key,
+                                                   _In_ const sai_attribute_value_t *value,
+                                                   void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+sai_status_t mrvl_sai_switch_qos_map_id_get_prv(_In_ const sai_object_key_t   *key,
+                                            _Inout_ sai_attribute_value_t *value,
+                                            _In_ uint32_t                  attr_index,
+                                            _Inout_ vendor_cache_t        *cache,
+                                            void                          *arg)
+{
+    sai_qos_map_type_t qos_map_type = (sai_qos_map_type_t)arg;
+    sai_status_t status;
+    MRVL_SAI_LOG_ENTER();
+    /*assert(qos_map_type < SAI_QOS_MAP_TYPES_MAX);*/
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_QOS_MAP, 1, &value->oid))) {
+    	MRVL_SAI_LOG_EXIT();
+        return status;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+static sai_status_t mrvl_sai_switch_default_1q_bridge_id_get_prv(_In_ const sai_object_key_t   *key,
+                                                                 _Inout_ sai_attribute_value_t *value,
+                                                                 _In_ uint32_t                  attr_index,
+                                                                 _Inout_ vendor_cache_t        *cache,
+                                                                 void                          *arg)
+{
+    sai_status_t status;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 1, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         return status;
     }
@@ -1047,22 +1156,27 @@ static const sai_attribute_entry_t        switch_attribs[] = {
     { SAI_SWITCH_ATTR_MAX_TEMP, false, false, false, true,
       "Switch maximum temperature", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_SWITCH_ATTR_ACL_TABLE_MINIMUM_PRIORITY, false, false, false, true,
-      "Switch ACL table min prio", SAI_ATTR_VAL_TYPE_U32 },
+      "Switch ACL table min priority", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_SWITCH_ATTR_ACL_TABLE_MAXIMUM_PRIORITY, false, false, false, true,
-      "Switch ACL table max prio", SAI_ATTR_VAL_TYPE_U32 },
+      "Switch ACL table max priority", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_SWITCH_ATTR_ACL_ENTRY_MINIMUM_PRIORITY, false, false, false, true,
-      "Switch ACL entry min prio", SAI_ATTR_VAL_TYPE_U32 },
+      "Switch ACL entry min priority", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_SWITCH_ATTR_ACL_ENTRY_MAXIMUM_PRIORITY, false, false, false, true,
-      "Switch ACL entry max prio", SAI_ATTR_VAL_TYPE_U32 },
+      "Switch ACL entry max priority", SAI_ATTR_VAL_TYPE_U32 },
 
     /*METADATA not supported */
-
+    { SAI_SWITCH_ATTR_DEFAULT_VLAN_ID, false, false, false, true,
+      "Switch Default VLAN ID", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID, false, false, false, true,
       "Switch Default SAI STP instance ID", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID, false, false, false, true,
       "Switch Default SAI Virtual Router ID", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID, false, false, false, true,
-      "Switch default 1Q bridge ID", SAI_ATTR_VAL_TYPE_OID },
+      "Switch Default .1Q bridge ID", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_SWITCH_ATTR_INGRESS_ACL, false, false, false, true,
+      "Switch bind to ingress acl", SAI_ATTR_VAL_TYPE_OID },
+     { SAI_SWITCH_ATTR_EGRESS_ACL, false, true, true, true,
+      "Switch bind to egress acl", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES, false, false, false, true,
       "Switch Maximum traffic classes limit", SAI_ATTR_VAL_TYPE_U8 },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_SCHEDULER_GROUP_HIERARCHY_LEVELS, false, false, false, true,
@@ -1113,6 +1227,8 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch hash object for IPv4 packets going through ECMP", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_ECMP_HASH_IPV4_IN_IPV4, false, false, true, true,
       "Switch hash object for IPv4 in IPv4 packets going through ECMP", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_SWITCH_ATTR_ECMP_HASH_IPV6, false, false, true, true,
+      "Switch hash object for IPv6 packets going through ECMP", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_ALGORITHM, false, false, true, true,
       "Switch LAG default hash algorithm", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_SEED, false, false, true, true,
@@ -1123,6 +1239,8 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch hash object for IPv4 packets going through LAG", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_LAG_HASH_IPV4_IN_IPV4, false, false, true, true,
       "Switch hash object for IPv4 in IPv4 packets going through LAG", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_SWITCH_ATTR_LAG_HASH_IPV6, false, false, true, true,
+      "Switch hash object for IPv4 packets going through LAG", SAI_ATTR_VAL_TYPE_OID },
     { SAI_SWITCH_ATTR_COUNTER_REFRESH_INTERVAL, false, false, true, true,
       "Switch counter refresh interval", SAI_ATTR_VAL_TYPE_U32 },
     { SAI_SWITCH_ATTR_QOS_DEFAULT_TC, false, false, true, true,
@@ -1285,6 +1403,11 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       { false, false, false, true },
       mrvl_sai_switch_acl_entry_max_prio_get_prv, NULL,
       NULL, NULL },
+    { SAI_SWITCH_ATTR_DEFAULT_VLAN_ID,
+      { false, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_switch_default_vlan_id_get_prv, NULL,
+      NULL, NULL },
     { SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID,
       { false, false, false, true },
       { false, false, false, true },
@@ -1298,8 +1421,18 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
     { SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID,
       { false, false, false, true },
       { false, false, false, true },
-      mrvl_sai_default_bridge_id_get, NULL,
+      mrvl_sai_switch_default_1q_bridge_id_get_prv, NULL,
       NULL, NULL },
+    { SAI_SWITCH_ATTR_INGRESS_ACL,
+      { false, false, true, true },
+      { false, false, true, true },
+      mrvl_sai_switch_acl_get_prv, (void*)SAI_SWITCH_ATTR_INGRESS_ACL,
+      mrvl_sai_switch_acl_set_prv, (void*)SAI_SWITCH_ATTR_INGRESS_ACL },
+    { SAI_SWITCH_ATTR_EGRESS_ACL,
+      { false, false, true, true },
+      { false, false, true, true },
+      mrvl_sai_switch_acl_get_prv, (void*)SAI_SWITCH_ATTR_EGRESS_ACL,
+      mrvl_sai_switch_acl_set_prv, (void*)SAI_SWITCH_ATTR_EGRESS_ACL },
     { SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES,
       { false, false, false, true },
       { false, false, false, true },
@@ -1420,29 +1553,39 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       { false, false, true, true },
       NULL, NULL,
       NULL, NULL },
+    { SAI_SWITCH_ATTR_ECMP_HASH_IPV6,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
     { SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_ALGORITHM,
       { false, false, false, false },
       { false, false, true, true },
       NULL, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_SEED,
-      { false, false, false, false },
       { false, false, true, true },
-      NULL, NULL,
-      NULL, NULL },
+      { false, false, true, true },
+      mrvl_sai_switch_lag_hash_seed_get_prv, NULL,
+      mrvl_sai_switch_lag_hash_seed_set_prv, NULL },
     { SAI_SWITCH_ATTR_LAG_DEFAULT_SYMMETRIC_HASH,
       { false, false, false, false },
-      { false, false, true, true },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_LAG_HASH_IPV4,
       { false, false, false, false },
-      { false, false, true, true },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_LAG_HASH_IPV4_IN_IPV4,
       { false, false, false, false },
-      { false, false, true, true },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_SWITCH_ATTR_LAG_HASH_IPV6,
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_COUNTER_REFRESH_INTERVAL,
@@ -1460,37 +1603,37 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
     { SAI_SWITCH_ATTR_QOS_DOT1P_TO_TC_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_dot1p_to_tc_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_DOT1P_TO_TC_MAP,
       NULL/*mrvl_sai_switch_qos_dot1p_to_tc_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_DOT1P_TO_COLOR_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_dot1p_to_color_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_DOT1P_TO_TC_MAP,
       NULL/*mrvl_sai_switch_qos_dot1p_to_color_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_DSCP_TO_TC_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_dscp_to_tc_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_DSCP_TO_TC_MAP,
       NULL/*mrvl_sai_switch_qos_dscp_to_tc_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_DSCP_TO_COLOR_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_dscp_to_color_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_DSCP_TO_COLOR_MAP,
       NULL/*mrvl_sai_switch_qos_dscp_to_color_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_TC_TO_QUEUE_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_tc_to_queue_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_TC_TO_QUEUE_MAP,
       NULL/*mrvl_sai_switch_qos_tc_to_queue_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_TC_AND_COLOR_TO_DOT1P_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_tc_and_color_to_dot1p_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_TC_AND_COLOR_TO_DOT1P_MAP,
       NULL/*mrvl_sai_switch_qos_tc_and_color_to_dot1p_set_prv*/, NULL },
     { SAI_SWITCH_ATTR_QOS_TC_AND_COLOR_TO_DSCP_MAP,
       { false, false, true, true },
       { false, false, true, true },
-      NULL/*mrvl_sai_switch_qos_tc_and_color_to_dscp_get_prv*/, NULL,
+      mrvl_sai_switch_qos_map_id_get_prv, (void*)SAI_SWITCH_ATTR_QOS_TC_AND_COLOR_TO_DSCP_MAP,
       NULL/*mrvl_sai_switch_qos_tc_and_color_to_dscp_set_prv*/, NULL },
 
 
@@ -1627,15 +1770,16 @@ void mrvl_sai_simple_server(void);
 /* switch initialization */
 static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
 {
-	sai_object_id_t object_id;
+	sai_object_id_t vr_id;
 	sai_attribute_t attr_list[2];
     char          switch_str[MAX_LIST_VALUE_STR_LEN];
 	FPA_STATUS fpa_status;
     uint32_t err, switch_idx;
     FPA_SRCMAC_LEARNING_MODE_ENT learning_mode = FPA_SRCMAC_LEARNING_AUTO_E;
     pthread_t t;
-    FPA_MAC_ADDRESS_STC     defaultSrcMac = {{0,0,0,0x12,0x23,0x33}};
+    FPA_MAC_ADDRESS_STC     defaultSrcMac = {{0,0,0,0x11,0x22,0x33}}, fpaSrcMac;
     pthread_t thread_console;
+    sai_mac_t srcMac;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -1658,7 +1802,7 @@ static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
         }
         fpa_status = fpaLibSwitchSrcMacLearningSet(switch_idx, learning_mode);
         if (fpa_status != FPA_OK){
-             fprintf(stderr,  "Error %d initializing learning mode !!\n", (int)fpa_status);
+             fprintf(stderr,  "Error %d initializing MAC learning mode !!\n", (int)fpa_status);
               MRVL_SAI_LOG_EXIT();
               MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
         }
@@ -1673,11 +1817,31 @@ static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
         }else {
             MRVL_SAI_LOG_WRN("No FDB event callback\n");
         }
-        MRVL_SAI_LOG_NTC("Setting SRC MAC address for %s\n", switch_str);
-        fpa_status = fpaLibSwitchSrcMacAddressSet(switch_idx, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &defaultSrcMac);
-        if (fpa_status != FPA_OK) {
-        	MRVL_SAI_LOG_EXIT();
-        	MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+        /* Get mgmt interface's MAC address \
+           if found - set as switch source MAC address, aswell as to all ports \
+           else - use default src MAC address */
+        if ( mrvl_sai_netdev_get_mac("eth0", srcMac) == 0 )
+        {
+            memcpy(fpaSrcMac.addr, srcMac, sizeof(sai_mac_t));
+            fpa_status = fpaLibSwitchSrcMacAddressSet(switch_idx, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &fpaSrcMac);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_EXIT();
+                MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+            }
+
+            MRVL_SAI_LOG_INF("fpaLibSwitchSrcMacAddressSet: setting eth0 MAC: %x:%x:%x:%x:%x:%x\n", fpaSrcMac.addr[0], fpaSrcMac.addr[1], fpaSrcMac.addr[2], 
+                             fpaSrcMac.addr[3], fpaSrcMac.addr[4], fpaSrcMac.addr[5]);
+
+        }
+        else
+        {
+            fpa_status = fpaLibSwitchSrcMacAddressSet(switch_idx, SAI_SWITCH_DEFAULT_MAC_MODE_CNS, &defaultSrcMac);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_EXIT();
+                MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+            }
+            MRVL_SAI_LOG_INF("fpaLibSwitchSrcMacAddressSet: setting default MAC: %x:%x:%x:%x:%x:%x\n", defaultSrcMac.addr[0], defaultSrcMac.addr[1], defaultSrcMac.addr[2], 
+                             defaultSrcMac.addr[3], defaultSrcMac.addr[4], defaultSrcMac.addr[5]);
         }
 
     	if (mrvl_sai_route_init() != SAI_STATUS_SUCCESS){
@@ -1686,12 +1850,18 @@ static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
     		MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     	}
 
-    	mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, 0, &object_id);
+        if (mrvl_sai_acl_init() != SAI_STATUS_SUCCESS){
+    		MRVL_SAI_LOG_ERR("initialize sai acl db failed\n");
+    		MRVL_SAI_LOG_EXIT();
+    		MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    	}
+
+    	mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, SAI_DEFAULT_VRID_CNS, &vr_id);
     	attr_list[0].id = SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE;
     	attr_list[0].value.booldata = 1;
         attr_list[1].id = SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V6_STATE;
     	attr_list[1].value.booldata = 1;
-        mrvl_sai_create_virtual_router(&object_id, switch_id, 2, attr_list);
+    	mrvl_sai_create_virtual_router(&vr_id, switch_id, 2, attr_list);
     }
 
 	MRVL_SAI_LOG_NTC("Initialize switch\n");
@@ -1706,7 +1876,6 @@ static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
  		if ( mrvl_sai_switch_init_first_time ) {
  			memset(&port_status, 0, sizeof(port_status));
  			mrvl_sai_inform_all_ports_status_adv();
-            MRVL_SAI_LOG_NTC("Creating SAI port status task\n");
      		err = pthread_create(&thread_port, NULL, (void *)mrvl_sai_port_status_task, NULL);
 		    if (err )
 		    {
@@ -1715,7 +1884,6 @@ static sai_status_t mrvl_initialize_switch(_In_ sai_object_id_t switch_id)
  		}
  		else
  		{
-            MRVL_SAI_LOG_NTC("Informing all_ports_status_adv\n");
  			mrvl_sai_inform_all_ports_status_adv();
  		}
  	}
@@ -1786,52 +1954,41 @@ sai_status_t mrvl_sai_create_switch(
     mrvl_switch_is_created = attr_val->booldata;
 
     /* SAI_SWITCH_ATTR_SWITCH_PROFILE_ID */
-    /*if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SWITCH_PROFILE_ID, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SWITCH_PROFILE_ID - %d\n", attr_val->u32);
-        MRVL_SAI_API_RETURN(status);
-    }*/
-    mrvl_profile_id = 0; /*default*/ /*attr_val->u32;*/
+        mrvl_profile_id = attr_val->u32;
+    }
 
     /* SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY */
-    /*if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY - %x\n", attr_val->ptr);
-        MRVL_SAI_API_RETURN(status);
+        mrvl_sai_notification_callbacks.on_switch_state_change = (sai_switch_state_change_notification_fn)attr_val->ptr;
     }
-    mrvl_sai_notification_callbacks.on_switch_state_change = (sai_switch_state_change_notification_fn)attr_val->ptr;*/
 
     /* SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY */
-    if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY - %d\n", attr_val->ptr);
-        MRVL_SAI_API_RETURN(status);
+        mrvl_sai_notification_callbacks.on_switch_shutdown_request = (sai_switch_shutdown_request_notification_fn)attr_val->ptr;
     }
-    mrvl_sai_notification_callbacks.on_switch_shutdown_request = (sai_switch_shutdown_request_notification_fn)attr_val->ptr;
 
     /* SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY */
-    if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY - %d\n", attr_val->ptr);
-        MRVL_SAI_API_RETURN(status);
+        mrvl_sai_notification_callbacks.on_fdb_event = (sai_fdb_event_notification_fn)attr_val->ptr;
     }
-    mrvl_sai_notification_callbacks.on_fdb_event = (sai_fdb_event_notification_fn)attr_val->ptr;
+
     
     /* SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY */
-    if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY - %d\n", attr_val->ptr);
-        MRVL_SAI_API_RETURN(status);
+        mrvl_sai_notification_callbacks.on_port_state_change = (sai_port_state_change_notification_fn)attr_val->ptr;
     }
-    mrvl_sai_notification_callbacks.on_port_state_change = (sai_port_state_change_notification_fn)attr_val->ptr;
 
    /* SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY */
-   /* if (SAI_STATUS_SUCCESS !=
+    if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY, &attr_val, &attr_idx))){
-        MRVL_SAI_LOG_ERR("Invalid value for SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY - %d\n", attr_val->ptr);
-        MRVL_SAI_API_RETURN(status);
+        mrvl_sai_notification_callbacks.on_packet_event = (sai_packet_event_notification_fn)attr_val->ptr;
     }
-    mrvl_sai_notification_callbacks.on_packet_event = (sai_packet_event_notification_fn)attr_val->ptr;*/
 
     /* create SAI switch object */    
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SWITCH, SAI_DEFAULT_ETH_SWID_CNS, switch_id))) {
@@ -1941,6 +2098,7 @@ sai_status_t mrvl_sai_get_switch_attribute(
 
     MRVL_SAI_LOG_ENTER();
 
+
     if (SAI_NULL_OBJECT_ID == switch_id) {
         MRVL_SAI_LOG_ERR("Invalid switch_id param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
@@ -1956,9 +2114,10 @@ sai_status_t mrvl_sai_get_switch_attribute(
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    mrvl_sai_switch_object_id_to_str(SAI_OBJECT_TYPE_SWITCH, switch_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, switch_attribs, switch_vendor_attribs, attr_count, attr_list);
 
-    mrvl_sai_switch_object_id_to_str(SAI_OBJECT_TYPE_SWITCH, switch_id, key_str);
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, switch_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
     MRVL_SAI_LOG_DBG("Get Attribs %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();

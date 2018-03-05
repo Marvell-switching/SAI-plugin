@@ -24,8 +24,6 @@
 
 
 static void hash_id_key_to_str(_In_ sai_object_id_t sai_hash_id, _Out_ char *key_str);
-extern sai_status_t mrvl_sai_utl_fill_objlist(sai_object_id_t *data, uint32_t count, sai_object_list_t *list);
-extern sai_status_t mrvl_sai_utl_fill_s32list(int32_t *data, uint32_t count, sai_s32_list_t *list);
 
 static sai_status_t mrvl_hash_native_field_list_get(_In_ const sai_object_key_t   *key,
                                                     _Inout_ sai_attribute_value_t *value,
@@ -81,6 +79,7 @@ static sai_status_t mrvl_hash_native_field_list_get(_In_ const sai_object_key_t 
     uint32_t hash_data;
     sai_object_id_t hash_id   = key->key.object_id;
     sai_status_t     status;
+    int32_t list_data;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -91,8 +90,9 @@ static sai_status_t mrvl_hash_native_field_list_get(_In_ const sai_object_key_t 
         MRVL_SAI_API_RETURN(status);
     }
     
+    list_data = (int32_t)hash_data;
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_fill_s32list((int32_t*)&hash_data, 1, &value->s32list)))
+        (status = mrvl_sai_utl_fill_s32list(&list_data, 1, &value->s32list)))
     {
          MRVL_SAI_LOG_ERR("Failed to fill s32list\n");
          MRVL_SAI_API_RETURN(status);
@@ -124,9 +124,10 @@ static sai_status_t mrvl_hash_udf_group_list_get(_In_ const sai_object_key_t   *
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 1, &data_obj)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_UDF_GROUP, 1, &data_obj)))
     {
-        MRVL_SAI_LOG_ERR("Failed to create object hash\n");
+        MRVL_SAI_LOG_ERR("Failed to create object UDF group\n");
+        status = mrvl_sai_utl_fill_objlist(&data_obj, 0, &value->objlist);
         MRVL_SAI_API_RETURN(status);
     }
     
@@ -189,16 +190,19 @@ static sai_status_t mrvl_sai_create_hash(
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+
     if (SAI_STATUS_SUCCESS !=
         (status =
              mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_hash_attribs, mrvl_sai_hash_vendor_attribs, SAI_OPERATION_CREATE))) {
         MRVL_SAI_LOG_ERR("Failed attribs check\n");
         MRVL_SAI_API_RETURN(status);
     }
-    hash_id_key_to_str(*hash_id, key_str);
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_hash_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
-    MRVL_SAI_LOG_NTC("Create %s\n", key_str);
-    MRVL_SAI_LOG_DBG("Hash attributes: %s\n", list_str);
+    MRVL_SAI_LOG_NTC("Create %s\n", list_str);
 
     /* create SAI HASH object */    
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HASH, 1, hash_id))) {
@@ -269,6 +273,11 @@ static sai_status_t mrvl_sai_get_hash_attribute(
     sai_status_t           status;
 
     MRVL_SAI_LOG_ENTER();
+
+    if (SAI_NULL_OBJECT_ID == hash_id) {
+        MRVL_SAI_LOG_ERR("NULL hash id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
 
     hash_id_key_to_str(hash_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_hash_attribs, mrvl_sai_hash_vendor_attribs, attr_count, attr_list);

@@ -65,7 +65,11 @@ sai_object_id_t sai_dummy_list[MRVL_SAI_LAG_LIST_SIZE];
 *******************************************************************************/
 int mrvl_sai_lag_create_test
 (
-    OUT sai_object_id_t *lag_oid, uint32_t lag_id, sai_object_id_t switch_id, uint32_t attr_count, sai_attribute_t *attr_list
+  OUT sai_object_id_t *lag_oid, 
+  IN uint32_t lag_id, 
+  IN sai_object_id_t switch_id, 
+  IN uint32_t attr_count, 
+  IN sai_attribute_t *attr_list
 )
 {
     sai_status_t status;

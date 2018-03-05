@@ -27,9 +27,9 @@ static mrvl_sai_lag_group_table_t mrvl_sai_lag_group_table[SAI_LAG_MAX_GROUPS_CN
 static const sai_attribute_entry_t  mrvl_sai_lag_attribs[] = {
     { SAI_LAG_ATTR_PORT_LIST, false, false, false, true,
       "LAG port list", SAI_ATTR_VAL_TYPE_OBJLIST },
-    { SAI_LAG_ATTR_INGRESS_ACL, false, false, true, true,
+    { SAI_LAG_ATTR_INGRESS_ACL, false, true, true, true,
       "LAG bind point for ingress ACL object", SAI_ATTR_VAL_TYPE_OID },
-    { SAI_LAG_ATTR_EGRESS_ACL, false, false, true, true,
+    { SAI_LAG_ATTR_EGRESS_ACL, false, true, true, true,
       "LAG bind point for egress ACL object", SAI_ATTR_VAL_TYPE_OID },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
@@ -40,16 +40,14 @@ static sai_status_t mrvl_sai_lag_port_list_get_prv(_In_ const sai_object_key_t  
                                                    _In_ uint32_t                  attr_index,
                                                    _Inout_ vendor_cache_t        *cache,
                                                    void                          *arg);
-
 static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *key,
                                        _In_ const sai_attribute_value_t *value,
                                        void                             *arg);
-
 static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
-                                       _Inout_ sai_attribute_value_t *value,
-                                       _In_ uint32_t                  attr_index,
-                                       _Inout_ vendor_cache_t        *cache,
-                                       void                          *arg);
+                                                   _Inout_ sai_attribute_value_t *value,
+                                                   _In_ uint32_t                  attr_index,
+                                                   _Inout_ vendor_cache_t        *cache,
+                                                   void                          *arg);
 
 static const sai_vendor_attribute_entry_t  mrvl_sai_lag_vendor_attribs[] = {
     { SAI_LAG_ATTR_PORT_LIST,
@@ -58,13 +56,13 @@ static const sai_vendor_attribute_entry_t  mrvl_sai_lag_vendor_attribs[] = {
       mrvl_sai_lag_port_list_get_prv, NULL,
       NULL, NULL },
     { SAI_LAG_ATTR_INGRESS_ACL,
-      { false, false, true, true },
-      { false, false, true, true },
+      { true, false, true, true },
+      { true, false, true, true },
       mrvl_lag_acl_binding_get, (void*)SAI_LAG_ATTR_INGRESS_ACL,
       mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_INGRESS_ACL },
     { SAI_LAG_ATTR_EGRESS_ACL,
-      { false, false, true, true },
-      { false, false, true, true },
+      { true, false, true, true },
+      { true, false, true, true },
       mrvl_lag_acl_binding_get, (void*)SAI_LAG_ATTR_EGRESS_ACL,
       mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_EGRESS_ACL}
 };
@@ -346,7 +344,6 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_set_prv(
     return SAI_STATUS_SUCCESS;
 }
 
-
 static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *key,
                                        _In_ const sai_attribute_value_t *value,
                                        _In_ void                        *arg)
@@ -367,13 +364,13 @@ static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *k
 
     if (value->oid == SAI_NULL_OBJECT_ID){
     	/* unbind action */
-    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_port(arg, lag))){
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_lag(arg, lag))){
             MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLE\n", lag);
             return SAI_STATUS_INVALID_PARAMETER;
     	}
     }
     else {
-    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_port(arg, value->oid, lag))){
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag(arg, value->oid, lag))){
             MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLES\n", lag);
             return SAI_STATUS_INVALID_PARAMETER;
     	}
@@ -403,7 +400,7 @@ static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_port(arg, lag, value))){
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_lag(arg, lag, value))){
         MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per lag %d\n", lag);
         return SAI_STATUS_INVALID_PARAMETER;
     }
@@ -412,7 +409,6 @@ static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
     return status;
 
 }
-
 /**
  * @brief Create LAG Member
  *
@@ -443,6 +439,10 @@ sai_status_t mrvl_sai_create_lag_member(
     if (NULL == lag_member_oid) {
         MRVL_SAI_LOG_ERR("NULL lag member id param\n");
         return SAI_STATUS_INVALID_PARAMETER;
+    }
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
     status = mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_lag_member_attribs, mrvl_sai_lag_member_vendor_attribs,
@@ -491,6 +491,8 @@ sai_status_t mrvl_sai_create_lag_member(
     }else {
         mrvl_sai_lag_group_table[lag_id].group_member_counter += changed;
     }                                                     
+    /* inform acl with added member port&lag */
+    mrvl_sai_acl_lag_port_update(lag_id, port_id, true);                                     
     
     /* create SAI LAG member object */       
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_LAG_MEMBER, port_id, lag_id, lag_member_oid))) {
@@ -542,6 +544,9 @@ sai_status_t mrvl_sai_remove_lag_member(
         mrvl_sai_lag_group_table[lag_id].group_member_counter -= changed;
     }      
         
+    /* inform acl with removed member port&lag */
+    mrvl_sai_acl_lag_port_update(lag_id, port_id, false);                                                   
+            
     lag_member_key_to_str(lag_member_oid, key_str);
     MRVL_SAI_LOG_NTC("Removed %s\n", key_str);
       
@@ -601,6 +606,10 @@ sai_status_t mrvl_sai_get_lag_member_attribute(
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == lag_member_oid) {
+        MRVL_SAI_LOG_ERR("NULL lag member id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     lag_member_key_to_str(lag_member_oid, key_str);
     status =  mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_lag_member_attribs, mrvl_sai_lag_member_vendor_attribs,
                                         attr_count, attr_list);
@@ -633,8 +642,8 @@ sai_status_t mrvl_sai_create_lag(
     uint32_t                     lag_idx, group, index;
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     char                         key_str[MAX_KEY_STR_LEN];
-    const sai_attribute_value_t *attr_ing_acl_list = NULL;
-    const sai_attribute_value_t *attr_egr_acl_list = NULL;   
+    const sai_attribute_value_t *attr_ing_acl = NULL;
+    const sai_attribute_value_t *attr_eg_acl = NULL;   
 
     MRVL_SAI_LOG_ENTER();
 
@@ -643,18 +652,16 @@ sai_status_t mrvl_sai_create_lag(
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     status = mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_lag_attribs, mrvl_sai_lag_vendor_attribs,
                                                  SAI_COMMON_API_CREATE);
     if (SAI_STATUS_SUCCESS != status) {
         MRVL_SAI_LOG_ERR("Failed attribs check\n");
         MRVL_SAI_API_RETURN(status);
     }
-
-    /* lag attributes SAI_LAG_ATTR_INGRESS_ACL_LIST and SAI_LAG_ATTR_EGRESS_ACL_LIST are not supported */
-    assert(SAI_STATUS_SUCCESS !=
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL, &attr_ing_acl_list, &index));
-    assert(SAI_STATUS_SUCCESS !=
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL, &attr_egr_acl_list, &index));
 
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_lag_attribs, MAX_LIST_VALUE_STR_LEN, list_str);    
     MRVL_SAI_LOG_NTC("Create lag, %s\n", list_str);    
@@ -680,9 +687,30 @@ sai_status_t mrvl_sai_create_lag(
         MRVL_SAI_LOG_ERR("Can't create lag group %d\n", lag_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
-        
+
     mrvl_sai_lag_group_table[lag_idx].used = true;
     mrvl_sai_lag_group_table[lag_idx].group_member_counter = 0; /* empty lag group */
+    /* check attr SAI_LAG_ATTR_INGRESS_ACL  */
+    if (SAI_STATUS_SUCCESS ==
+    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL, &attr_ing_acl, &index))){
+        if (attr_ing_acl->oid != SAI_NULL_OBJECT_ID) {
+        	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_INGRESS_ACL, attr_ing_acl->oid, lag_idx))){
+                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %d\n", lag_idx, attr_ing_acl);
+                return SAI_STATUS_INVALID_PARAMETER;
+        	}
+        }
+    }
+    /* check attr SAI_LAG_ATTR_EGRESS_ACL  */
+    if (SAI_STATUS_SUCCESS ==
+    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL, &attr_eg_acl, &index))){
+        if (attr_eg_acl->oid != SAI_NULL_OBJECT_ID) {
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_EGRESS_ACL, attr_eg_acl->oid, lag_idx))){
+                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %d\n", lag_idx, attr_eg_acl);
+                return SAI_STATUS_INVALID_PARAMETER;
+        	}
+        }
+    }
+        
     lag_key_to_str(*lag_oid, key_str);
     MRVL_SAI_LOG_NTC("Created %s\n", key_str);
 
@@ -710,6 +738,7 @@ sai_status_t mrvl_sai_remove_lag(
     char                key_str[MAX_KEY_STR_LEN];
     sai_object_list_t   port_objlist;
     sai_object_id_t     port_list[SAI_MAX_NUM_OF_PORTS];
+    sai_attribute_t     acl_table;
 
     MRVL_SAI_LOG_ENTER();        
 
@@ -723,6 +752,18 @@ sai_status_t mrvl_sai_remove_lag(
         MRVL_SAI_LOG_ERR("Lag index %d not used\n", lag_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
     }
+    if (SAI_STATUS_SUCCESS == mrvl_sai_acl_get_table_id_per_lag((void*)SAI_LAG_ATTR_INGRESS_ACL, lag_idx, &acl_table.value)) {
+        if (acl_table.value.oid != SAI_NULL_OBJECT_ID){
+            MRVL_SAI_LOG_ERR("Unable to remove lag_idx %d - bound to ingress ACL table\n",lag_idx);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    } 
+    if (SAI_STATUS_SUCCESS == mrvl_sai_acl_get_table_id_per_lag((void*)SAI_LAG_ATTR_EGRESS_ACL, lag_idx, &acl_table.value)) {
+        if (acl_table.value.oid != SAI_NULL_OBJECT_ID){
+            MRVL_SAI_LOG_ERR("Unable to remove lag_idx %d - bound to egress ACL table\n",lag_idx);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    } 
 
     portList_count = mrvl_sai_lag_group_table[lag_idx].group_member_counter;
     port_objlist.count = portList_count;
@@ -825,6 +866,10 @@ sai_status_t mrvl_sai_get_lag_attribute(
 
     MRVL_SAI_LOG_ENTER();
     
+    if (SAI_NULL_OBJECT_ID == lag_oid) {
+        MRVL_SAI_LOG_ERR("NULL lag id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_lag_attribs, mrvl_sai_lag_vendor_attribs, attr_count, attr_list);
 
     lag_key_to_str(lag_oid, key_str);
@@ -893,6 +938,31 @@ sai_status_t mrvl_sai_remove_lag_members(
 
 }
 
+sai_status_t mrvl_sai_get_lag_port_list(
+    _In_ const uint32_t          lag_id,
+    _Out_ sai_object_list_t     *portobjlist)
+{
+    sai_status_t     status;    
+    MRVL_SAI_LOG_ENTER();
+    if (lag_id < 1 || lag_id > SAI_LAG_MAX_GROUPS_CNS) { 
+        MRVL_SAI_LOG_ERR("invalid lag %d\n",lag_id);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    if (mrvl_sai_lag_group_table[lag_id].used != true)
+    {
+        MRVL_SAI_LOG_ERR("Lag index %d not used\n", lag_id);
+        MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
+    }
+    portobjlist->count = mrvl_sai_lag_group_table[lag_id].group_member_counter;
+    /* create the port list from members of the LAG */  
+    status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_id, portobjlist);
+    if (status != SAI_STATUS_SUCCESS) {
+        MRVL_SAI_LOG_ERR("Can't get lag group port list for lag index %d\n", lag_id);
+        return SAI_STATUS_FAILURE;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
 const sai_lag_api_t lag_api = {
     mrvl_sai_create_lag,
     mrvl_sai_remove_lag,
@@ -904,4 +974,5 @@ const sai_lag_api_t lag_api = {
     mrvl_sai_get_lag_member_attribute,
     mrvl_sai_create_lag_members,
     mrvl_sai_remove_lag_members
+
 };

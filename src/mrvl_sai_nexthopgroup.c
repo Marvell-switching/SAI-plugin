@@ -468,6 +468,10 @@ sai_status_t mrvl_sai_get_next_hop_group_attribute(_In_ sai_object_id_t next_hop
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == next_hop_group_id) {
+        MRVL_SAI_LOG_ERR("NULL nexthop group id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     mrvl_sai_next_hop_group_key_to_str(next_hop_group_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key,
                               key_str,
@@ -797,6 +801,10 @@ sai_status_t mrvl_sai_get_next_hop_group_member_attribute(
     sai_status_t status;
 /*TODO*/
     MRVL_SAI_LOG_ENTER();
+    if (SAI_NULL_OBJECT_ID == next_hop_group_member_id) {
+        MRVL_SAI_LOG_ERR("NULL nexthop group member id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     snprintf(key_str, MAX_KEY_STR_LEN, "nexthop group member %llx", (long long int)next_hop_group_member_id);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_next_hop_group_member_attribs, mrvl_sai_next_hop_group_member_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_LOG_EXIT();

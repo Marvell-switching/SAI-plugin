@@ -577,6 +577,10 @@ sai_status_t mrvl_sai_get_next_hop_attribute(_In_ sai_object_id_t   next_hop_id,
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == next_hop_id) {
+        MRVL_SAI_LOG_ERR("NULL nexthop id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     mrvl_sai_next_hop_key_to_str(next_hop_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_next_hop_attribs, mrvl_sai_next_hop_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);

@@ -39,26 +39,30 @@ extern const sai_route_api_t        route_api;
 extern const sai_virtual_router_api_t virtual_router_api;
 extern const sai_lag_api_t		    lag_api;
 extern const sai_scheduler_group_api_t	scheduler_group_api;
+extern const sai_hash_api_t		hash_api;
+extern const sai_stp_api_t		stp_api;
+extern const sai_l2mc_api_t		l2mc_api;
+extern const sai_l2mc_group_api_t		l2mc_group_api;
+extern const sai_bridge_api_t		bridge_api;
 /* stubs */
 extern const sai_buffer_api_t		buffer_api;
-extern const sai_hash_api_t		hash_api;
 extern const sai_mirror_api_t		mirror_api;
 extern const sai_policer_api_t		policer_api;
 extern const sai_qos_map_api_t		qos_map_api;
 extern const sai_queue_api_t		queue_api;
 extern const sai_samplepacket_api_t	samplepacket_api;
 extern const sai_scheduler_api_t	scheduler_api;
-extern const sai_stp_api_t		stp_api;
 extern const sai_tunnel_api_t		tunnel_api;
 extern const sai_udf_api_t		udf_api;
 extern const sai_wred_api_t		wred_api;
-extern const sai_l2mc_api_t		l2mc_api;
 extern const sai_ipmc_api_t		ipmc_api;
 extern const sai_rpf_group_api_t		rpf_api;
-extern const sai_l2mc_group_api_t		l2mc_group_api;
 extern const sai_ipmc_group_api_t		ipmc_group_api;
 extern const sai_mcast_fdb_api_t		mcast_fdb_api;
-extern const sai_bridge_api_t		bridge_api;
+extern sai_status_t mrvl_sai_utl_fill_objlist(sai_object_id_t *data, uint32_t count, sai_object_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_u32list(uint32_t *data, uint32_t count, sai_u32_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_s32list(int32_t *data, uint32_t count, sai_s32_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_vlanlist(sai_vlan_id_t *data, uint32_t count, sai_vlan_list_t *list);
 
 #ifdef _LP64
 typedef uint64_t PTR_TO_INT;
@@ -83,8 +87,8 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_SWITCH_DEFAULT_MAC_MODE_CNS 0 /*Unique MAC address per port(1) or same for all ports(0)*/
 #define SAI_MAX_NUM_OF_PORTS	54
 #define SAI_MAX_NUM_OF_LANES    4
+#define SAI_MAX_NUM_OF_VLANS	4094
 #define MAX_QUEUES 8
-#define CPU_PORT                63
 
 #define SAI_OUTPUT_CONTROLLER               FPA_OUTPUT_CONTROLLER
 #define SAI_ROUTER_INTERFACE_TABLE_SIZE_CNS 128
@@ -98,6 +102,13 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_LAG_MAX_GROUPS_CNS              (1024+1) /* LAG '0' is not valid in CPSS. LAG group range 1..SAI_LAG_MAX_GROUPS_CNS */
 #define SAI_ACL_MIN_PRIORITY_CNS            0
 #define SAI_ACL_MAX_PRIORITY_CNS            32*1024
+#define SAI_QOS_MAP_TYPES_MAX               10
+#define SAI_QOS_NUM_QUEUES                  8
+#define SAI_QOS_UP_MIN                      0
+#define SAI_QOS_UP_MAX                      7
+#define SAI_QOS_DSCP_MIN                    0
+#define SAI_QOS_DSCP_MAX                    63
+
 
 extern uint32_t SAI_SYS_PORT_MAPPING[SAI_MAX_NUM_OF_PORTS];
 /*
@@ -153,7 +164,10 @@ typedef enum _sai_attribute_value_type_t
     SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32,
     SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S32,
     SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U64,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S64
+    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S64,
+    SAI_ATTR_VAL_TYPE_ACLACTION_U8,
+    SAI_ATTR_VAL_TYPE_ACLACTION_U32,
+    SAI_ATTR_VAL_TYPE_U32RANGE,
 } sai_attribute_value_type_t;
 
 
@@ -325,8 +339,15 @@ sai_status_t mrvl_sai_utl_fpa_to_sai_status(int32_t fpa_status);
  */
 extern unsigned mrvl_sai_fdb_wait_for_au_event(void *args);
 
+typedef struct _sai_switch_notification_t {
+    sai_switch_state_change_notification_fn     on_switch_state_change;
+    sai_fdb_event_notification_fn               on_fdb_event;
+    sai_port_state_change_notification_fn       on_port_state_change;
+    sai_switch_shutdown_request_notification_fn on_switch_shutdown_request;
+    sai_packet_event_notification_fn            on_packet_event;
+} sai_switch_notification_t;
 
-
+extern sai_switch_notification_t     mrvl_sai_notification_callbacks;
 #define SAI_TYPE_CHECK_RANGE(type) (type < SAI_OBJECT_TYPE_MAX)
 
 #define SAI_TYPE_STR(type) SAI_TYPE_CHECK_RANGE(type) ? mrvl_sai_type2str_arr[type] : "Unknown object type"
@@ -513,7 +534,7 @@ static __attribute__((__used__)) const char *mrvl_sai_type2str_arr[] = {
     "tunnel map entry",
 
     /* SAI_OBJECT_TYPE_MAX              = 60 */
-    "MAx"
+    "MAX"
 };
 
 /* TRACE */
@@ -775,9 +796,29 @@ sai_status_t mrvl_sai_host_interface_init(void);
 sai_status_t mrvl_sai_host_interface_trap_get_default_action(_In_ sai_hostif_trap_type_t hostif_trapid, _Out_ sai_packet_action_t *action);
 sai_status_t mrvl_sai_host_interface_trap_is_port_vlan_supported(_In_  sai_hostif_trap_type_t hostif_trapid,_Out_ bool *isSupported);
 
+#define mrvl_acl_is_bit_set_MAC(fieldsBitMap, field_index) (fieldsBitMap & (1<<field_index))
+#define mrvl_acl_set_bit_MAC(fieldsBitMap, field_index) (fieldsBitMap |= (1<<field_index))
+#define mrvl_acl_clear_bit_MAC(fieldsBitMap, field_index) (fieldsBitMap &= ~((1<<field_index) & 0xFFFFFFFF))
+#define mrvl_acl_set_all_MAC(fieldsBitMap) (fieldsBitMap = 0xFFFFFFFF)
+#define mrvl_acl_clear_all_MAC(fieldsBitMap) (fieldsBitMap = 0)
+#define mrvl_acl_is_all_0_MAC(fieldsBitMap) (fieldsBitMap == 0)
+sai_status_t mrvl_sai_acl_init(void);
 sai_status_t mrvl_sai_acl_table_bind_to_port(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t port);
 sai_status_t mrvl_sai_acl_table_unbind_from_port(_In_ void *arg, _In_ uint32_t port);
 sai_status_t mrvl_sai_acl_get_table_id_per_port(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
+sai_status_t mrvl_sai_acl_lag_port_update(_In_ uint32_t lag, _In_ uint32_t port, _In_ bool is_added);
+sai_status_t mrvl_sai_acl_table_bind_to_lag(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t lag);
+sai_status_t mrvl_sai_acl_table_unbind_from_lag(_In_ void *arg, _In_ uint32_t lag);
+sai_status_t mrvl_sai_acl_get_table_id_per_lag(_In_ void *arg, _In_ uint32_t lag, _Inout_ sai_attribute_value_t *value);
+sai_status_t mrvl_sai_acl_table_bind_to_switch(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t switch_idx);
+sai_status_t mrvl_sai_acl_table_unbind_from_switch(_In_ void *arg, _In_ uint32_t port);
+sai_status_t mrvl_sai_acl_get_table_id_per_switch(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
+sai_status_t mrvl_sai_acl_table_bind_to_vlan(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t vlan_idx);
+sai_status_t mrvl_sai_acl_table_unbind_from_vlan(_In_ void *arg, _In_ uint32_t port);
+sai_status_t mrvl_sai_acl_get_table_id_per_vlan(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
+sai_status_t mrvl_sai_get_lag_port_list(
+    _In_ const uint32_t          lag_id,
+    _Out_ sai_object_list_t     *portbjlist);
 
 #define SAI_STATUS_STUB SAI_STATUS_NOT_SUPPORTED
 sai_status_t  mrvl_sai_return(const char *func_name, int line, sai_status_t status);

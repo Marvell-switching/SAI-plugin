@@ -51,12 +51,6 @@ static sai_status_t mrvl_sai_router_admin_get_prv(_In_ const sai_object_key_t   
                                    _Inout_ vendor_cache_t        *cache,
                                    void                          *arg);
 
-/*static sai_status_t mrvl_sai_virtual_router_get_mac(_In_ const sai_object_key_t   *key,
-                                             _Inout_ sai_attribute_value_t *value,
-                                             _In_ uint32_t                  attr_index,
-                                             _Inout_ vendor_cache_t        *cache,
-                                             void                          *arg);*/
-
 static const sai_vendor_attribute_entry_t mrvl_sai_router_vendor_attribs[] = {
     { SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE,
       { true, false, false, true },
@@ -84,12 +78,13 @@ static const sai_vendor_attribute_entry_t mrvl_sai_router_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL }
 };
-static void mrvl_sai_router_key_to_str(_In_ sai_object_id_t vr_id, _Out_ char *key_str)
+static void mrvl_sai_router_key_to_str(_In_ sai_object_id_t sai_vr_id, _Out_ char *key_str)
 {
-    uint32_t vr;
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &vr)) {
-        snprintf(key_str, MAX_KEY_STR_LEN, "vr ID %u", vr);
-        return ;
+    uint32_t     vr_id;
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(sai_vr_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &vr_id)) {
+        snprintf(key_str, MAX_KEY_STR_LEN, "invalid virtual router id");
+    } else {
+        snprintf(key_str, MAX_KEY_STR_LEN, "virtual router %u", vr_id);
     }
 }
 
@@ -175,6 +170,10 @@ sai_status_t mrvl_sai_get_virtual_router_attribute(_In_ sai_object_id_t     vr_i
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == vr_id) {
+        MRVL_SAI_LOG_ERR("NULL virtual router id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     mrvl_sai_router_key_to_str(vr_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_router_attribs, mrvl_sai_router_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);
@@ -182,10 +181,10 @@ sai_status_t mrvl_sai_get_virtual_router_attribute(_In_ sai_object_id_t     vr_i
 
 /* Admin V4, V6 State [bool] */
 static sai_status_t mrvl_sai_router_admin_get_prv(_In_ const sai_object_key_t   *key,
-                                                  _Inout_ sai_attribute_value_t *value,
-                                                  _In_ uint32_t                  attr_index,
-                                                  _Inout_ vendor_cache_t        *cache,
-                                                  void                          *arg)
+                                   _Inout_ sai_attribute_value_t *value,
+                                   _In_ uint32_t                  attr_index,
+                                   _Inout_ vendor_cache_t        *cache,
+                                   void                          *arg)
 {
     uint32_t        vr_idx;
 
@@ -363,16 +362,14 @@ sai_status_t mrvl_sai_virtual_router_is_valid(_In_ uint32_t   vr_idx,
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_virtual_router_get_mac(_In_ uint32_t   vr_idx, _Out_ sai_mac_t mac_address)
+sai_status_t mrvl_sai_virtual_router_get_mac(_In_ uint32_t   vr_idx,
+                                              _Out_ sai_mac_t mac_address)
 {
-    MRVL_SAI_LOG_ENTER();
-
     if ((vr_idx >= SAI_SWITCH_MAX_VR_CNS) || (mrvl_sai_vr_table[vr_idx].valid == false)){
-        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+        return SAI_STATUS_FAILURE;
     }
     memcpy(mac_address, mrvl_sai_vr_table[vr_idx].vr_mac_addr, sizeof(sai_mac_t));
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    return SAI_STATUS_SUCCESS;
 }
 
 /* check if rif exist and valid */

@@ -642,7 +642,7 @@ sai_status_t mrvl_sai_route_remove_all(void)
 sai_status_t mrvl_sai_set_route_entry_attribute(_In_ const sai_route_entry_t* route_entry,
                                       _In_ const sai_attribute_t           *attr)
 {
-    const sai_object_key_t key = { .key.route_entry = route_entry };
+    const sai_object_key_t key = { .key.route_entry = *route_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -675,7 +675,7 @@ sai_status_t mrvl_sai_get_route_entry_attribute(_In_ const sai_route_entry_t* ro
                                       _In_ uint32_t                         attr_count,
                                       _Inout_ sai_attribute_t              *attr_list)
 {
-    const sai_object_key_t key = { .key.route_entry = route_entry };
+    const sai_object_key_t key = { .key.route_entry = *route_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 

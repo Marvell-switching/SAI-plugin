@@ -184,6 +184,10 @@ static const sai_attribute_entry_t host_interface_attribs[] = {
       "Host interface name", SAI_ATTR_VAL_TYPE_CHARDATA },
     { SAI_HOSTIF_ATTR_OPER_STATUS, false, true, true, true,
         "Host interface oper status", SAI_ATTR_VAL_TYPE_BOOL },
+    { SAI_HOSTIF_ATTR_QUEUE, false, false, false, true,
+        "Host interface queue used for packets going out", SAI_ATTR_VAL_TYPE_U32 },
+    { SAI_HOSTIF_ATTR_VLAN_TAG, false, true, false, true,
+        "Host interface vlan tag strip/keep behaviour", SAI_ATTR_VAL_TYPE_S32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
@@ -216,6 +220,9 @@ sai_status_t mrvl_sai_host_interface_oper_set(_In_ const sai_object_key_t      *
                                           _In_ const sai_attribute_value_t *value,
                                           void                             *arg);
 
+sai_status_t mrvl_sai_host_interface_vlan_tag_set(_In_ const sai_object_key_t      *key,
+                                                  _In_ const sai_attribute_value_t *value,
+                                                  void                             *arg);
 
 static const sai_vendor_attribute_entry_t host_interface_vendor_attribs[] = {
     { SAI_HOSTIF_ATTR_TYPE,
@@ -224,21 +231,35 @@ static const sai_vendor_attribute_entry_t host_interface_vendor_attribs[] = {
       mrvl_sai_host_interface_type_get, NULL,
       NULL, NULL },
     { SAI_HOSTIF_ATTR_OBJ_ID,
-      { true, false, false, true },
-      { true, false, false, true },
-      mrvl_sai_host_interface_rif_port_get, NULL,
-      NULL, NULL },
+        { true, false, false, true },
+        { true, false, false, true },
+        mrvl_sai_host_interface_rif_port_get, NULL,
+        NULL, NULL },
     { SAI_HOSTIF_ATTR_NAME,
-      { true, false, true, true },
-      { true, false, true, true },
-      mrvl_sai_host_interface_name_get, NULL,
-      mrvl_sai_host_interface_name_set, NULL },
+        { true, false, true, true },
+        { true, false, true, true },
+        mrvl_sai_host_interface_name_get, NULL,
+        mrvl_sai_host_interface_name_set, NULL },
     { SAI_HOSTIF_ATTR_OPER_STATUS,
         { true, false, true, true },
         { true, false, true, true },
         mrvl_sai_host_interface_oper_get, NULL,
         mrvl_sai_host_interface_oper_set, NULL },
-
+    { SAI_HOSTIF_ATTR_QUEUE,
+      { false, false, false, false },
+      { true, false, true, true },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_ATTR_VLAN_TAG,
+      { true, false, true, false },
+      { true, false, true, true },
+      NULL, NULL,
+      mrvl_sai_host_interface_vlan_tag_set, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL }
 };
 static void mrvl_sai_host_interface_key_to_str(_In_ sai_object_id_t hif_id, _Out_ char *key_str)
 {
@@ -251,11 +272,23 @@ static void mrvl_sai_host_interface_key_to_str(_In_ sai_object_id_t hif_id, _Out
     }
 }
 
+static void mrvl_sai_host_interface_table_entry_key_to_str(_In_ sai_object_id_t hif_table_entry_id, _Out_ char *key_str)
+{
+    uint32_t hif_table_entry_data;
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(hif_table_entry_id, SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY, &hif_table_entry_data)) {
+        snprintf(key_str, MAX_KEY_STR_LEN, "invalid host interface table entry");
+    } else {
+        snprintf(key_str, MAX_KEY_STR_LEN, "host interface table entry %u", hif_table_entry_data);
+    }
+}
 static const sai_attribute_entry_t host_interface_trap_attribs[] = {
-    { SAI_HOSTIF_TRAP_ATTR_PACKET_ACTION, false, false, true, true,
-      "trap action", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_HOSTIF_TRAP_ATTR_TRAP_TYPE, true, false, true, true,
+      "Host interface trap type", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_HOSTIF_TRAP_ATTR_PACKET_ACTION, true, false, true, true,
+      "Host interface trap action", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_PRIORITY, false, false, false, false,
-      "trap priority", SAI_ATTR_VAL_TYPE_U32 },
+      "Host interface trap priority", SAI_ATTR_VAL_TYPE_U32 },
 /*    { SAI_HOSTIF_TRAP_ATTR_TRAP_CHANNEL, false, false, true, true,
       "trap channel to use", SAI_ATTR_VAL_TYPE_S32 },
     { SAI_HOSTIF_TRAP_ATTR_FD, false, false, false, false,
@@ -263,11 +296,12 @@ static const sai_attribute_entry_t host_interface_trap_attribs[] = {
     { SAI_HOSTIF_TRAP_ATTR_PORT_LIST, false, false, true, true,
       "enable trap for a list of SAI ports", SAI_ATTR_VAL_TYPE_OBJLIST },
 */
-
+    { SAI_HOSTIF_TRAP_ATTR_EXCLUDE_PORT_LIST, false, false, true, true,
+      "Disable trap for a list of SAI ports", SAI_ATTR_VAL_TYPE_OBJLIST },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP, false, false, false, false,
-      "trap-group ID for the trap", SAI_ATTR_VAL_TYPE_U64 },  
+      "Trap-group ID for the trap", SAI_ATTR_VAL_TYPE_U64 },  
     { SAI_HOSTIF_TRAP_ATTR_VLAN_LIST, false, false, true, true,
-      "enable trap for a list of SAI vlans", SAI_ATTR_VAL_TYPE_OBJLIST },  
+      "Enable trap for a list of SAI vlans", SAI_ATTR_VAL_TYPE_OBJLIST },  
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
 };
@@ -341,6 +375,10 @@ static const sai_vendor_attribute_entry_t host_interface_trap_vendor_attribs[] =
       mrvl_hostif_trap_port_list_get, NULL,
       mrvl_hostif_trap_port_list_set, NULL },
 */
+    { SAI_HOSTIF_TRAP_ATTR_EXCLUDE_PORT_LIST,
+      { true, false, true, false },
+      { true, false, true, false },
+      NULL, NULL },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP,
       { false, false, false, false },
       { false, false, false, false },
@@ -357,6 +395,298 @@ static void mrvl_sai_host_interface_trap_key_to_str(_In_ sai_hostif_trap_type_t 
 {    
     snprintf(key_str, MAX_KEY_STR_LEN, "host interface trap id 0x%x\n", hostif_trapid);
 }
+
+static const sai_attribute_entry_t host_interface_trap_group_attribs[] = {
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_ADMIN_STATE, false, false, false, true,
+      "Hostif trap group admin mode", SAI_ATTR_VAL_TYPE_BOOL },
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_QUEUE, true, false, true, true,
+      "Hostif trap group CPU egress queue", SAI_ATTR_VAL_TYPE_U32 },
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER, false, false, false, false,
+      "Hostif trap group policer id", SAI_ATTR_VAL_TYPE_OID },
+
+    { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+};
+
+sai_status_t mrvl_sai_trap_group_admin_get(_In_ const sai_object_key_t   *key,
+                                              _Inout_ sai_attribute_value_t *value,
+                                              _In_ uint32_t                  attr_index,
+                                              _Inout_ vendor_cache_t        *cache,
+                                              void                          *arg);
+sai_status_t mrvl_sai_trap_group_admin_set(_In_ const sai_object_key_t      *key,
+                                              _In_ const sai_attribute_value_t *value,
+                                              void                             *arg);
+sai_status_t mrvl_sai_trap_group_queue_set(_In_ const sai_object_key_t      *key,
+                                              _In_ const sai_attribute_value_t *value,
+                                              void                             *arg);
+sai_status_t mrvl_sai_trap_group_queue_get(_In_ const sai_object_key_t   *key,
+                                              _Inout_ sai_attribute_value_t *value,
+                                              _In_ uint32_t                  attr_index,
+                                              _Inout_ vendor_cache_t        *cache,
+                                              void                          *arg);
+sai_status_t mrvl_sai_trap_group_policer_get(_In_ const sai_object_key_t   *key,
+                                                _Inout_ sai_attribute_value_t *value,
+                                                _In_ uint32_t                  attr_index,
+                                                _Inout_ vendor_cache_t        *cache,
+                                                void                          *arg);
+sai_status_t mrvl_sai_trap_group_policer_set(_In_ const sai_object_key_t      *key,
+                                                _In_ const sai_attribute_value_t *value,
+                                                void                             *arg);
+
+static const sai_vendor_attribute_entry_t host_interface_trap_group_vendor_attribs[] = {
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_ADMIN_STATE,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_sai_trap_group_admin_get, NULL,
+      mrvl_sai_trap_group_admin_set, NULL },
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_QUEUE,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_sai_trap_group_queue_get, NULL,
+      mrvl_sai_trap_group_queue_set, NULL },
+    { SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER,
+      { true, false, true, true},
+      { true, false, true, true},
+      mrvl_sai_trap_group_policer_get, NULL,
+      mrvl_sai_trap_group_policer_set, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL }
+};
+
+sai_status_t mrvl_sai_trap_group_admin_get(_In_ const sai_object_key_t   *key,
+                                              _Inout_ sai_attribute_value_t *value,
+                                              _In_ uint32_t                  attr_index,
+                                              _Inout_ vendor_cache_t        *cache,
+                                              void                          *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+
+    value->booldata = true; /*default */
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+sai_status_t mrvl_sai_trap_group_admin_set(_In_ const sai_object_key_t      *key,
+                                              _In_ const sai_attribute_value_t *value,
+                                              void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
+sai_status_t mrvl_sai_trap_group_queue_set(_In_ const sai_object_key_t      *key,
+                                              _In_ const sai_attribute_value_t *value,
+                                              void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
+sai_status_t mrvl_sai_trap_group_queue_get(_In_ const sai_object_key_t   *key,
+                                              _Inout_ sai_attribute_value_t *value,
+                                              _In_ uint32_t                  attr_index,
+                                              _Inout_ vendor_cache_t        *cache,
+                                              void                          *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+
+    value->u32 = 0; /*default*/
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+sai_status_t mrvl_sai_trap_group_policer_get(_In_ const sai_object_key_t   *key,
+                                                _Inout_ sai_attribute_value_t *value,
+                                                _In_ uint32_t                  attr_index,
+                                                _Inout_ vendor_cache_t        *cache,
+                                                void                          *arg)
+{
+    sai_status_t status;
+    MRVL_SAI_LOG_ENTER();
+    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_POLICER, 1, &value->oid))) {
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
+sai_status_t mrvl_sai_trap_group_policer_set(_In_ const sai_object_key_t      *key,
+                                                _In_ const sai_attribute_value_t *value,
+                                                void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
+static const sai_attribute_entry_t host_interface_packet_attribs[] = {
+    { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TRAP_ID, false, false, false, true,
+      "Hostif packet trap id", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_PACKET_ATTR_INGRESS_PORT, false, false, false, true,
+      "Hostif packet ingress port", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_PACKET_ATTR_INGRESS_LAG, false, false, false, true,
+      "Hostif packet ingress lag", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TX_TYPE, true, false, false, false,
+      "Hostif packet TX type", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_HOSTIF_PACKET_ATTR_EGRESS_PORT_OR_LAG, true, false, false, false,
+      "Hostif packet egress port or lag", SAI_ATTR_VAL_TYPE_OID },
+
+    { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+};
+
+static const sai_vendor_attribute_entry_t host_interface_packet_vendor_attribs[] = {
+    { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TRAP_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_PACKET_ATTR_INGRESS_PORT,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_PACKET_ATTR_INGRESS_LAG,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TX_TYPE,
+      { true, false, false, false },
+      { true, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_PACKET_ATTR_EGRESS_PORT_OR_LAG,
+      { true, false, false, false },
+      { true, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL }
+};
+
+static const sai_attribute_entry_t host_interface_table_entry_attribs[] = {
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE, true, false, false, true,
+      "Hostif table entry type", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID, false, false, false, true,
+      "Hostif table entry match field object id", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID, true, false, false, true,
+      "Hostif table entry match field trap id", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE, true, false, false, false,
+      "Hostif table entry action channel", SAI_ATTR_VAL_TYPE_S32 },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, true, false, false, false,
+      "Hostif table entry action target hostif object", SAI_ATTR_VAL_TYPE_OID },
+
+    { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+};
+
+/* Host interface table entry type (sai_hostif_table_entry_type_t)
+ *  Host interface table entry match field object-id (sai_object_id_t)
+ *  Host interface table entry match field trap-id (sai_object_id_t)
+ */
+sai_status_t mrvl_sai_table_entry_get(_In_ const sai_object_key_t   *key,
+                                         _Inout_ sai_attribute_value_t *value,
+                                         _In_ uint32_t                  attr_index,
+                                         _Inout_ vendor_cache_t        *cache,
+                                         void                          *arg);
+
+static const sai_vendor_attribute_entry_t host_interface_table_entry_vendor_attribs[] = {
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE,
+      { true, false, false, true },
+      { true, false, false, true },
+      mrvl_sai_table_entry_get, (void*)SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE,
+      NULL, NULL },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID,
+      { true, false, false, true },
+      { true, false, false, true },
+      mrvl_sai_table_entry_get, (void*)SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID,
+      NULL, NULL },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID,
+      { true, false, false, true },
+      { true, false, false, true },
+      mrvl_sai_table_entry_get, (void*)SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID,
+      NULL, NULL },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE,
+      { true, false, false, false },
+      { true, false, false, true },
+      NULL, NULL,
+      NULL, NULL },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF,
+      { true, false, false, false },
+      { true, false, false, true },
+      NULL, NULL,
+      NULL, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL }
+};
+
+sai_status_t mrvl_sai_table_entry_get(_In_ const sai_object_key_t   *key,
+                                         _Inout_ sai_attribute_value_t *value,
+                                         _In_ uint32_t                  attr_index,
+                                         _Inout_ vendor_cache_t        *cache,
+                                         void                          *arg)
+{
+    sai_status_t     status;
+    uint32_t         hif_data, hif_ext_data;
+    
+    
+    MRVL_SAI_LOG_ENTER();
+
+    assert((SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE == (long)arg) || (SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID == (long)arg) ||
+           (SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID == (long)arg));
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hif_data, &hif_ext_data)))
+        MRVL_SAI_API_RETURN(status);
+
+    switch ((long)arg) {
+    case SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE:
+        value->s32 = hif_data;
+        break;
+
+    case SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID:
+        switch (hif_data) {
+        case SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT:
+            return mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, hif_ext_data, &value->oid);
+
+        case SAI_HOSTIF_TABLE_ENTRY_TYPE_LAG:
+            return mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_LAG, hif_ext_data, &value->oid);
+
+        case SAI_HOSTIF_TABLE_ENTRY_TYPE_VLAN:
+            return mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, hif_ext_data, &value->oid);
+
+        default:
+            MRVL_SAI_LOG_ERR("Host table entry invalid object ID %u\n", hif_data);
+            return SAI_STATUS_INVALID_ATTRIBUTE_0 + attr_index;
+        }
+        break;
+
+    case SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID:
+        return SAI_STATUS_NOT_IMPLEMENTED;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
+
 
 host_fd_stc host_fd[SAI_MAX_NUM_OF_PORTS];
 
@@ -397,14 +727,14 @@ void * mrvl_sai_tap_listen(void * arg)
         {
             continue;
         }
-       else if ( select_rc < 0) {
-               MRVL_SAI_LOG_ERR("select errorno 0x%x\n", errno);
-               if (errno == EINTR){
-            	   MRVL_SAI_LOG_ERR("select exit on error\n");
-            	   MRVL_SAI_LOG_EXIT();
-            	   return NULL;
-               }
-               continue;
+        else if ( select_rc < 0) {
+                MRVL_SAI_LOG_ERR("select errorno 0x%x\n", errno);
+                if (errno == EINTR){
+                    MRVL_SAI_LOG_ERR("select exit on error\n");
+                    MRVL_SAI_LOG_EXIT();
+                    return NULL;
+                }
+                continue;
        }
 	   for (i = 0; i < SAI_MAX_NUM_OF_PORTS && select_rc > 0; i++)
 	   {
@@ -498,7 +828,7 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     static uint32_t              next_id = 0;
     char devname[32];
-    char                         system_cmd[256];
+    char                         system_cmd[256], port_system_cmd[256];
     int fd, err, ret;
     sai_mac_t srcMac, exist_src_mac;
     char base_mac_dev[] ="eth0";
@@ -575,7 +905,7 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
     		if ( mrvl_sai_netdev_get_mac(base_mac_dev, srcMac) == 0 )
     		{
     			if ((mrvl_sai_netdev_get_mac(devname, exist_src_mac) != 0) ||
-    				memcmp(exist_src_mac, base_mac_dev, sizeof(sai_mac_t)) !=0  )
+    				memcmp(exist_src_mac, srcMac, sizeof(sai_mac_t)) !=0  )
     			{
     				mrvl_sai_netdev_set_mac(devname, srcMac);
     			}
@@ -614,8 +944,13 @@ sai_status_t mrvl_sai_create_host_interface(_Out_ sai_object_id_t     * hif_id,
         MRVL_SAI_API_RETURN(status);
     }
     mrvl_sai_host_interface_key_to_str(*hif_id, key_str);
-    MRVL_SAI_LOG_NTC("Created host interface %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
     
+    snprintf(port_system_cmd, sizeof(port_system_cmd), "ip link set %s up", name->chardata);
+    ret = system(port_system_cmd);
+    if (0 != ret) {
+        MRVL_SAI_LOG_WRN("Setting port %s up failed\n", name->chardata);
+    }
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -812,7 +1147,15 @@ sai_status_t mrvl_sai_host_interface_oper_set(_In_ const sai_object_key_t      *
     return SAI_STATUS_SUCCESS;
 }
 
+sai_status_t mrvl_sai_host_interface_vlan_tag_set(_In_ const sai_object_key_t      *key,
+                                                  _In_ const sai_attribute_value_t *value,
+                                                  void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
 
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
 
 /* convert trap entry type from SAI to FPA */
 static sai_status_t mrvl_sai_host_interface_trap_conv_entry_type(_In_  sai_hostif_trap_type_t hostif_trapid,                                                               
@@ -2040,14 +2383,122 @@ sai_status_t mrvl_sai_send_host_interface_packet(_In_ sai_object_id_t  hif_id,
  *
  * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
+
 sai_status_t mrvl_sai_create_hostif_table_entry(
         _Out_ sai_object_id_t *hif_table_entry,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
-    MRVL_SAI_LOG_ERR("STUB %s", __func__);
-    MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+    sai_status_t                 status;
+    const sai_attribute_value_t *type, *obj_id, *channel, *fd;
+    uint32_t                     type_index, obj_id_index, obj_id_data, channel_index, fd_index;
+    uint32_t                     fd_data, fd_ext_data;
+    int32_t                      fd_val;
+    char                         key_str[MAX_KEY_STR_LEN];
+    char                         list_str[MAX_LIST_VALUE_STR_LEN];
+
+    MRVL_SAI_LOG_ENTER();
+    
+    if (NULL == hif_table_entry) {
+        MRVL_SAI_LOG_ERR("NULL host interface table entry ID param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id))
+    {
+        MRVL_SAI_LOG_ERR("Invalid switch id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+        (status =
+             mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, host_interface_table_entry_attribs, host_interface_table_entry_vendor_attribs,
+                                    SAI_OPERATION_CREATE))) {
+        MRVL_SAI_LOG_ERR("Failed host interface table entry attributes check\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+    
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, host_interface_table_entry_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
+    MRVL_SAI_LOG_NTC("Create host interface table entry, %s\n", list_str);
+
+    assert(SAI_STATUS_SUCCESS ==
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE, &type, &type_index));
+    
+    if ((SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT == type->s32) || (SAI_HOSTIF_TABLE_ENTRY_TYPE_LAG == type->s32) ||
+        (SAI_HOSTIF_TABLE_ENTRY_TYPE_VLAN == type->s32)) {
+        if (SAI_STATUS_SUCCESS !=
+            (status =
+                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID, &obj_id,
+                                     &obj_id_index))) {
+            MRVL_SAI_LOG_ERR("Missing mandatory attribute obj ID on creation of host table entry type: port/lag/vlan\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+        }
+
+        if ((SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT == type->s32) || (SAI_HOSTIF_TABLE_ENTRY_TYPE_LAG == type->s32)) {
+            if (SAI_STATUS_SUCCESS != 
+                (status = mrvl_sai_utl_object_to_type(obj_id->oid,
+                                         (SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT == type->s32) ? SAI_OBJECT_TYPE_PORT : SAI_OBJECT_TYPE_LAG,
+                                         &obj_id_data))) {
+                MRVL_SAI_API_RETURN(status);
+            }
+        } else {
+            if (SAI_STATUS_SUCCESS != 
+                (status = mrvl_sai_utl_object_to_type(obj_id->oid, SAI_OBJECT_TYPE_VLAN, &obj_id_data))) {
+                MRVL_SAI_API_RETURN(status);
+            }
+        }
+    } else {
+        if (SAI_STATUS_ITEM_NOT_FOUND !=
+            (status =
+                 mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID, &obj_id,
+                                     &obj_id_index))) {
+            MRVL_SAI_LOG_ERR("Invalid obj ID attribute on creation for trap/wildcard host interface table entry\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTRIBUTE_0 + obj_id_index);
+        }
+
+        /* TO DO: add support for table entry type TRAP ID\Wildcard */
+    }
+   
+    assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE,
+                                 &channel, &channel_index));
+    
+    if (SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_FD == channel->s32) {
+        if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, &fd,
+                                     &fd_index))) {
+            MRVL_SAI_LOG_ERR("Missing mandatory attribute host if on creation of hostif table entry, channel type FD\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+        }
+
+        status = mrvl_sai_utl_object_to_ext_type(fd->oid, SAI_OBJECT_TYPE_HOSTIF, &fd_data, &fd_ext_data);
+        if (SAI_STATUS_SUCCESS != status)
+            MRVL_SAI_API_RETURN(status);
+        
+        if (SAI_HOSTIF_TYPE_FD != fd_data) {
+            MRVL_SAI_LOG_ERR("Can't set non FD host interface type %u\n", fd_data);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + fd_index);
+        }
+        fd_val = host_fd[fd_ext_data].fd;
+    } else {
+        if (SAI_STATUS_ITEM_NOT_FOUND !=
+            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, &fd,
+                                     &fd_index))) {
+            MRVL_SAI_LOG_ERR("Invalid attribute host IF for host table entry channel non FD on create\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTRIBUTE_0 + fd_index);
+        }
+
+        /* TO DO: add support for channel type CB */
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY, obj_id_data, hif_table_entry))) {
+        MRVL_SAI_API_RETURN(status);
+    }
+    mrvl_sai_host_interface_table_entry_key_to_str(*hif_table_entry, key_str);
+    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
+    
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /**

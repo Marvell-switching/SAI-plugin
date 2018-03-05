@@ -70,7 +70,7 @@ void mrvl_sai_route_pre_test
     sai_mac_t            mac_addr;
     uint32_t             port_vlan, rif_idx, ip_addr, nhg_idx;
     sai_router_interface_type_t interface_type;
-    sai_object_id_t      rif_id, port_id;
+    sai_object_id_t      rif_id, port_id, vlan_id;
     bool                 default_mac;
     sai_packet_action_t  nbr_miss_act, action;
     sai_neighbor_entry_t neighbor_entry;
@@ -78,34 +78,43 @@ void mrvl_sai_route_pre_test
     sai_port_info_t      ports_list[4];
     sai_object_id_t      nhg_id;
     sai_object_list_t    next_hop_group_list;
-    struct in6_addr      ipv6_addr,net_ipv6_addr;   
+    struct in6_addr      ipv6_addr,net_ipv6_addr; 
+    sai_status_t         status  
     
     /*mrvl_sai_trace_set_all(1, SEVERITY_LEVEL_INFO);  */  
     printf("Create vlan 2 with port 0-3\n");
-    mrvl_sai_vlan_create_test(2);
+    status = mrvl_sai_wrap_vlan_create(/*vlan id = */2, &vlan_id);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;    
     /**** add ports to vlan 2 (0=untag, 1= tag)*/    
     ports_list[num_of_ports].port = 0;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_UNTAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_UNTAGGED;
     ports_list[num_of_ports].port = 1;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 2;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 3;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_UNTAGGED;
-    mrvl_sai_wrap_vlan_add_ports_list(2, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_UNTAGGED;
+    status = mrvl_sai_wrap_vlan_add_ports_list(vlan_id, 2, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;    
     sai_route_vlan_member_counter += num_of_ports; 
     /************************************************/
     printf("Create vlan 3 with port 1-3\n");
-    mrvl_sai_vlan_create_test(3);
+    status = mrvl_sai_wrap_vlan_create(/*vlan id = */3, &vlan_id);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;    
     /**** add ports to vlan 3 (0=untag, 1= tag)*/
     num_of_ports = 0;
     ports_list[num_of_ports].port = 1;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 2;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 3;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_UNTAGGED;
-    mrvl_sai_wrap_vlan_add_ports_list(3, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_UNTAGGED;
+    status = mrvl_sai_wrap_vlan_add_ports_list(vlan_id, 3, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;    
     sai_route_vlan_member_counter += num_of_ports;
     /************************************************/
     
@@ -119,7 +128,11 @@ void mrvl_sai_route_pre_test
     port_vlan = 3;
     action = SAI_PACKET_ACTION_FORWARD;
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, 1, &port_id);
-    mrvl_sai_fdb_add_test(mac_addr, port_vlan, SAI_FDB_ENTRY_STATIC, port_id, action);
+    status = mrvl_sai_wrap_fdb_add(mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],
+                                   port_vlan, SAI_FDB_ENTRY_STATIC, 1, action);
+     if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;   
+    /*mrvl_sai_fdb_add_test(mac_addr, port_vlan, SAI_FDB_ENTRY_STATIC, port_id, action);*/
     /************************************************/
         
     printf("Create fdb entry mac:00:00:00:06:07:08 vlan 2 --> port 2 FORWARD\n");
@@ -132,12 +145,18 @@ void mrvl_sai_route_pre_test
     port_vlan = 2;
     action = SAI_PACKET_ACTION_FORWARD;
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, 2, &port_id);
-    mrvl_sai_fdb_add_test(mac_addr, port_vlan, SAI_FDB_ENTRY_STATIC, port_id, action);
+    status = mrvl_sai_wrap_fdb_add(mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],
+                                   port_vlan, SAI_FDB_ENTRY_STATIC, 2, action);
+     if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
+    /*mrvl_sai_fdb_add_test(mac_addr, port_vlan, SAI_FDB_ENTRY_STATIC, port_id, action);*/
     /************************************************/
 
     
     printf("Created  virtual router 0 \n");
-    mrvl_sai_virtual_router_add_test(vr_id);
+    status = mrvl_sai_virtual_router_add_test(vr_id);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     
     /**** create rif 0 on vlan 2 */ 
     printf("Created  rif 0 on vlan 2, src mac:00:00:00:56:45:34, miss - trap\n");
@@ -151,7 +170,9 @@ void mrvl_sai_route_pre_test
     mac_addr[4] = 0x45;
     mac_addr[5] = 0x34;
     nbr_miss_act = SAI_PACKET_ACTION_TRAP;
-    mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    status = mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_rif_counter++;
     /************************************************/
 
@@ -167,7 +188,9 @@ void mrvl_sai_route_pre_test
     mac_addr[4] = 0;
     mac_addr[5] = 0;
     nbr_miss_act = SAI_PACKET_ACTION_DROP;
-    mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    status = mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_rif_counter++;
     /************************************************/
     
@@ -183,7 +206,9 @@ void mrvl_sai_route_pre_test
     mac_addr[4] = 0x45;
     mac_addr[5] = 0x34;
     nbr_miss_act = SAI_PACKET_ACTION_TRAP;
-    mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    status = mrvl_sai_rif_add_test(interface_type, port_vlan, default_mac, mac_addr, nbr_miss_act, *vr_id, &sai_route_rif_list[sai_route_rif_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_rif_counter++;
     /************************************************/
     printf("Created neighbor on rif 2, ip 1.2.3.4, mac:00:00:00:01:02:03\n");
@@ -194,12 +219,16 @@ void mrvl_sai_route_pre_test
     mac_addr[4] = 0x02;
     mac_addr[5] = 0x03;
     rif_idx = 2;
-    mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, &rif_id);
+    status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, &rif_id);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     ip_addr = htonl(((1)<<24)+((2)<<16)+((3)<<8)+((4)));
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
     neighbor_entry.ip_address.addr.ip4 = ip_addr;
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
 
     printf("Created neighbor on rif 2, ip 2001:0000:0000:0000:0000:0000:0102:0304, mac:00:00:00:01:02:03\n");
     mac_addr[0] = 0;
@@ -223,10 +252,10 @@ void mrvl_sai_route_pre_test
     
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV6;
-    for (i=0; i<16; i++) {
-        neighbor_entry.ip_address.addr.ip6[i] = net_ipv6_addr.s6_addr[i];
-    }
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    memcpy(&neighbor_entry.ip_address.addr.ip6, &net_ipv6_addr.s6_addr, sizeof(sai_ip6_t));
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     /************************************************/
     
     printf("Created neighbor on rif 0, ip 3.4.5.6, mac:00:00:00:06:07:08\n");
@@ -242,7 +271,9 @@ void mrvl_sai_route_pre_test
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
     neighbor_entry.ip_address.addr.ip4 = ip_addr;
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
 
     printf("Created neighbor on rif 0, ip 2001:0000:0000:0000:0000:0000:0304:0506, mac:00:00:00:06:07:08\n");
     mac_addr[0] = 0;
@@ -266,10 +297,10 @@ void mrvl_sai_route_pre_test
     
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV6;
-    for (i=0; i<16; i++) {
-        neighbor_entry.ip_address.addr.ip6[i] = net_ipv6_addr.s6_addr[i];
-    }
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    memcpy(&neighbor_entry.ip_address.addr.ip6, &net_ipv6_addr.s6_addr, sizeof(sai_ip6_t));
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     /************************************************/
 
     printf("Created neighbor on rif 1, ip 1.2.3.5, mac:00:00:12:34:56:99\n");
@@ -285,7 +316,9 @@ void mrvl_sai_route_pre_test
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
     neighbor_entry.ip_address.addr.ip4 = ip_addr;
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
 
     printf("Created neighbor on rif 1, ip 2001:0000:0000:0000:0000:0000:0102:0305, mac:00:00:12:34:56:99\n");
     mac_addr[0] = 0;
@@ -309,17 +342,19 @@ void mrvl_sai_route_pre_test
     
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.ip_address.addr_family = SAI_IP_ADDR_FAMILY_IPV6;
-    for (i=0; i<16; i++) {
-        neighbor_entry.ip_address.addr.ip6[i] = net_ipv6_addr.s6_addr[i];
-    }
-    mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    memcpy(&neighbor_entry.ip_address.addr.ip6, &net_ipv6_addr.s6_addr, sizeof(sai_ip6_t));
+    status = mrvl_sai_nbr_add_test(&neighbor_entry, mac_addr); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     /************************************************/
         
     printf("Created nexthop on rif 2, ip 1.2.3.4 \n");
     rif_idx = 2;
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, &rif_id);
     ip_addr = htonl(((1)<<24)+((2)<<16)+((3)<<8)+((4)));
-    mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]); 
+    status = mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
 
     printf("Created nexthop on rif 2, ip 2001:0000:0000:0000:0000:0000:0102:0304 \n");    
@@ -333,7 +368,9 @@ void mrvl_sai_route_pre_test
     net_ipv6_addr.s6_addr32[2] = htonl(ipv6_addr.s6_addr32[2]);
     net_ipv6_addr.s6_addr32[3] = htonl(ipv6_addr.s6_addr32[3]);    
     
-    mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    status = mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
     /************************************************/
 
@@ -341,7 +378,9 @@ void mrvl_sai_route_pre_test
     rif_idx = 1;
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, &rif_id);
     ip_addr = htonl(((1)<<24)+((2)<<16)+((3)<<8)+((5)));
-    mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]); 
+    status = mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
 
     printf("Created nexthop on rif 1, ip 2001:0000:0000:0000:0000:0000:0102:0305 \n");    
@@ -355,7 +394,9 @@ void mrvl_sai_route_pre_test
     net_ipv6_addr.s6_addr32[2] = htonl(ipv6_addr.s6_addr32[2]);
     net_ipv6_addr.s6_addr32[3] = htonl(ipv6_addr.s6_addr32[3]);    
 
-    mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    status = mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
     /************************************************/
 
@@ -363,7 +404,9 @@ void mrvl_sai_route_pre_test
     rif_idx = 0;
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, &rif_id);
     ip_addr = htonl(((3)<<24)+((4)<<16)+((5)<<8)+((6)));
-    mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]); 
+    status = mrvl_sai_nh_add_test(ip_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]); 
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
 
     printf("Created nexthop on rif 0, ip 2001:0000:0000:0000:0000:0000:0304:0506 \n");        
@@ -377,7 +420,9 @@ void mrvl_sai_route_pre_test
     net_ipv6_addr.s6_addr32[2] = htonl(ipv6_addr.s6_addr32[2]);
     net_ipv6_addr.s6_addr32[3] = htonl(ipv6_addr.s6_addr32[3]);
     
-    mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    status = mrvl_sai_nhv6_add_test(net_ipv6_addr, &rif_id, &sai_route_nh_list[sai_route_nh_counter]);     
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nh_counter++;
     /************************************************/
 
@@ -386,7 +431,9 @@ void mrvl_sai_route_pre_test
     mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_NEXT_HOP_GROUP, nhg_idx, &nhg_id);
     next_hop_group_list.count = sai_route_nh_counter;
     next_hop_group_list.list  = sai_route_nh_list;
-    mrvl_sai_nhg_create_test(next_hop_group_list, &sai_route_nhg_list[sai_route_nhg_counter]);
+    status = mrvl_sai_nhg_create_test(next_hop_group_list, &sai_route_nhg_list[sai_route_nhg_counter]);
+    if (status!= SAI_STATUS_SUCCESS) 
+        return SAI_STATUS_FAILURE;
     sai_route_nhg_counter++; 
 }
 
@@ -415,7 +462,7 @@ int mrvl_sai_route_add_test
     _In_ sai_object_id_t vr_id
 )
 {
-    sai_unicast_route_entry_t unicast_route_entry;
+    sai_route_entry_t route_entry;
     uint32_t attr_count=0;
     sai_attribute_t attr_list[3];
     sai_status_t status;
@@ -424,20 +471,24 @@ int mrvl_sai_route_add_test
     attr_list[attr_count].value.s32 = action;
     attr_count++;
 
+    attr_list[attr_count].id = SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY;
+    attr_list[attr_count].value.u32 = 0;
+    attr_count++;
+    
     if (nh_id != NULL){
         attr_list[attr_count].id = SAI_ROUTE_ATTR_NEXT_HOP_ID;
         attr_list[attr_count].value.oid = *nh_id;
         attr_count++;
     }
 
-    memset(&unicast_route_entry, 0, sizeof(unicast_route_entry));
-    unicast_route_entry.vr_id = vr_id;
-    unicast_route_entry.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
-    unicast_route_entry.destination.addr.ip4 = ipv4;
-    unicast_route_entry.destination.mask.ip4 = ipv4_mask;
+    memset(&route_entry, 0, sizeof(route_entry));
+    route_entry.vr_id = vr_id;
+    route_entry.destination.addr_family = SAI_IP_ADDR_FAMILY_IPV4;
+    route_entry.destination.addr.ip4 = ipv4;
+    route_entry.destination.mask.ip4 = ipv4_mask;
     
-    MRVL_SAI_LOG_INF("Calling sai_route_api->create_route\n");
-    status = sai_route_api->create_route(&unicast_route_entry, attr_count, attr_list);
+    MRVL_SAI_LOG_INF("Calling sai_route_api->create_route_entry\n");
+    status = sai_route_api->create_route_entry(&route_entry, attr_count, attr_list);
 	return status;
 }
 
@@ -897,7 +948,7 @@ void mrvl_sai_route_pre_demo_test
     mrvl_sai_vlan_create_test(2);
     /**** add ports to vlan 2 (0=untag, 1= tag)*/
     ports_list[num_of_ports].port = 0;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     mrvl_sai_wrap_vlan_add_ports_list(2, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
     sai_route_vlan_member_counter += num_of_ports; 
     /************************************************/
@@ -906,9 +957,9 @@ void mrvl_sai_route_pre_demo_test
     /**** add ports to vlan 3 (0=untag, 1= tag)*/
     num_of_ports = 0;
     ports_list[num_of_ports].port = 1;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     ports_list[num_of_ports].port = 2;
-    ports_list[num_of_ports++].tag = SAI_VLAN_PORT_TAGGED;
+    ports_list[num_of_ports++].tag = SAI_VLAN_TAGGING_MODE_TAGGED;
     mrvl_sai_wrap_vlan_add_ports_list(3, num_of_ports, ports_list, &sai_route_vlan_member_list[sai_route_vlan_member_counter]);
     sai_route_vlan_member_counter += num_of_ports; 
     /************************************************/

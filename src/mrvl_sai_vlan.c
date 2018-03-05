@@ -41,6 +41,30 @@ static const sai_attribute_entry_t mrvl_sai_vlan_attribs[] = {
     {   SAI_VLAN_ATTR_LEARN_DISABLE, false, false, true, true,
         "disable learning on a VLAN", SAI_ATTR_VAL_TYPE_BOOL
     },
+    {   SAI_VLAN_ATTR_IPV4_MCAST_LOOKUP_KEY_TYPE, false, false, false, true,
+        "Set IPv4 MC lookup on VLAN", SAI_ATTR_VAL_TYPE_S32
+    },
+    {   SAI_VLAN_ATTR_IPV6_MCAST_LOOKUP_KEY_TYPE, false, false, false, true,
+        "Set IPv6 MC lookup on VLAN", SAI_ATTR_VAL_TYPE_S32
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_NON_IP_MCAST_OUTPUT_GROUP_ID, false, false, false, true,
+        "VLAN unknown NON IP MC output group ID", SAI_ATTR_VAL_TYPE_OID
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_IPV4_MCAST_OUTPUT_GROUP_ID, false, false, false, true,
+        "VLAN unknown IPv4 MC output group ID", SAI_ATTR_VAL_TYPE_OID
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_IPV6_MCAST_OUTPUT_GROUP_ID, false, false, false, true,
+        "VLAN unknown IPv6 MC output group ID", SAI_ATTR_VAL_TYPE_OID
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_LINKLOCAL_MCAST_OUTPUT_GROUP_ID, false, false, false, true,
+        "VLAN unknown link local MC output group ID", SAI_ATTR_VAL_TYPE_OID
+    },
+    {   SAI_VLAN_ATTR_INGRESS_ACL, false, true, true, true,
+        "VLAN bind to ingress acl", SAI_ATTR_VAL_TYPE_OID 
+    },
+    {   SAI_VLAN_ATTR_EGRESS_ACL, false, true, true, true,
+        "VLAN bind to egress acl", SAI_ATTR_VAL_TYPE_OID 
+    },
     {   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
         "", SAI_ATTR_VAL_TYPE_UNDETERMINED
     }
@@ -48,7 +72,7 @@ static const sai_attribute_entry_t mrvl_sai_vlan_attribs[] = {
 
 static const sai_attribute_entry_t mrvl_sai_vlan_member_attribs[] = {   
     {   SAI_VLAN_MEMBER_ATTR_VLAN_ID, true, true, false, true,
-        "Vlan id", SAI_ATTR_VAL_TYPE_U16
+        "Vlan member's VLAN id", SAI_ATTR_VAL_TYPE_OID
     },
     {   SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID, true, true, false, true,
         "Port id", SAI_ATTR_VAL_TYPE_OID
@@ -60,6 +84,62 @@ static const sai_attribute_entry_t mrvl_sai_vlan_member_attribs[] = {
         "", SAI_ATTR_VAL_TYPE_UNDETERMINED
     }
 };
+/* SAI_VLAN_ATTR_INGRESS_ACL and SAI_VLAN_ATTR_EGRESS_ACL [sai_object_id_t]
+ * 
+ */
+sai_status_t mrvl_sai_vlan_acl_set_prv(_In_ const sai_object_key_t      *key,
+                                       _In_ const sai_attribute_value_t *value,
+                                       _In_ void                        *arg)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t vlan_idx;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        return status;
+    }
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
+    }
+    if (value->oid == SAI_NULL_OBJECT_ID){
+    	/* unbind action */
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_vlan(arg, vlan_idx))){
+            MRVL_SAI_LOG_ERR("Unable to unbind vlan %d from ACL TABLE\n", vlan_idx);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+    else {
+    	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_vlan(arg, value->oid, vlan_idx))){
+            MRVL_SAI_LOG_ERR("Unable to bind vlan %d to ACL TABLE\n", vlan_idx);
+            return SAI_STATUS_INVALID_PARAMETER;
+    	}
+    }
+    MRVL_SAI_LOG_EXIT();
+    return status;
+}
+static sai_status_t mrvl_sai_vlan_acl_get_prv(_In_ const sai_object_key_t   *key,
+                                         _Inout_ sai_attribute_value_t *value,
+                                         _In_ uint32_t                  attr_index,
+                                         _Inout_ vendor_cache_t        *cache,
+                                         void                          *arg)
+{
+    sai_status_t status;
+    uint32_t vlan_idx;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        return status;
+    }
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
+    }
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_vlan(arg, vlan_idx, value))){
+        MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per vlan %d\n", vlan_idx);
+        return SAI_STATUS_INVALID_PARAMETER;
+    }
+    MRVL_SAI_LOG_EXIT();
+    return SAI_STATUS_SUCCESS;
+}
 
 static sai_status_t mrvl_sai_vlan_id_get_prv(_In_ const sai_object_key_t   *key,
                                              _Inout_ sai_attribute_value_t *value,
@@ -135,7 +215,7 @@ static sai_status_t mrvl_sai_vlan_stp_get_prv(_In_ const sai_object_key_t   *key
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 1, &value->oid))) {
         return status;
     }
 
@@ -200,6 +280,56 @@ static sai_status_t mrvl_sai_vlan_disable_set_prv(_In_ const sai_object_key_t *k
     return SAI_STATUS_SUCCESS;
 }
 
+static sai_status_t mrvl_sai_vlan_IPv4_MC_lookup_key_type_get_prv(_In_ const sai_object_key_t   *key,
+                                                                   _Inout_ sai_attribute_value_t *value,
+                                                                   _In_ uint32_t                  attr_index,
+                                                                   _Inout_ vendor_cache_t        *cache,
+                                                                   void                          *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    if (value->s32 != SAI_VLAN_MCAST_LOOKUP_KEY_TYPE_MAC_DA) { /* only default parameter is supported */
+        return SAI_STATUS_NOT_IMPLEMENTED;
+    }
+    MRVL_SAI_LOG_EXIT(); 
+    return SAI_STATUS_SUCCESS;
+}
+static sai_status_t mrvl_sai_vlan_IPv6_MC_lookup_key_type_get_prv(_In_ const sai_object_key_t   *key,
+                                                                  _Inout_ sai_attribute_value_t *value,
+                                                                  _In_ uint32_t                  attr_index,
+                                                                  _Inout_ vendor_cache_t        *cache,
+                                                                  void                          *arg)
+{
+    MRVL_SAI_LOG_ENTER();
+    if (value->s32 != SAI_VLAN_MCAST_LOOKUP_KEY_TYPE_MAC_DA) { /* only default parameter is supported */
+        return SAI_STATUS_NOT_IMPLEMENTED;
+    }
+    MRVL_SAI_LOG_EXIT(); 
+    return SAI_STATUS_SUCCESS;
+}
+static sai_status_t mrvl_sai_vlan_unknown_MC_output_group_get_prv(_In_ const sai_object_key_t   *key,
+                                                                  _Inout_ sai_attribute_value_t *value,
+                                                                  _In_ uint32_t                  attr_index,
+                                                                  _Inout_ vendor_cache_t        *cache,
+                                                                  void                          *arg)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t     vlan_idx;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        MRVL_SAI_API_RETURN(status);
+    }
+    /* make sure the given vlan_id satisfies the spec*/
+    if (!MRVL_SAI_IS_VLAN_IN_RANGE_MAC(vlan_idx)) {
+        MRVL_SAI_LOG_ERR("vlan_id (%d) must satisfy 1 <= vlan_id <= 4094\n", vlan_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
+    }
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_L2MC_GROUP, 1, &value->oid))) {
+        MRVL_SAI_LOG_ERR("Error creating l2 MC group object\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
 
 /* List of ports in a VLAN [sai_object_list_t]*/
 static sai_status_t mrvl_sai_vlan_member_list_get_prv(_In_ const sai_object_key_t   *key,
@@ -220,7 +350,8 @@ static sai_status_t mrvl_sai_vlan_member_list_get_prv(_In_ const sai_object_key_
     }
 
     list_size = value->objlist.count;
-    for (port = 0; port < SAI_MAX_NUM_OF_PORTS; port++) {
+    for (port = 0; port < SAI_MAX_NUM_OF_PORTS; port++)
+    {
         cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(vlan, port);
         fpa_flow_entry.cookie = cookie;
         fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_VLAN_E, &fpa_flow_entry);
@@ -245,20 +376,25 @@ static sai_status_t mrvl_sai_vlan_member_list_get_prv(_In_ const sai_object_key_
 }
 
 /** VLAN ID [sai_vlan_id_t] (MANDATORY_ON_CREATE|CREATE_ONLY) */
-static sai_status_t mrvl_sai_vlan_member_get_prv(_In_ const sai_object_key_t   *key,
+static sai_status_t mrvl_sai_vlan_member_get_vlan_id_prv(_In_ const sai_object_key_t   *key,
                                            _Inout_ sai_attribute_value_t *value,
                                            _In_ uint32_t                  attr_index,
                                            _Inout_ vendor_cache_t        *cache,
                                            void                          *arg)
 {
      sai_object_id_t  vlan_member_id = key->key.object_id;
-     uint32_t         vlan_member;
+     uint32_t         vlan_member, vlan;
     
     MRVL_SAI_LOG_ENTER();
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vlan_member_id, SAI_OBJECT_TYPE_VLAN_MEMBER, &vlan_member)) {
+         MRVL_SAI_LOG_ERR("Failed to convert VLAN member object to type\n");
         return SAI_STATUS_FAILURE;
     }
-    value->u16 = ((vlan_member >> 16) & 0xFFFF);
+     vlan = ((vlan_member >> 16) & 0xFFFF);
+     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, vlan, &value->oid)) {
+         MRVL_SAI_LOG_ERR("Failed to convert VLAN member object to type\n");
+         return SAI_STATUS_FAILURE;
+     }
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
@@ -272,13 +408,13 @@ static sai_status_t mrvl_sai_vlan_member_port_get_prv(_In_ const sai_object_key_
                                            void                          *arg)
 {
     sai_object_id_t  vlan_member_id = key->key.object_id;
-    uint32_t         vlan_member;
+    uint32_t         vlan_member, port;
 
     MRVL_SAI_LOG_ENTER();
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vlan_member_id, SAI_OBJECT_TYPE_VLAN_MEMBER, &vlan_member)) {
         return SAI_STATUS_FAILURE;
     }
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, (vlan_member & 0xFFFF), &value->oid)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, 1, &value->oid)) {
         return SAI_STATUS_FAILURE;
     }
     MRVL_SAI_LOG_EXIT();
@@ -361,12 +497,64 @@ static const sai_vendor_attribute_entry_t mrvl_sai_vlan_vendor_attribs[] = {
         mrvl_sai_vlan_disable_get_prv, NULL,
         mrvl_sai_vlan_disable_set_prv, NULL
     },
+    {   SAI_VLAN_ATTR_IPV4_MCAST_LOOKUP_KEY_TYPE,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_IPv4_MC_lookup_key_type_get_prv, NULL,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_IPV6_MCAST_LOOKUP_KEY_TYPE,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_IPv6_MC_lookup_key_type_get_prv, NULL,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_NON_IP_MCAST_OUTPUT_GROUP_ID,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_unknown_MC_output_group_get_prv, (void*)SAI_VLAN_ATTR_UNKNOWN_NON_IP_MCAST_OUTPUT_GROUP_ID,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_IPV4_MCAST_OUTPUT_GROUP_ID,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_unknown_MC_output_group_get_prv, (void*)SAI_VLAN_ATTR_UNKNOWN_IPV4_MCAST_OUTPUT_GROUP_ID,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_IPV6_MCAST_OUTPUT_GROUP_ID,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_unknown_MC_output_group_get_prv, (void*)SAI_VLAN_ATTR_UNKNOWN_IPV6_MCAST_OUTPUT_GROUP_ID,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_UNKNOWN_LINKLOCAL_MCAST_OUTPUT_GROUP_ID,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_unknown_MC_output_group_get_prv, (void*)SAI_VLAN_ATTR_UNKNOWN_LINKLOCAL_MCAST_OUTPUT_GROUP_ID,
+        NULL, NULL
+    },
+    {   SAI_VLAN_ATTR_INGRESS_ACL,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_acl_get_prv, (void*)SAI_VLAN_ATTR_INGRESS_ACL,
+        mrvl_sai_vlan_acl_set_prv, (void*)SAI_VLAN_ATTR_INGRESS_ACL 
+    },
+    {   SAI_VLAN_ATTR_EGRESS_ACL,
+        { false, false, true, true },
+        { false, false, true, true },
+        mrvl_sai_vlan_acl_get_prv, (void*)SAI_VLAN_ATTR_EGRESS_ACL,
+        mrvl_sai_vlan_acl_set_prv, (void*)SAI_VLAN_ATTR_EGRESS_ACL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL }
 };
 static const sai_vendor_attribute_entry_t mrvl_sai_vlan_member_vendor_attribs[] = {
     {   SAI_VLAN_MEMBER_ATTR_VLAN_ID,
         { true, false, false, true },
         { true, false, false, true },
-        mrvl_sai_vlan_member_get_prv, NULL,
+        mrvl_sai_vlan_member_get_vlan_id_prv, NULL,
         NULL, NULL
     },
     {   SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID,
@@ -384,9 +572,13 @@ static const sai_vendor_attribute_entry_t mrvl_sai_vlan_member_vendor_attribs[] 
 };
 
 
-static void mrvl_sai_vlan_key_to_str(_In_ sai_vlan_id_t vlan_id, _Out_ char *key_str)
+static void mrvl_sai_vlan_id_to_str(_In_ sai_object_id_t vlan_id, _Out_ char *key_str)
 {
-    snprintf(key_str, MAX_KEY_STR_LEN, "vlan %u", vlan_id);
+    uint32_t vlan_idx;
+    if (SAI_STATUS_SUCCESS !=  mrvl_sai_utl_object_to_type(vlan_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx)) {
+        return;
+    }
+    snprintf(key_str, MAX_KEY_STR_LEN, "vlan %u", vlan_idx);
 }
 
 static void mrvl_sai_vlan_member_key_to_str(_In_ sai_object_id_t vlan_member_id, _Out_ char *key_str)
@@ -423,7 +615,7 @@ sai_status_t mrvl_sai_set_vlan_attribute(_In_ sai_object_id_t vlan_id,
 
     MRVL_SAI_LOG_ENTER();
 
-    mrvl_sai_vlan_key_to_str(vlan_id, key_str);
+    mrvl_sai_vlan_id_to_str(vlan_id, key_str);
     status = mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_vlan_attribs, mrvl_sai_vlan_vendor_attribs, attr);
     MRVL_SAI_API_RETURN(status);
 }
@@ -454,7 +646,11 @@ sai_status_t mrvl_sai_get_vlan_attribute(_In_ sai_object_id_t vlan_id,
 
     MRVL_SAI_LOG_ENTER();
 
-    mrvl_sai_vlan_key_to_str(vlan_id, key_str);
+    if (SAI_NULL_OBJECT_ID == vlan_id) {
+        MRVL_SAI_LOG_ERR("NULL VLAN id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+    mrvl_sai_vlan_id_to_str(vlan_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_vlan_attribs, mrvl_sai_vlan_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);
 }
@@ -508,6 +704,10 @@ sai_status_t mrvl_sai_create_vlan(_Out_ sai_object_id_t *vlan_id,
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     if (SAI_STATUS_SUCCESS !=
         (status =
              mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_vlan_attribs, mrvl_sai_vlan_vendor_attribs,
@@ -535,7 +735,7 @@ sai_status_t mrvl_sai_create_vlan(_Out_ sai_object_id_t *vlan_id,
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_VLAN_ID);
     }
 
-    mrvl_sai_vlan_key_to_str(vlan_idx, key_str);
+    mrvl_sai_vlan_id_to_str(*vlan_id, key_str);
     MRVL_SAI_LOG_NTC("Create vlan %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
@@ -558,7 +758,7 @@ sai_status_t mrvl_sai_remove_vlan(_In_ sai_object_id_t vlan_id)
     uint32_t vlan_idx = 0;
 
     MRVL_SAI_LOG_ENTER();
-    mrvl_sai_vlan_key_to_str(vlan_id, key_str);
+    mrvl_sai_vlan_id_to_str(vlan_id, key_str);
     MRVL_SAI_LOG_NTC("Remove vlan %s\n", key_str);
 
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(vlan_id, SAI_OBJECT_TYPE_VLAN, &vlan_idx)) {
@@ -606,13 +806,18 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t *vlan_member_id,
     uint64_t                    cookie;
     
     MRVL_SAI_LOG_ENTER();
-    MRVL_SAI_LOG_NTC("Create vlan member\n");
-    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_vlan_member_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
-    MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
+    
     if (NULL == vlan_member_id) {
         MRVL_SAI_LOG_ERR("NULL vlan_member_id entry param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+    MRVL_SAI_LOG_NTC("Create vlan member\n");
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_vlan_member_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
 
     if (SAI_STATUS_SUCCESS !=
         (status =
@@ -624,12 +829,13 @@ sai_status_t mrvl_sai_create_vlan_member(_Out_ sai_object_id_t *vlan_member_id,
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_VLAN_ID, &vlan_val, &vlan_index));
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(vlan_val->oid, SAI_OBJECT_TYPE_VLAN, &vlan_idx))) {
+        MRVL_SAI_LOG_ERR("Failed to convert VLAN object to type\n");
         MRVL_SAI_API_RETURN(status);
     }
 
     assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_VLAN_MEMBER_ATTR_BRIDGE_PORT_ID, &port_val, &port_index));
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port_val->oid, SAI_OBJECT_TYPE_PORT, &port_idx))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port_val->oid, SAI_OBJECT_TYPE_BRIDGE_PORT, &port_idx))) {
     	MRVL_SAI_API_RETURN(status);
     }
 
@@ -797,6 +1003,10 @@ sai_status_t mrvl_sai_get_vlan_member_attribute(_In_ sai_object_id_t vlan_member
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == vlan_member_id) {
+        MRVL_SAI_LOG_ERR("NULL VLAN member id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
     mrvl_sai_vlan_member_key_to_str(vlan_member_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_vlan_member_attribs, mrvl_sai_vlan_member_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);

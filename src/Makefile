@@ -25,9 +25,11 @@ FILES := \
  mrvl_sai_scheduler_group.c \
  mrvl_sai_stp.c \
  mrvl_sai_hash.c \
- meta/saimetadata.c \
- meta/saimetadatautils.c 
- 
+ mrvl_sai_bridge.c \
+ mrvl_sai_l2_multicast.c \
+ mrvl_sai_l2_multicast_group.c \
+ mrvl_sai_queue.c \
+ mrvl_sai_udf.c  
 
 CWD := $(dir $(lastword $(MAKEFILE_LIST)))
 

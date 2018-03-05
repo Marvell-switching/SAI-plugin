@@ -407,6 +407,11 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+
     if (SAI_STATUS_SUCCESS !=
         (status =
              mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_rif_attribs, mrvl_sai_rif_vendor_attribs, SAI_OPERATION_CREATE))) {
@@ -721,10 +726,11 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
 			flowEntry.data.control_pkt.match.etherType = 0x806;
 			flowEntry.data.control_pkt.match.etherTypeMask = 0xFFFF;
 			flowEntry.data.control_pkt.outputPort = SAI_OUTPUT_CONTROLLER;
-			fpa_status = fpaLibFlowEntryAdd(switch_id, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
+			fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
 			if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
 				mrvl_sai_remove_router_interface(*rif_id);
-				MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
+				MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table, for %s %d status = %d\n", cookie, 
+                                 SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32 ? "port" : "vlan", portVlan, fpa_status);
 				status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
 				MRVL_SAI_API_RETURN(status);
 			}
@@ -797,7 +803,8 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
             fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, &flowEntry);
             if ((fpa_status != FPA_OK) && (fpa_status != FPA_ALREADY_EXIST)){
                 mrvl_sai_remove_router_interface(*rif_id);
-                MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                MRVL_SAI_LOG_ERR("Failed to add entry %llx to CONTROL_PKT table, for %s %d status = %d\n", cookie, 
+                                 SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32 ? "port" : "vlan", portVlan, fpa_status);
                 status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
                 MRVL_SAI_API_RETURN(status);
             }
@@ -960,6 +967,10 @@ sai_status_t mrvl_sai_get_router_interface_attribute(_In_ sai_object_id_t rif_id
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == rif_id) {
+        MRVL_SAI_LOG_ERR("Invalid router interface id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
     mrvl_sai_rif_key_to_str(rif_id, key_str);
     status = mrvl_sai_utl_get_attributes(&key, key_str, mrvl_sai_rif_attribs, mrvl_sai_rif_vendor_attribs, attr_count, attr_list);
     MRVL_SAI_API_RETURN(status);

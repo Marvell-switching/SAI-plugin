@@ -26,8 +26,6 @@
 static void stp_id_key_to_str(_In_ sai_object_id_t sai_stp_id, _Out_ char *key_str);
 static void stp_port_id_key_to_str(_In_ sai_object_id_t sai_stp_port_id, _Out_ char *key_str);
 
-extern sai_status_t mrvl_sai_utl_fill_objlist(sai_object_id_t *data, uint32_t count, sai_object_list_t *list);
-extern sai_status_t mrvl_sai_utl_fill_vlanlist(sai_vlan_id_t *data, uint32_t count, sai_vlan_list_t *list);
 
 static sai_status_t mrvl_stp_vlanlist_get(_In_ const sai_object_key_t   *key,
                                           _Inout_ sai_attribute_value_t *value,
@@ -142,18 +140,20 @@ static sai_status_t mrvl_stp_vlanlist_get(_In_ const sai_object_key_t   *key,
 {
     sai_object_id_t data_obj;
     sai_status_t     status;
+    sai_vlan_id_t   *vlan_data;
 
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP, 1, &data_obj)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, 1, &data_obj)))
     {
         MRVL_SAI_LOG_ERR("Failed to create object STP\n");
         MRVL_SAI_API_RETURN(status);
     }
     
+    vlan_data = (sai_vlan_id_t*)data_obj;
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_fill_vlanlist((sai_vlan_id_t*)data_obj, 1, &value->vlanlist)))
+        (status = mrvl_sai_utl_fill_vlanlist(vlan_data, 1, &value->vlanlist)))
     {
          MRVL_SAI_LOG_ERR("Failed to fill vlanlist\n");
          MRVL_SAI_API_RETURN(status);
@@ -168,20 +168,27 @@ static sai_status_t mrvl_stp_ports_get(_In_ const sai_object_key_t   *key,
                                        _Inout_ vendor_cache_t        *cache,
                                        _In_ void                     *arg)
 {
-    sai_object_id_t data_obj;
+    const sai_object_id_t sai_stp_id  = key->key.object_id;
+    sai_object_id_t stp_port_id;
+    uint32_t        stp_data;
     sai_status_t     status;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP_PORT, 1, &data_obj)))
+    /*if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(sai_stp_id, SAI_OBJECT_TYPE_STP, &stp_data)))
     {
-        MRVL_SAI_LOG_ERR("Failed to create object STP\n");
+        MRVL_SAI_LOG_ERR("Failed to convert STP port object to type\n");
+        MRVL_SAI_API_RETURN(status);
+    }*/
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP_PORT, 1, &stp_port_id)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert STP port object to type\n");
         MRVL_SAI_API_RETURN(status);
     }
     
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_fill_objlist(&data_obj, 1, &value->objlist)))
+        (status = mrvl_sai_utl_fill_objlist(&stp_port_id, 1, &value->objlist)))
     {
          MRVL_SAI_LOG_ERR("Failed to fill objlist\n");
          MRVL_SAI_API_RETURN(status);
@@ -197,10 +204,25 @@ static sai_status_t mrvl_stp_bridge_id_get(_In_ const sai_object_key_t   *key,
                                            _Inout_ vendor_cache_t        *cache,
                                            _In_ void                     *arg)
 {
+    const sai_object_id_t sai_stp_id  = key->key.object_id;
+    uint32_t        stp_idx;
+    sai_status_t status;
     MRVL_SAI_LOG_ENTER();
 
+    /*if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(sai_stp_id, SAI_OBJECT_TYPE_STP, &stp_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert STP object to type\n");
+        MRVL_SAI_API_RETURN(status);
+    }*/
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 1, &value->oid)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to create object bridge\n");
+        MRVL_SAI_API_RETURN(status);
+    }
     MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 static sai_status_t mrvl_stp_port_stp_id_get(_In_ const sai_object_key_t   *key,
@@ -228,11 +250,19 @@ static sai_status_t mrvl_stp_port_port_id_get(_In_ const sai_object_key_t   *key
                                               _Inout_ vendor_cache_t        *cache,
                                               _In_ void                     *arg)
 {
+    const sai_object_id_t sai_stp_port_id = key->key.object_id;
+    uint32_t    stp_port_idx;
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
 
+    /*if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(sai_stp_port_id, SAI_OBJECT_TYPE_STP_PORT, &stp_port_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert STP object to type\n");
+        MRVL_SAI_API_RETURN(status);
+    }*/
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_STP_PORT, 1, &value->oid)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, 1, &value->oid)))
     {
         MRVL_SAI_LOG_ERR("Failed to create object STP port\n");
         MRVL_SAI_API_RETURN(status);
@@ -250,7 +280,7 @@ static sai_status_t mrvl_stp_port_state_get(_In_ const sai_object_key_t   *key,
 {
     MRVL_SAI_LOG_ENTER();
 
-    value->s32 = SAI_STP_PORT_STATE_BLOCKING;
+    value->s32 = SAI_STP_PORT_STATE_FORWARDING;
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -347,7 +377,7 @@ static sai_status_t mrvl_sai_set_stp_attribute(
     stp_port_id_key_to_str(stp_id, key_str);
     status = mrvl_sai_utl_set_attribute(&key, key_str, stp_attribs, stp_vendor_attribs, attr);
     
-    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
 
@@ -371,10 +401,20 @@ static sai_status_t mrvl_sai_get_stp_attribute(
 
     MRVL_SAI_LOG_ENTER();
 
-    stp_port_id_key_to_str(stp_id, key_str);
+    if (SAI_NULL_OBJECT_ID == stp_id) {
+        MRVL_SAI_LOG_ERR("NULL STP id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    stp_id_key_to_str(stp_id, key_str);
+    MRVL_SAI_LOG_NTC("Get attributes for STP %s\n", key_str);
+
     status = mrvl_sai_utl_get_attributes(&key, key_str, stp_attribs, stp_vendor_attribs, attr_count, attr_list);
-    
-    MRVL_SAI_LOG_ENTER();
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, stp_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", key_str);
+
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
 
@@ -437,7 +477,7 @@ static sai_status_t mrvl_sai_set_stp_port_attribute(
     stp_port_id_key_to_str(stp_port_id, key_str);
     status = mrvl_sai_utl_set_attribute(&key, key_str, stp_port_attribs, stp_port_vendor_attribs, attr);
     
-    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
 
@@ -462,10 +502,20 @@ static sai_status_t mrvl_sai_get_stp_port_attribute(
 
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_NULL_OBJECT_ID == stp_port_id) {
+        MRVL_SAI_LOG_ERR("NULL STP port id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
     stp_port_id_key_to_str(stp_port_id, key_str);
+    MRVL_SAI_LOG_NTC("Get attributes for STP port %s\n", key_str);
+
     status = mrvl_sai_utl_get_attributes(&key, key_str, stp_port_attribs, stp_port_vendor_attribs, attr_count, attr_list);
-    
-    MRVL_SAI_LOG_ENTER();
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, stp_port_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", key_str);
+
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
 

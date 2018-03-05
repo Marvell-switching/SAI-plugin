@@ -27,15 +27,19 @@
 #define SAI_ACL_GROUP_MAX_NUM        4
 #define SAI_ACL_TABLES_MAX_NUM        32*SAI_ACL_GROUP_MAX_NUM
 #define SAI_ACL_ENTRIES_MAX_NUM       SAI_ACL_ENTRIES_PER_GROUP_MAX_NUM*SAI_ACL_GROUP_MAX_NUM
-#define SAI_ACL_TYPE_GROUP_BASE_ID 20
+#define SAI_ACL_RANGES_MAX_NUM       8
+#define SAI_ACL_PORTLIST_MAX_NUM       28 /* current limitation of supported ports in ACL */
+
 #define SAI_ACL_UINT_32_MASK 0xFFFFFFFF
 #define SAI_ACL_UINT_16_MASK 0xFFFF
 #define SAI_ACL_VLAN_MASK    0x0FFF
 #define SAI_ACL_UINT_8_MASK 0xFF
-
+#define SAI_ACL_ARP_OPCODE_REQUEST 1
+#define SAI_ACL_ARP_OPCODE_REPLY   2
 #define SAI_ACL_INVALID_INDEX 0xFFFFFFFF
-#define SAI_ACL_INVALID_BOUND_PORT 0x1FFF
-#define SAI_ACL_BOUND_PORT_MASK    0x1FFF
+#define SAI_ACL_INVALID_INTERFACE 0xFFFFFFFF
+
+
 
 typedef enum
 {
@@ -55,22 +59,32 @@ typedef enum
     SAI_ACL_MATCH_FIELD_ETHER_TYPE,
     SAI_ACL_MATCH_FIELD_IP_PROTOCOL,
     SAI_ACL_MATCH_FIELD_DSCP,
+    SAI_ACL_MATCH_FIELD_ECN,
     SAI_ACL_MATCH_FIELD_ACL_IP_TYPE,
     SAI_ACL_MATCH_FIELD_ACL_IP_FRAG,
     SAI_ACL_MATCH_FIELD_ICMP_TYPE,
     SAI_ACL_MATCH_FIELD_ICMP_CODE,
+    SAI_ACL_MATCH_FIELD_RANGE,
 
     SAI_ACL_MATCH_FIELD_LAST
 } mrvl_acl_match_fields_ent;
-typedef enum
-{
-	SAI_ACL_MATCH_ACTION_PACKET_ACTION, /* drop */
 
-    SAI_ACL_MATCH_ACTION_LAST
-} mrvl_acl_match_actions_ent;
+typedef struct {
+    uint32_t                aggr_portbitmap;
+    uint32_t                bound_lagbitmap;
+} mrvl_acl_bound_lag_id_t;
 
-#define mrvl_acl_match_is_field_exist_MAC(fieldsBitMap, field_index) (fieldsBitMap & (1<<field_index))
-#define mrvl_acl_match_set_field_exist_MAC(fieldsBitMap, field_index) (fieldsBitMap |= (1<<field_index))
+typedef union {
+    uint32_t                bound_portbitmap;
+    uint32_t                bound_vlan;
+    uint32_t                bound_switch;
+    mrvl_acl_bound_lag_id_t bound_lag;
+} mrvl_acl_bound_interface_id_t;
+
+typedef struct _mrvl_acl_bound_interface_t {
+    uint32_t                      type;
+    mrvl_acl_bound_interface_id_t id;
+} mrvl_acl_bound_interface_t;
 
 typedef struct _mrvl_acl_group_db_t {
 	bool                          is_used;
@@ -92,12 +106,12 @@ typedef struct _mrvl_acl_table_db_t {
     uint32_t                      priority;
     bool                          is_dynamic_size; /* true when uSAI_ACL_TABLE_ATTR_SIZE is 0 */
     uint32_t                      entries_count; /* current num of entries */
-    uint32_t                      head_entry_index;
+    uint32_t                      head_entry_index; /* index of first entry linked to the table */
     uint32_t                      acl_group_index;
     uint32_t                      table_fields_bitmap;
     uint32_t                      table_actions_bitmap;
     uint32_t                      bind_point_types_bitmap;
-    uint32_t                      bound_port;
+    mrvl_acl_bound_interface_t    bound_interface;
     FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type;
     bool                          packet_count_enable;
     bool                          byte_count_enable;
@@ -110,19 +124,33 @@ typedef struct _mrvl_acl_entry_db_t {
     uint32_t                  table_index;
     uint64_t                  fpa_cookie;
     uint16_t                  priority;
-    bool                      is_drop_action;
+    uint32_t                  attr_port; /* to be downloaded to FPA must be equal to bound port */
+    uint32_t                  attr_vlan; /* to be downloaded to FPA must be equal to bound vlan */
     bool                      admin_state;
+    sai_object_id_t           range_id; /* assigned range id, null if not assinged */
     uint32_t                  entry_fields_bitmap;
     uint32_t                  entry_actions_bitmap;
+    sai_acl_action_data_t     entry_action_data[SAI_ACL_MAX_ACTION_TYPES];
     uint32_t                  prev_acl_entry_index;/* linked ACL entries per table */
     uint32_t                  next_acl_entry_index;
 } mrvl_acl_entry_db_t;
 
-typedef struct _mrvl_bound_port_db_t {
-    bool                      is_bound;
+typedef struct _mrvl_acl_bound_db_t {
     uint32_t                  bound_tables_count; /* current num of tables bound to port */
     uint32_t                  head_table_index;
-} mrvl_acl_bound_port_db_t;
+} mrvl_acl_bound_db_t;
+
+typedef struct _mrvl_acl_bound_lag_db_t {
+    mrvl_acl_bound_db_t       lag_bound_db;
+    uint32_t                  portbitmap;
+} mrvl_acl_bound_lag_db_t;
+
+typedef struct _mrvl_acl_range_db_t {
+    bool                      is_used;
+    uint32_t                  entry_index;
+    sai_u32_range_t           range_limit;
+    uint32_t                  range_type;
+} mrvl_acl_range_db_t;
 
 static mrvl_acl_group_db_t mrvl_sai_acl_group_db[SAI_ACL_GROUP_MAX_NUM] = {};
 
@@ -130,17 +158,25 @@ static mrvl_acl_table_db_t mrvl_sai_acl_table_db[SAI_ACL_TABLES_MAX_NUM] = {};
 
 static mrvl_acl_entry_db_t mrvl_sai_acl_entry_db[SAI_ACL_ENTRIES_MAX_NUM] = {};
 
-static mrvl_acl_bound_port_db_t mrvl_sai_acl_bound_port_db[SAI_MAX_NUM_OF_PORTS+SAI_LAG_MAX_GROUPS_CNS] = {};
+static mrvl_acl_range_db_t mrvl_sai_acl_range_db[SAI_ACL_RANGES_MAX_NUM] = {};
+
+static mrvl_acl_bound_db_t mrvl_sai_acl_bound_port_db[SAI_ACL_PORTLIST_MAX_NUM] = {};
+
+static mrvl_acl_bound_lag_db_t mrvl_sai_acl_bound_lag_db[SAI_LAG_MAX_GROUPS_CNS] = {};
+
+static mrvl_acl_bound_db_t mrvl_sai_acl_bound_switch_db = {};
+
+static mrvl_acl_bound_db_t mrvl_sai_acl_bound_vlan_db[SAI_MAX_NUM_OF_VLANS] = {};
 
 #define SAI_ACL_MIN_PRIORITY        0
 #define SAI_ACL_MAX_PRIORITY        32*1024
 #define SAI_ACL_DYNAMIC_SIZE        0
 
-typedef struct _sai_acl_table_match_field_to_attribs_t {
+typedef struct _sai_acl_match_field_to_attribs_t {
 	mrvl_acl_match_fields_ent  field;
 	sai_attr_id_t              table_attr_id;
 	sai_attr_id_t              entry_attr_id;
-} sai_acl_table_match_field_to_attribs_t;
+} sai_acl_match_field_to_attribs_t;
 
 /* SAI_ACL_BIND_POINT_TYPE_PORT is on */
 /*  SAI_ACL_BIND_POINT_TYPE_LAG is on */
@@ -150,7 +186,7 @@ static const uint32_t default_bind_point_type_bitmap = 0x7; /* 000111 */
 /* SAI_ACL_ACTION_TYPE_PACKET_ACTION is on */
 static const uint32_t default_actions_type_bitmap = 0x4; /* 000100 */
 
-static const sai_acl_table_match_field_to_attribs_t acl_table_match_field_to_attribs[] = {
+static const sai_acl_match_field_to_attribs_t acl_match_field_to_attribs[] = {
     { SAI_ACL_MATCH_FIELD_SRC_IPV6,       SAI_ACL_TABLE_ATTR_FIELD_SRC_IPV6,       SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6},
     { SAI_ACL_MATCH_FIELD_DST_IPV6,       SAI_ACL_TABLE_ATTR_FIELD_DST_IPV6,       SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6 },
     { SAI_ACL_MATCH_FIELD_SRC_MAC,        SAI_ACL_TABLE_ATTR_FIELD_SRC_MAC,        SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC },
@@ -170,6 +206,9 @@ static const sai_acl_table_match_field_to_attribs_t acl_table_match_field_to_att
     { SAI_ACL_MATCH_FIELD_ACL_IP_FRAG,    SAI_ACL_TABLE_ATTR_FIELD_ACL_IP_FRAG,    SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_FRAG },
     { SAI_ACL_MATCH_FIELD_ICMP_TYPE,      SAI_ACL_TABLE_ATTR_FIELD_ICMP_TYPE,      SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE },
     { SAI_ACL_MATCH_FIELD_ICMP_CODE,      SAI_ACL_TABLE_ATTR_FIELD_ICMP_CODE,      SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE },
+    { SAI_ACL_MATCH_FIELD_DSCP,           SAI_ACL_TABLE_ATTR_FIELD_DSCP,           SAI_ACL_ENTRY_ATTR_FIELD_DSCP },
+    { SAI_ACL_MATCH_FIELD_ECN,            SAI_ACL_TABLE_ATTR_FIELD_ECN,            SAI_ACL_ENTRY_ATTR_FIELD_ECN },
+    { SAI_ACL_MATCH_FIELD_RANGE,          SAI_ACL_TABLE_ATTR_FIELD_ACL_RANGE_TYPE, SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE },
     { SAI_ACL_MATCH_FIELD_LAST,           SAI_ACL_TABLE_ATTR_FIELD_END,            SAI_ACL_ENTRY_ATTR_FIELD_END}
   };
 
@@ -186,12 +225,6 @@ static sai_status_t mrvl_acl_table_match_attrib_get(
     _In_ uint32_t                   attr_index,
     _Inout_ vendor_cache_t          *cache,
     void                            *arg);
-/*
-static sai_status_t mrvl_acl_table_match_attrib_set(
-    _In_ const sai_object_key_t      *key,
-    _In_ const sai_attribute_value_t *value,
-    void                             *arg);
-*/
 
 /* ACL TABLE ATTRIBUTES */
 static const sai_attribute_entry_t acl_table_attribs[] = {
@@ -246,9 +279,9 @@ static const sai_attribute_entry_t acl_table_attribs[] = {
     { SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL, false, true, false, true,
       "IP Protocol", SAI_ATTR_VAL_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_DSCP, false, true, false, true,
-      "Ip Dscp", SAI_ATTR_VAL_TYPE_BOOL },
+      "IP Dscp", SAI_ATTR_VAL_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ECN, false, true, false, true,
-      "Ip Ecn", SAI_ATTR_VAL_TYPE_BOOL },
+      "IP Ecn", SAI_ATTR_VAL_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TTL, false, true, false, true,
       "Ip Ttl", SAI_ATTR_VAL_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TOS, false, true, false, true,
@@ -427,9 +460,9 @@ static const sai_vendor_attribute_entry_t acl_table_vendor_attribs[] = {
 	  mrvl_acl_table_match_attrib_get, (void*)SAI_ACL_TABLE_ATTR_FIELD_DSCP,
 	  NULL, NULL },
 	{ SAI_ACL_TABLE_ATTR_FIELD_ECN,
-	  { false, false, false, true },
-	  { false, false, false, true },
-	  NULL, NULL,
+	  { true, false, false, true },
+	  { true, false, false, true },
+      mrvl_acl_table_match_attrib_get, (void*)SAI_ACL_TABLE_ATTR_FIELD_ECN,
 	  NULL, NULL },
 	{ SAI_ACL_TABLE_ATTR_FIELD_TTL,
 	  { false, false, false, true },
@@ -541,6 +574,11 @@ static sai_status_t mrvl_acl_entry_attrib_get(
     _Inout_ vendor_cache_t          *cache,
     void                            *arg);
 
+static sai_status_t mrvl_acl_entry_attrib_set(
+    _In_ const sai_object_key_t      *key,
+    _In_ const sai_attribute_value_t *value,
+    void                             *arg);
+
 static sai_status_t mrvl_acl_entry_match_attrib_get(
     _In_ const sai_object_key_t     *key,
     _Inout_ sai_attribute_value_t   *value,
@@ -548,12 +586,19 @@ static sai_status_t mrvl_acl_entry_match_attrib_get(
     _Inout_ vendor_cache_t          *cache,
     void                            *arg);
 
-static sai_status_t mrvl_acl_entry_attrib_set(
+static sai_status_t mrvl_acl_entry_match_attrib_set(
     _In_ const sai_object_key_t      *key,
     _In_ const sai_attribute_value_t *value,
     void                             *arg);
 
-static sai_status_t mrvl_acl_entry_match_attrib_set(
+static sai_status_t mrvl_acl_entry_action_attrib_get(
+    _In_ const sai_object_key_t     *key,
+    _Inout_ sai_attribute_value_t   *value,
+    _In_ uint32_t                   attr_index,
+    _Inout_ vendor_cache_t          *cache,
+    void                            *arg);
+
+static sai_status_t mrvl_acl_entry_action_attrib_set(
     _In_ const sai_object_key_t      *key,
     _In_ const sai_attribute_value_t *value,
     void                             *arg);
@@ -633,7 +678,7 @@ static const sai_attribute_entry_t acl_entry_attribs[] = {
 	  "ICMP Type", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE, false, true, true, true,
 	  "ICMP Code", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
-	{ SAI_ACL_TABLE_ATTR_FIELD_PACKET_VLAN, false, true, true, true,
+	{ SAI_ACL_ENTRY_ATTR_FIELD_PACKET_VLAN, false, true, true, true,
 	  "Vlan tags", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_FDB_DST_USER_META, false, false, false, false,
 	  "FDB DST user meta data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
@@ -663,7 +708,7 @@ static const sai_attribute_entry_t acl_entry_attribs[] = {
 	{ SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT_LIST, false, true, true, true,
 	  "Redirect Packet to a destination list", SAI_ATTR_VAL_TYPE_OBJLIST },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION, false, true, true, true,
-	  "Drop Packet", SAI_ATTR_VAL_TYPE_U32 },
+	  "Drop Packet", SAI_ATTR_VAL_TYPE_ACLACTION_U32 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_FLOOD, false, true, true, false,
 	  "Flood Packet on Vlan domain", SAI_ATTR_VAL_TYPE_UNDETERMINED },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_COUNTER, false, true, true, true,
@@ -677,7 +722,7 @@ static const sai_attribute_entry_t acl_entry_attribs[] = {
 	{ SAI_ACL_ENTRY_ATTR_ACTION_DECREMENT_TTL, false, true, true, false,
 	  "Decrement TTL", SAI_ATTR_VAL_TYPE_UNDETERMINED },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_TC, false, true, true, true,
-	  "Set Class-of-Service",  SAI_ATTR_VAL_TYPE_U8 },
+	  "Set Class-of-Service",  SAI_ATTR_VAL_TYPE_ACLACTION_U8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR, false, true, true, true,
 	  "Set packet color",  SAI_ATTR_VAL_TYPE_U8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_INNER_VLAN_ID, false, true, true, true,
@@ -701,7 +746,7 @@ static const sai_attribute_entry_t acl_entry_attribs[] = {
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DST_IPV6, false, false, false, false,
 	  "Set Packet Dst IPV6 Address", SAI_ATTR_VAL_TYPE_IPV6 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP, false, true, true, true,
-	  "Set Packet DSCP", SAI_ATTR_VAL_TYPE_U8 },
+	  "Set Packet DSCP", SAI_ATTR_VAL_TYPE_ACLACTION_U8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN, false, true, true, true,
 	  "Set Packet ECN", SAI_ATTR_VAL_TYPE_U8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_L4_SRC_PORT, false, false, false, false,
@@ -773,13 +818,13 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       mrvl_acl_entry_match_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_FIELD_DST_IP,
       mrvl_acl_entry_match_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_FIELD_DST_IP },
     { SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS,
-      { false, false, true, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORTS,
-      { false, false, true, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT,
@@ -808,8 +853,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       mrvl_acl_entry_match_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI,
       mrvl_acl_entry_match_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI },
     { SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_CFI,
-      { false, false, true, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_ID,
@@ -818,13 +863,13 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_PRI,
-      { false, false, true, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_CFI,
-      { false, false, true, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT,
@@ -855,16 +900,16 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
     { SAI_ACL_ENTRY_ATTR_FIELD_ECN,
       { true, false, true, true },
       { true, false, true, true },
-      NULL, NULL,
-      NULL, NULL },
+      mrvl_acl_entry_match_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ECN,
+      mrvl_acl_entry_match_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ECN },
     { SAI_ACL_ENTRY_ATTR_FIELD_TTL,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_TOS,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_IP_FLAGS,
@@ -873,8 +918,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL, },
     { SAI_ACL_ENTRY_ATTR_FIELD_TCP_FLAGS,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE,
@@ -893,8 +938,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_TC,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE,
@@ -908,8 +953,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
 	  mrvl_acl_entry_match_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE,
 	  mrvl_acl_entry_match_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE },
     { SAI_ACL_ENTRY_ATTR_FIELD_PACKET_VLAN,
-      { false, false, false, true },
-      { false, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_FDB_DST_USER_META,
@@ -938,8 +983,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_ACL_USER_META,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_FDB_NPU_META_DST_HIT,
@@ -953,98 +998,101 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_ROUTE_NPU_META_DST_HIT,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE,
-      { true, false, true, true },
-	  { true, false, true, true },
-	  NULL, NULL,
-	  NULL, NULL},
+      { false, false, false, false },
+	  { false, false, false, false },
+      NULL, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE,
+      NULL, (void*)SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE },
+
+
+
     { SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT_LIST,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false},
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION,
       { true, false, true, true },
       { true, false, true, true },
-      mrvl_acl_entry_match_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION,
-      mrvl_acl_entry_match_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION },
+      mrvl_acl_entry_action_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION,
+      mrvl_acl_entry_action_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION },
     { SAI_ACL_ENTRY_ATTR_ACTION_FLOOD,
-      { true, false, true, false },
-      { true, false, true, false },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_COUNTER,
       { true, false, true, true },
       { true, false, true, true },
-      NULL, NULL,
-      NULL, NULL },
+      mrvl_acl_entry_action_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_COUNTER,
+      mrvl_acl_entry_action_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_COUNTER },
     { SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     {  SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS,
-       { true, false, true, true },
-       { true, false, true, true },
+       { false, false, false, false },
+       { false, false, false, false },
        NULL, NULL,
        NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_DECREMENT_TTL,
-      { true, false, true, false },
-      { true, false, true, false },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_TC,
       { true, false, true, true },
       { true, false, true, true },
-      NULL, NULL,
-      NULL, NULL },
+      mrvl_acl_entry_action_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_TC,
+      mrvl_acl_entry_action_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_TC },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR,
       { true, false, true, true },
       { true, false, true, true },
-      NULL, NULL,
-      NULL, NULL },
+      mrvl_acl_entry_action_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR,
+      mrvl_acl_entry_action_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_INNER_VLAN_ID,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_INNER_VLAN_PRI,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_ID,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI,
-      { true, false, true, true },
-      { true, false, true, true },
+      { false, false, false, false },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_SRC_MAC,
-      { true, false, true, true},
-      { true, false, true, true},
+      { false, false, false, false},
+      { false, false, false, false},
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_DST_MAC,
-      { true, false, false, true},
-      { true, false, false, true},
+      { false, false, false, false},
+      { false, false, false, false},
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_SRC_IP,
@@ -1070,8 +1118,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP,
       { true, false, true, true},
       { true, false, true, true},
-      NULL, NULL,
-      NULL, NULL },
+      mrvl_acl_entry_action_attrib_get, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP,
+      mrvl_acl_entry_action_attrib_set, (void*)SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN,
       { true, false, true, true},
       { true, false, true, true},
@@ -1103,8 +1151,8 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_ACL_META_DATA,
-      { true, false, true, true},
-      { true, false, true, true},
+      { false, false, false, false},
+      { false, false, false, false},
       NULL, NULL,
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_BLOCK_PORT_LIST,
@@ -1114,7 +1162,7 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_USER_TRAP_ID,
       { false, false, false, false},
-      { true, false, true, true},
+      { false, false, false, false},
       NULL, NULL,
       NULL, NULL },
 };
@@ -1254,6 +1302,40 @@ static const sai_vendor_attribute_entry_t acl_counter_vendor_attribs[] = {
 	  mrvl_acl_counter_attrib_get, (void*)SAI_ACL_COUNTER_ATTR_BYTES,
 	  mrvl_acl_counter_attrib_set, (void*)SAI_ACL_COUNTER_ATTR_BYTES }
 };
+
+static sai_status_t mrvl_acl_range_attrib_get(
+    _In_ const sai_object_key_t     *key,
+    _Inout_ sai_attribute_value_t   *value,
+    _In_ uint32_t                   attr_index,
+    _Inout_ vendor_cache_t          *cache,
+    void                            *arg);
+
+
+/* ACL RANGE ATTRIBUTES */
+static const sai_attribute_entry_t acl_range_attribs[] = {
+    { SAI_ACL_RANGE_ATTR_TYPE, true, true, false, true,
+      "ACL Range type", SAI_ATTR_VAL_TYPE_U32 },
+    { SAI_ACL_RANGE_ATTR_LIMIT, true, true, false, true,
+      "ACL Range limit", SAI_ATTR_VAL_TYPE_U32RANGE },
+	{   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+    }
+};
+
+/* ACL RANGE VENDOR ATTRIBUTES */
+static const sai_vendor_attribute_entry_t acl_range_vendor_attribs[] = {
+	{ SAI_ACL_RANGE_ATTR_TYPE,
+	  {true, false, false, true},
+	  {true, false, false, true},
+	  mrvl_acl_range_attrib_get, (void*)SAI_ACL_RANGE_ATTR_TYPE,
+	  NULL, NULL },
+	{ SAI_ACL_RANGE_ATTR_LIMIT,
+	  {true, false, false, true},
+	  {true, false, false, true},
+	  mrvl_acl_range_attrib_get, (void*)SAI_ACL_RANGE_ATTR_LIMIT,
+	  NULL, NULL }
+};
+
 
 static sai_status_t mrvl_acl_clear_counters(
     _In_ uint32_t      acl_table_index)
@@ -1446,12 +1528,12 @@ static sai_status_t mrvl_sai_bind_point_type_list_validate(_In_ const sai_s32_li
     for (i = 0; i < attr_bind_point_types_list->count; i++) {
         type = attr_bind_point_types_list->list[i];
 
-        if (type > SAI_ACL_BIND_POINT_TYPE_SWITCH) {
+        if (type >= SAI_ACL_MAX_BIND_POINT_TYPES) {
             MRVL_SAI_LOG_ERR("Invalid bind point type (%d) at index [%d] in the list\n", type, i);
             return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
         }
 
-        mrvl_acl_match_set_field_exist_MAC(*bind_point_types_bitmap, type);
+        mrvl_acl_set_bit_MAC(*bind_point_types_bitmap, type);
 
     }
 
@@ -1468,19 +1550,19 @@ static sai_status_t mrvl_sai_set_mapping_field_for_table_attrib(_In_ const sai_a
     MRVL_SAI_LOG_ENTER();
 
     for (attr_count = 0;
-    		SAI_ACL_TABLE_ATTR_FIELD_END != acl_table_match_field_to_attribs[attr_count].table_attr_id;
+    		SAI_ACL_TABLE_ATTR_FIELD_END != acl_match_field_to_attribs[attr_count].table_attr_id;
     		attr_count++) {
-        if (attr_id == acl_table_match_field_to_attribs[attr_count].table_attr_id) {
-        	field = acl_table_match_field_to_attribs[attr_count].field;
+        if (attr_id == acl_match_field_to_attribs[attr_count].table_attr_id) {
+        	field = acl_match_field_to_attribs[attr_count].field;
         	break;
         }
     }
 
-    if (SAI_ACL_TABLE_ATTR_FIELD_END == acl_table_match_field_to_attribs[attr_count].table_attr_id){
+    if (SAI_ACL_TABLE_ATTR_FIELD_END == acl_match_field_to_attribs[attr_count].table_attr_id){
     	return SAI_STATUS_FAILURE;
     }
 
-    mrvl_acl_match_set_field_exist_MAC(*table_fields_bitmap, field);
+    mrvl_acl_set_bit_MAC(*table_fields_bitmap, field);
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
@@ -1495,25 +1577,25 @@ static sai_status_t mrvl_sai_is_set_mapping_field_for_table_attrib(_In_ sai_attr
     MRVL_SAI_LOG_ENTER();
 
     for (attr_count = 0;
-    		SAI_ACL_TABLE_ATTR_FIELD_END != acl_table_match_field_to_attribs[attr_count].table_attr_id;
+    		SAI_ACL_TABLE_ATTR_FIELD_END != acl_match_field_to_attribs[attr_count].table_attr_id;
     		attr_count++) {
-        if (attr_id == acl_table_match_field_to_attribs[attr_count].table_attr_id) {
-        	field = acl_table_match_field_to_attribs[attr_count].field;
+        if (attr_id == acl_match_field_to_attribs[attr_count].table_attr_id) {
+        	field = acl_match_field_to_attribs[attr_count].field;
         	break;
         }
     }
 
-    if (SAI_ACL_TABLE_ATTR_FIELD_END == acl_table_match_field_to_attribs[attr_count].table_attr_id)
+    if (SAI_ACL_TABLE_ATTR_FIELD_END == acl_match_field_to_attribs[attr_count].table_attr_id)
     	return SAI_STATUS_FAILURE;
 
-	if (!mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, field)){
+	if (!mrvl_acl_is_bit_set_MAC(table_fields_bitmap, field)){
 		return SAI_STATUS_FAILURE;
 	}
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
-
+#if 0
 static sai_status_t mrvl_sai_set_mapping_field_for_entry_attrib(_In_ const sai_attr_id_t    attr_id,
 															    _In_ uint32_t table_fields_bitmap,
                                     			                _Out_ uint32_t *entry_fields_bitmap)
@@ -1525,25 +1607,25 @@ static sai_status_t mrvl_sai_set_mapping_field_for_entry_attrib(_In_ const sai_a
     MRVL_SAI_LOG_ENTER();
 
     for (attr_count = 0;
-    		SAI_ACL_ENTRY_ATTR_FIELD_END != acl_table_match_field_to_attribs[attr_count].entry_attr_id;
+    		SAI_ACL_ENTRY_ATTR_FIELD_END != acl_match_field_to_attribs[attr_count].entry_attr_id;
     		attr_count++) {
-        if (attr_id == acl_table_match_field_to_attribs[attr_count].entry_attr_id) {
-        	field = acl_table_match_field_to_attribs[attr_count].field;
+        if (attr_id == acl_match_field_to_attribs[attr_count].entry_attr_id) {
+        	field = acl_match_field_to_attribs[attr_count].field;
         	break;
         }
     }
 
-    if (SAI_ACL_TABLE_ATTR_FIELD_END != acl_table_match_field_to_attribs[attr_count].entry_attr_id){
+    if (SAI_ACL_TABLE_ATTR_FIELD_END != acl_match_field_to_attribs[attr_count].entry_attr_id){
     	/* check is field is allowed */
-    	if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, field)){
-    		mrvl_acl_match_set_field_exist_MAC(*entry_fields_bitmap, field);
+    	if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, field)){
+    		mrvl_acl_set_bit_MAC(*entry_fields_bitmap, field);
     	}
     }
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
-
+#endif
 static sai_status_t mrvl_sai_is_set_mapping_field_for_entry_attrib(_In_ sai_attr_id_t  attr_id,
                                     			            _In_ uint32_t entry_fields_bitmap)
 {
@@ -1553,18 +1635,18 @@ static sai_status_t mrvl_sai_is_set_mapping_field_for_entry_attrib(_In_ sai_attr
     MRVL_SAI_LOG_ENTER();
 
     for (attr_count = 0;
-    		SAI_ACL_ENTRY_ATTR_FIELD_END != acl_table_match_field_to_attribs[attr_count].entry_attr_id;
+    		SAI_ACL_ENTRY_ATTR_FIELD_END != acl_match_field_to_attribs[attr_count].entry_attr_id;
     		attr_count++) {
-        if (attr_id == acl_table_match_field_to_attribs[attr_count].entry_attr_id) {
-        	field = acl_table_match_field_to_attribs[attr_count].field;
+        if (attr_id == acl_match_field_to_attribs[attr_count].entry_attr_id) {
+        	field = acl_match_field_to_attribs[attr_count].field;
         	break;
         }
     }
 
-    if (SAI_ACL_TABLE_ATTR_FIELD_END == acl_table_match_field_to_attribs[attr_count].entry_attr_id)
-    	return SAI_STATUS_FAILURE;
+    if (SAI_ACL_ENTRY_ATTR_FIELD_END == acl_match_field_to_attribs[attr_count].entry_attr_id)
+        return SAI_STATUS_FAILURE;
 
-	if (!mrvl_acl_match_is_field_exist_MAC(entry_fields_bitmap, field)){
+	if (!mrvl_acl_is_bit_set_MAC(entry_fields_bitmap, field)){
 		return SAI_STATUS_FAILURE;
 	}
 
@@ -1668,7 +1750,7 @@ static sai_status_t mrvl_acl_group_attrib_get(
     case SAI_ACL_TABLE_GROUP_ATTR_ACL_BIND_POINT_TYPE_LIST:
         value->u32list.count = 0;
         for (;i < SAI_ACL_MAX_BIND_POINT_TYPES; i++){ 
-            if (mrvl_acl_match_is_field_exist_MAC(mrvl_sai_acl_group_db[acl_group_index].bind_point_types_bitmap, i)){
+            if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_group_db[acl_group_index].bind_point_types_bitmap, i)){
                 value->u32list.list[value->u32list.count] = i;
                 value->u32list.count++;
             }                                                                                                                             
@@ -1686,6 +1768,43 @@ static sai_status_t mrvl_acl_group_attrib_get(
     return SAI_STATUS_SUCCESS;
 }
 
+/* ACL range get per attribute functions */
+static sai_status_t mrvl_acl_range_attrib_get(
+    _In_ const sai_object_key_t     *key,
+    _Inout_ sai_attribute_value_t   *value,
+    _In_ uint32_t                   attr_index,
+    _Inout_ vendor_cache_t          *cache,
+    void                            *arg)
+{
+	uint32_t acl_range_index = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_RANGE, &acl_range_index))) {
+        return status;
+    }
+
+    if (acl_range_index >= SAI_ACL_RANGES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_range_index %d\n", acl_range_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+	switch ((int64_t)arg) {
+    case SAI_ACL_RANGE_ATTR_TYPE:
+		value->u32 = mrvl_sai_acl_range_db[acl_range_index].range_type;
+        break;
+	case SAI_ACL_RANGE_ATTR_LIMIT:
+		memcpy(&value->u32range, &mrvl_sai_acl_range_db[acl_range_index].range_limit, sizeof(sai_u32_range_t));
+		break;
+
+	default:
+    	MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", (int64_t)arg);
+		return (SAI_STATUS_INVALID_ATTRIBUTE_0+(int64_t)arg);
+	}
+
+    return SAI_STATUS_SUCCESS;
+}
 
 /* ACL table get per attribute functions */
 static sai_status_t mrvl_acl_table_attrib_get(
@@ -1718,7 +1837,7 @@ static sai_status_t mrvl_acl_table_attrib_get(
     case SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST:
         value->u32list.count = 0;
         for (;i < SAI_ACL_MAX_BIND_POINT_TYPES; i++){ 
-            if (mrvl_acl_match_is_field_exist_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, i)){
+            if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, i)){
                 value->u32list.list[value->u32list.count] = i;
                 value->u32list.count++;
             }                                                                                                                             
@@ -1733,7 +1852,7 @@ static sai_status_t mrvl_acl_table_attrib_get(
     case SAI_ACL_TABLE_ATTR_ACL_ACTION_TYPE_LIST:
         value->u32list.count = 0;
         for (;i < SAI_ACL_MAX_ACTION_TYPES; i++){ 
-            if (mrvl_acl_match_is_field_exist_MAC(mrvl_sai_acl_table_db[acl_table_index].table_actions_bitmap, i)){
+            if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].table_actions_bitmap, i)){
                 value->u32list.list[value->u32list.count] = i;
                 value->u32list.count++;
             }                                                                                                                             
@@ -1779,6 +1898,659 @@ static sai_status_t mrvl_acl_table_match_attrib_get(
     return SAI_STATUS_SUCCESS;
 }
 
+
+static sai_status_t mrvl_sai_acl_fill_table_match_fields(_In_ uint32_t attr_count,
+														 _In_ const sai_attribute_t  *attr_list,
+														 _In_ sai_acl_stage_t  stage,
+														_Out_ uint32_t *table_fields_bitmap,
+														_Out_ bool *is_ipv6_table,
+														_Out_ bool *is_ipv4_table,
+														_Out_ bool *is_non_ip_table,
+														_Out_ bool *is_egress_ipv4_table)
+{
+    uint32_t i;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(attr_list != NULL);
+    assert(table_fields_bitmap != NULL);
+    assert(is_ipv6_table != NULL);
+    assert(is_ipv4_table != NULL);
+    assert(is_non_ip_table != NULL);
+
+    for (i = 0; i < attr_count; i++) {
+        if (SAI_STATUS_SUCCESS !=
+        		    	mrvl_sai_set_mapping_field_for_table_attrib(attr_list[i].id, table_fields_bitmap)){
+        	MRVL_SAI_LOG_DBG("Unsupported attribute in field match db\n");
+        }
+    }
+
+    if ((mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
+    	mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) &&
+       (mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
+		mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP))){
+		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 and ipv6 addresses \n");
+		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
+        mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)){
+    	*is_ipv6_table = true;
+    }
+    else if (mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
+    		mrvl_acl_is_bit_set_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP)){
+    	if (stage == SAI_ACL_STAGE_EGRESS){
+    		*is_egress_ipv4_table = true;
+    	}
+    	else {
+    		*is_ipv4_table = true;
+    	}
+    }
+    else
+    	*is_non_ip_table = true;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+static sai_status_t mrvl_sai_acl_table_validate_action_type_list(_In_ const sai_s32_list_t *attr_list, 
+                                                                          _In_ uint32_t              attr_index,
+                                                                          _In_ sai_acl_stage_t stage,
+                                                                          _Out_ uint32_t *action_types_bitmap)
+{
+    uint32_t i;;
+    sai_acl_action_type_t action_type;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(attr_list != NULL);
+    assert(action_types_bitmap != NULL);
+
+
+    for (i = 0; i < attr_list->count; i++) {
+        action_type = attr_list->list[i];
+
+        if (action_type > SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN) {
+            MRVL_SAI_LOG_ERR("Invalid action type (%d) at index [%d] in the list\n", action_type, i);
+            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
+        }
+
+        if ((stage == SAI_ACL_STAGE_INGRESS) && 
+           ((action_type == SAI_ACL_ACTION_TYPE_MIRROR_EGRESS) ||
+            (action_type == SAI_ACL_ACTION_TYPE_EGRESS_SAMPLEPACKET_ENABLE) ||
+            (action_type == SAI_ACL_ACTION_TYPE_EGRESS_BLOCK_PORT_LIST))){
+            MRVL_SAI_LOG_ERR("Invalid combination stage (%d) action type (%d) at index [%d] in the list\n", stage, action_type, i);
+            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
+        }
+        else if ((stage == SAI_ACL_STAGE_EGRESS) && 
+           ((action_type == SAI_ACL_ACTION_TYPE_MIRROR_INGRESS) ||
+            (action_type == SAI_ACL_ACTION_TYPE_INGRESS_SAMPLEPACKET_ENABLE))){
+            MRVL_SAI_LOG_ERR("Invalid combination stage (%d) action type (%d) at index [%d] in the list\n", stage, action_type, i);
+            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
+        }
+
+        if (mrvl_acl_is_bit_set_MAC(*action_types_bitmap, action_type)) {
+            MRVL_SAI_LOG_ERR("Already exist action type (%d)", action_type);
+            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
+        }
+
+        mrvl_acl_set_bit_MAC(*action_types_bitmap, action_type);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* the function checks match fields attribute validity vs table attributes, validates attr values and builds fields bitmap and match fpa structure  */
+static sai_status_t mrvl_sai_acl_fill_entry_match_fields(_In_ uint32_t attr_count, _In_ sai_attribute_t const *attr_list, _In_ uint32_t acl_table_index,
+														_Out_ uint32_t *entry_fields_bitmap, _Out_ FPA_FLOW_TABLE_MATCH_FIELDS_ACL_POLICY_STC *fpa_match_entry,
+                                                         _In_ uint32_t *port_attr, _In_ uint32_t *vlan_attr)
+{
+    const sai_attribute_value_t  *tmp_value, *src_mac, *dest_mac, *ip_type;
+    uint32_t tmp_index = 0, in_port = 0, src_port = 0, out_port = 0, table_fields_bitmap = 0;
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(attr_list != NULL);
+    assert(entry_fields_bitmap != NULL);
+    assert(fpa_match_entry != NULL);
+
+    table_fields_bitmap = mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap;
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6);
+        	memcpy(&fpa_match_entry->ipv6.srcIp6, &tmp_value->aclfield.data.ip6, sizeof(tmp_value->aclfield.data.ip6));
+        	memcpy(&fpa_match_entry->ipv6.srcIp6Mask, &tmp_value->aclfield.mask.ip6, sizeof(tmp_value->aclfield.mask.ip6));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPv6 is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6);
+        	memcpy(&fpa_match_entry->ipv6.dstIp6, &tmp_value->aclfield.data.ip6, sizeof(tmp_value->aclfield.data.ip6));
+        	memcpy(&fpa_match_entry->ipv6.dstIp6Mask, &tmp_value->aclfield.mask.ip6, sizeof(tmp_value->aclfield.mask.ip6));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_IPv6 is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC, &src_mac, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_MAC)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_MAC);
+        	memcpy(&fpa_match_entry->srcMac, &src_mac->aclfield.data.mac, sizeof(src_mac->aclfield.data.mac));
+        	memcpy(&fpa_match_entry->srcMacMask, &src_mac->aclfield.mask.mac, sizeof(src_mac->aclfield.mask.mac));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC, &dest_mac, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_MAC)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_MAC);
+        	memcpy(&fpa_match_entry->dstMac, &dest_mac->aclfield.data.mac, sizeof(dest_mac->aclfield.data.mac));
+        	memcpy(&fpa_match_entry->dstMacMask, &dest_mac->aclfield.mask.mac, sizeof(dest_mac->aclfield.mask.mac));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP);
+        	memcpy(&fpa_match_entry->srcIp4, &tmp_value->aclfield.data.ip4, sizeof(tmp_value->aclfield.data.ip4));
+        	memcpy(&fpa_match_entry->srcIp4Mask, &tmp_value->aclfield.mask.ip4, sizeof(tmp_value->aclfield.mask.ip4));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_IP, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP);
+        	memcpy(&fpa_match_entry->dstIp4, &tmp_value->aclfield.data.ip4, sizeof(tmp_value->aclfield.data.ip4));
+        	memcpy(&fpa_match_entry->dstIp4Mask, &tmp_value->aclfield.mask.ip4, sizeof(tmp_value->aclfield.mask.ip4));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_IP is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE, &ip_type, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_TYPE)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_TYPE);
+            switch (ip_type->aclfield.data.u32) {
+            case SAI_ACL_IP_TYPE_ANY:
+                break;
+            case SAI_ACL_IP_TYPE_IP:
+                fpa_match_entry->isIp       = 1;
+                fpa_match_entry->isIpMask   = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_IPV4ANY:
+                fpa_match_entry->isIp       = 1;
+                fpa_match_entry->isIpMask   = 0xFF;
+                fpa_match_entry->isIpv6     = 0; 
+                fpa_match_entry->isIpv6Mask = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_NON_IPV6:
+                fpa_match_entry->isIpv6     = 0; /* not ipv6 */
+                fpa_match_entry->isIpv6Mask = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_IPV6ANY:
+                fpa_match_entry->isIp       = 1;
+                fpa_match_entry->isIpMask   = 0xFF;
+                fpa_match_entry->isIpv6     = 1;
+                fpa_match_entry->isIpv6Mask = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_NON_IPV4:
+                fpa_match_entry->isIpv6     = 1; /* not ipv4 */
+                fpa_match_entry->isIpv6Mask = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_NON_IP:
+                fpa_match_entry->isIp       = 0;
+                fpa_match_entry->isIpMask   = 0xFF;
+                break;
+            case SAI_ACL_IP_TYPE_ARP:
+                MRVL_SAI_LOG_ERR("Unsupported value %d of attribute SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE\n",ip_type->aclfield.data.u32);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            case SAI_ACL_IP_TYPE_ARP_REPLY:
+                fpa_match_entry->arpOpcode      = SAI_ACL_ARP_OPCODE_REPLY;
+                fpa_match_entry->arpOpcodeMask  = 0xFFFF;
+                break;
+            case SAI_ACL_IP_TYPE_ARP_REQUEST:
+                fpa_match_entry->arpOpcode      = SAI_ACL_ARP_OPCODE_REQUEST;
+                fpa_match_entry->arpOpcodeMask  = 0xFFFF;
+                break;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_FRAG, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_FRAG)) {
+            if (tmp_value->aclfield.data.u32 > SAI_ACL_IP_FRAG_NON_FRAG) {
+                MRVL_SAI_LOG_ERR("Unsupported value %d of attribute SAI_ACL_ENTRY_ATTR_FIELD_IP_FRAG\n", tmp_value->aclfield.data.u32);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_FRAG);
+            fpa_match_entry->ipv4Fragmented      = (uint8_t)tmp_value->aclfield.data.u32;
+            fpa_match_entry->ipv4FragmentedMask  = (uint8_t)0xFF;
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IP_FRAG is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+
+    if ((mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
+    	mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6) ||
+        (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_TYPE) &&
+    	((ip_type->aclfield.data.u32 == SAI_ACL_IP_TYPE_IPV6ANY) ||
+        (ip_type->aclfield.data.u32 == SAI_ACL_IP_TYPE_NON_IPV4)))) &&
+       (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
+		mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP) ||
+        (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_TYPE) &&
+        ((ip_type->aclfield.data.u32 == SAI_ACL_IP_TYPE_IPV4ANY) ||
+        (ip_type->aclfield.data.u32 == SAI_ACL_IP_TYPE_NON_IPV6))))){
+		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 and ipv6 addresses \n");
+		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT);
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &out_port))) {
+                return status;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT);
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &in_port))) {
+                return status;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT);
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &src_port))) {
+                return status;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) &&
+         mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT) &&
+         (in_port != src_port)){
+        MRVL_SAI_LOG_ERR("Illegal combination of SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT and SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT in_port - %d src_port - %d\n", in_port, src_port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) &&
+         mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)){
+        MRVL_SAI_LOG_ERR("Illegal combination of SAI_ACL_MATCH_FIELD_IN_PORT and SAI_ACL_MATCH_FIELD_OUT_PORT in_port - %d out_port - %d\n", in_port, out_port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) ||
+        mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT)){
+		*port_attr = in_port;
+    }
+    else if (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)) {
+        *port_attr = out_port;
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_ID)) {
+            *vlan_attr = tmp_value->aclfield.data.u16;
+            if (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, SAI_ACL_BIND_POINT_TYPE_VLAN)){
+                mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_ID);
+                fpa_match_entry->vlanId = tmp_value->aclfield.data.u16;
+                fpa_match_entry->vlanIdMask = SAI_ACL_VLAN_MASK;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_PRI)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_PRI);
+        	memcpy(&fpa_match_entry->vlanPcp, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
+        	memcpy(&fpa_match_entry->vlanPcpMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_SRC_PORT)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_SRC_PORT);
+        	memcpy(&fpa_match_entry->srcL4Port, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
+        	memcpy(&fpa_match_entry->srcL4PortMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_DST_PORT)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_DST_PORT);
+        	memcpy(&fpa_match_entry->dstL4Port, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
+        	memcpy(&fpa_match_entry->dstL4PortMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ETHER_TYPE)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ETHER_TYPE);
+        	memcpy(&fpa_match_entry->etherType, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
+        	memcpy(&fpa_match_entry->etherTypeMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_IP_PROTOCOL)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IP_PROTOCOL);
+        	memcpy(&fpa_match_entry->ipProtocol, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
+        	memcpy(&fpa_match_entry->ipProtocolMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DSCP, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DSCP)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DSCP);
+        	memcpy(&fpa_match_entry->dscp, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
+        	memcpy(&fpa_match_entry->dscpMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DSCP is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ECN, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ECN)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ECN);
+        	memcpy(&fpa_match_entry->ipEcn, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
+        	memcpy(&fpa_match_entry->ipEcnMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ECN is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_TYPE)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_TYPE);
+        	memcpy(&fpa_match_entry->icmpV4Type, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
+        	memcpy(&fpa_match_entry->icmpV4TypeMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_CODE)) {
+            mrvl_acl_set_bit_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_CODE);
+        	memcpy(&fpa_match_entry->icmpV4Code, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
+        	memcpy(&fpa_match_entry->icmpV4CodeMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE is not part of table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    if ((mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
+    	mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) &&
+       (mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_TYPE) ||
+		mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_CODE) ||
+		mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IP_PROTOCOL) ||
+		mrvl_acl_is_bit_set_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_FRAG))){
+		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 fields and ipv6 addresses collision\n");
+		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    MRVL_SAI_LOG_EXIT();
+}
+
+/* the function checks actions attribute validity vs table attributes, validates attr values and builds actions bitmap and actions structure  */
+static sai_status_t mrvl_sai_acl_entry_actions_validation(_In_ uint32_t attr_count, _In_ const sai_attribute_t  *attr_list, _In_ uint32_t acl_table_index,
+														_Out_ uint32_t *entry_actions_bitmap, _Out_ sai_acl_action_data_t *entry_action_data)
+{
+    const sai_attribute_value_t  *tmp_value;
+    uint32_t tmp_index = 0, table_actions_bitmap = 0;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(attr_list != NULL);
+    assert(entry_actions_bitmap != NULL);
+
+    table_actions_bitmap = mrvl_sai_acl_table_db[acl_table_index].table_actions_bitmap;
+
+    /* handle SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION action */
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION)) {
+    		if ((tmp_value->aclaction.parameter.u32 != SAI_PACKET_ACTION_DROP) && (tmp_value->aclaction.parameter.u32 != SAI_PACKET_ACTION_FORWARD)){
+    			MRVL_SAI_LOG_ERR("Value of SAI_ACL_ENTRY_ATTR_PACKET_ACTION is not available - %d\n", tmp_value->u32);
+    			MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    		}
+    		else {
+                mrvl_acl_set_bit_MAC(*entry_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION);
+    			entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].enable        = tmp_value->aclaction.enable;
+                entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].parameter.u32 = tmp_value->aclaction.parameter.u32;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute action SAI_ACL_ACTION_TYPE_PACKET_ACTION is not set by table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    /* handle SAI_ACL_ENTRY_ATTR_ACTION_SET_TC action */
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_SET_TC, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC)) {
+    		if (tmp_value->u8 > SAI_QOS_NUM_QUEUES){
+                MRVL_SAI_LOG_ERR("Value of SAI_ACL_ACTION_TYPE_SET_TC is out of range - %d\n", tmp_value->u8);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+            else {
+                mrvl_acl_set_bit_MAC(*entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC);
+                entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].enable       = tmp_value->aclaction.enable;
+                entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8 = tmp_value->aclaction.parameter.u8;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute action SAI_ACL_ACTION_TYPE_SET_TC is not set by table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+    
+    /* handle SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP action */
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP)) {
+            if (tmp_value->u8 > SAI_QOS_DSCP_MAX){
+                MRVL_SAI_LOG_ERR("Value of SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP is out of range - %d\n", tmp_value->u8);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+            else {
+                mrvl_acl_set_bit_MAC(*entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP);
+                entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].enable       = tmp_value->aclaction.enable;
+                entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8 = tmp_value->aclaction.parameter.u8;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute action SAI_ACL_ACTION_TYPE_SET_DSCP is not set by table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    /* handle SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_ID action */
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_ID, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_OUTER_VLAN_ID)) {
+            if (tmp_value->u8 > SAI_MAX_NUM_OF_VLANS){
+                MRVL_SAI_LOG_ERR("Value of SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_ID is out of range - %d\n", tmp_value->u8);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+            else {
+                mrvl_acl_set_bit_MAC(*entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_OUTER_VLAN_ID);
+                entry_action_data->enable       = tmp_value->aclaction.enable;
+                entry_action_data->parameter.u8 = tmp_value->aclaction.parameter.u8;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute action SAI_ACL_ACTION_TYPE_SET_DSCP is not set by table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    /* handle SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI action */
+    if (SAI_STATUS_SUCCESS ==
+    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI, &tmp_value, &tmp_index)) {
+        if (mrvl_acl_is_bit_set_MAC(table_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_OUTER_VLAN_PRI)) {
+            if (tmp_value->u8 > SAI_QOS_UP_MAX){
+                MRVL_SAI_LOG_ERR("Value of SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI is out of range - %d\n", tmp_value->u8);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+            else {
+                mrvl_acl_set_bit_MAC(*entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_OUTER_VLAN_PRI);
+                entry_action_data->enable       = tmp_value->aclaction.enable;
+                entry_action_data->parameter.u8 = tmp_value->aclaction.parameter.u8;
+            }
+        }
+        else {
+            MRVL_SAI_LOG_ERR("Attribute action SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI is not set by table attributes\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+
+}
+
+static sai_status_t mrvl_sai_acl_entry_match_fields_validation(_In_ uint32_t attr_count, _In_ sai_attribute_t const *attr_list, _In_ uint32_t acl_table_index,
+														_Inout_ uint32_t *entry_fields_bitmap, _Inout_ FPA_FLOW_TABLE_MATCH_FIELDS_ACL_POLICY_STC *fpa_match_entry,
+                                                        _In_ uint32_t *port_attr, _In_ uint32_t *vlan_attr)
+{
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(attr_list != NULL);
+    assert(entry_fields_bitmap != NULL);
+    assert(fpa_match_entry != NULL);
+
+        /* are entry match fields subset of table match fields */
+    if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_acl_fill_entry_match_fields(attr_count, attr_list, acl_table_index,
+        													entry_fields_bitmap, fpa_match_entry, port_attr, vlan_attr))){
+        MRVL_SAI_LOG_ERR("No match for entry fields vs table fields\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (entry_fields_bitmap == 0){
+		MRVL_SAI_LOG_ERR("At least one match field must be given - %x \n", entry_fields_bitmap);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    switch (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type) {
+    case SAI_ACL_BIND_POINT_TYPE_PORT:
+        if (*port_attr != SAI_ACL_INVALID_INTERFACE){ /* port_attr in set */
+            if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_portbitmap, *port_attr)){
+                MRVL_SAI_LOG_ERR("Bound port bitmap %d doesn't include port_attr attribute %d\n", 
+                                 mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_portbitmap, *port_attr);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+        }
+        break;
+    case SAI_ACL_BIND_POINT_TYPE_VLAN:
+        if (*vlan_attr != SAI_ACL_INVALID_INTERFACE){ /* vlan_attr in set */
+            if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan != *vlan_attr){
+                MRVL_SAI_LOG_ERR("Bound vlan %d is different from vlanId attr %d\n", 
+                                 mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan, fpa_match_entry->vlanId);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    MRVL_SAI_LOG_EXIT();
+}
+
 static sai_status_t mrvl_acl_entry_attrib_get(
     _In_ const sai_object_key_t     *key,
     _Inout_ sai_attribute_value_t   *value,
@@ -1822,6 +2594,19 @@ static sai_status_t mrvl_acl_entry_attrib_get(
 	}
 
     return SAI_STATUS_SUCCESS;
+}
+static bool mrvl_sai_utl_is_mask_empty(_In_ uint8_t   *mask, _In_ uint32_t  maskSize)
+{
+   bool empty = true;
+   uint32_t i;
+
+   for (i = 0; i < maskSize; i++) {
+      if (mask[i] != 0) {
+         empty = false;
+         break;
+      }
+   }
+   return empty;
 }
 
 static sai_status_t mrvl_acl_entry_match_attrib_get(
@@ -1870,80 +2655,112 @@ static sai_status_t mrvl_acl_entry_match_attrib_get(
 
 	switch ((int64_t)arg) {
 	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6:
-	    memcpy(&value->aclfield.data.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6, sizeof(sai_ip6_t));
-	    memcpy(&value->aclfield.mask.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6Mask, sizeof(sai_ip6_t));
-		break;
+        memcpy(&value->aclfield.data.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6, sizeof(sai_ip6_t));
+        memcpy(&value->aclfield.mask.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6Mask, sizeof(sai_ip6_t));
+        break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6:
-	    memcpy(&value->aclfield.data.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6, sizeof(sai_ip6_t));
-	    memcpy(&value->aclfield.mask.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6Mask, sizeof(sai_ip6_t));
+        memcpy(&value->aclfield.data.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6, sizeof(sai_ip6_t));
+        memcpy(&value->aclfield.mask.ip6, &fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6Mask, sizeof(sai_ip6_t));	
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC:
-	    memcpy(&value->aclfield.data.mac, &fpa_flow_entry.data.acl_policy.match.srcMac, sizeof(sai_mac_t));
-	    memcpy(&value->aclfield.mask.mac, &fpa_flow_entry.data.acl_policy.match.srcMacMask, sizeof(sai_mac_t));
+        memcpy(&value->aclfield.data.mac, &fpa_flow_entry.data.acl_policy.match.srcMac, sizeof(sai_mac_t));
+        memcpy(&value->aclfield.mask.mac, &fpa_flow_entry.data.acl_policy.match.srcMacMask, sizeof(sai_mac_t));
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC:
-	    memcpy(&value->aclfield.data.mac, &fpa_flow_entry.data.acl_policy.match.dstMac, sizeof(sai_mac_t));
-	    memcpy(&value->aclfield.mask.mac, &fpa_flow_entry.data.acl_policy.match.dstMacMask, sizeof(sai_mac_t));
-		break;
+        memcpy(&value->aclfield.data.mac, &fpa_flow_entry.data.acl_policy.match.dstMac, sizeof(sai_mac_t));
+        memcpy(&value->aclfield.mask.mac, &fpa_flow_entry.data.acl_policy.match.dstMacMask, sizeof(sai_mac_t));
+ 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP:
-	    memcpy(&value->aclfield.data.ip4, &fpa_flow_entry.data.acl_policy.match.srcIp4, sizeof(sai_ip4_t));
-	    memcpy(&value->aclfield.mask.ip4, &fpa_flow_entry.data.acl_policy.match.srcIp4Mask, sizeof(sai_ip4_t));
+        memcpy(&value->aclfield.data.ip4, &fpa_flow_entry.data.acl_policy.match.srcIp4, sizeof(sai_ip4_t));
+        memcpy(&value->aclfield.mask.ip4, &fpa_flow_entry.data.acl_policy.match.srcIp4Mask, sizeof(sai_ip4_t));
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_DST_IP:
-	    memcpy(&value->aclfield.data.ip4, &fpa_flow_entry.data.acl_policy.match.dstIp4, sizeof(sai_ip4_t));
-	    memcpy(&value->aclfield.mask.ip4, &fpa_flow_entry.data.acl_policy.match.dstIp4Mask, sizeof(sai_ip4_t));
+        memcpy(&value->aclfield.data.ip4, &fpa_flow_entry.data.acl_policy.match.dstIp4, sizeof(sai_ip4_t));
+        memcpy(&value->aclfield.mask.ip4, &fpa_flow_entry.data.acl_policy.match.dstIp4Mask, sizeof(sai_ip4_t));
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT:
-	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT:
-	    /* create port object */
-	    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, fpa_flow_entry.data.acl_policy.match.inPort, &value->aclfield.data.oid))) {
-	    	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_PORT port - %d\n", fpa_flow_entry.data.acl_policy.match.inPort);
-	    	MRVL_SAI_API_RETURN(status);
-	    }
+    case SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT:
+    case SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT:
+        if (mrvl_sai_acl_entry_db[acl_entry_index].attr_port != SAI_ACL_INVALID_INTERFACE) {
+            /* create port object */
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, mrvl_sai_acl_entry_db[acl_entry_index].attr_port, &value->aclfield.data.oid))) {
+                MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_PORT port - %d\n", mrvl_sai_acl_entry_db[acl_entry_index].attr_port);
+                MRVL_SAI_API_RETURN(status);
+            }
+        }
 		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT:
-	    /* create port object */
-	    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, fpa_flow_entry.data.acl_policy.match.outPort, &value->aclfield.data.oid))) {
-	    	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_PORT port - %d\n", fpa_flow_entry.data.acl_policy.match.outPort);
-	    	MRVL_SAI_API_RETURN(status);
-	    }
+    case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID:
+        value->aclfield.data.u16 = mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan;
+        value->aclfield.mask.u16 = SAI_ACL_VLAN_MASK;
 		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID:
-	    value->aclfield.data.u16 = fpa_flow_entry.data.acl_policy.match.vlanId;
-	    value->aclfield.mask.u16 = fpa_flow_entry.data.acl_policy.match.vlanIdMask;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI:
-	    value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.vlanPcp;
-	    value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.vlanPcpMask;
+    case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI:
+        value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.vlanPcp;
+        value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.vlanPcpMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT:
-	    value->aclfield.data.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.srcL4Port;
-	    value->aclfield.mask.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.srcL4PortMask;
+        value->aclfield.data.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.srcL4Port;
+        value->aclfield.mask.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.srcL4PortMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT:
-	    value->aclfield.data.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.dstL4Port;
-	    value->aclfield.mask.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.dstL4PortMask;
+        value->aclfield.data.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.dstL4Port;
+        value->aclfield.mask.u16 = (sai_uint16_t)fpa_flow_entry.data.acl_policy.match.dstL4PortMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE:
-	    value->aclfield.data.u16 = fpa_flow_entry.data.acl_policy.match.etherType;
-	    value->aclfield.mask.u16 = fpa_flow_entry.data.acl_policy.match.etherTypeMask;
+        value->aclfield.data.u16 = fpa_flow_entry.data.acl_policy.match.etherType;
+        value->aclfield.mask.u16 = fpa_flow_entry.data.acl_policy.match.etherTypeMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL:
-	    value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipProtocol;
-	    value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipProtocolMask;
+        value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipProtocol;
+        value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipProtocolMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_DSCP:
-	    value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.dscp;
-	    value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.dscpMask;
-		break;
+        value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.dscp;
+        value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.dscpMask;
+        break;
+    case SAI_ACL_ENTRY_ATTR_FIELD_ECN:
+        value->aclfield.data.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipEcn;
+        value->aclfield.mask.u8 = (sai_uint8_t)fpa_flow_entry.data.acl_policy.match.ipEcnMask;
+        break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE:
-	    value->aclfield.data.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4Type;
-	    value->aclfield.mask.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4TypeMask;
+        value->aclfield.data.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4Type;
+        value->aclfield.mask.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4TypeMask;
 		break;
 	case SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE:
-	    value->aclfield.data.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4Code;
-	    value->aclfield.mask.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4CodeMask;
+        value->aclfield.data.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4Code;
+        value->aclfield.mask.u8 = fpa_flow_entry.data.acl_policy.match.icmpV4CodeMask;
 		break;
+    case SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE:
+        if (fpa_flow_entry.data.acl_policy.match.isIpMask != 0) {
+            if (fpa_flow_entry.data.acl_policy.match.isIp != 0) {
+                if (fpa_flow_entry.data.acl_policy.match.isIpv6Mask != 0){
+                    if (fpa_flow_entry.data.acl_policy.match.isIpv6 != 0)
+                        value->aclfield.data.u32 = SAI_ACL_IP_TYPE_IPV6ANY;
+                    else 
+                        value->aclfield.data.u32 = SAI_ACL_IP_TYPE_IPV4ANY;
+                }
+                else 
+                    value->aclfield.data.u32 = SAI_ACL_IP_TYPE_IP;
+            }
+            else value->aclfield.data.u32 = SAI_ACL_IP_TYPE_NON_IP;
+        }
+        else {
+            if (fpa_flow_entry.data.acl_policy.match.isIpv6Mask != 0)
+                if (fpa_flow_entry.data.acl_policy.match.isIpv6 == 0)
+                    value->aclfield.data.u32 = SAI_ACL_IP_TYPE_NON_IPV6;
+                else 
+                    value->aclfield.data.u32 = SAI_ACL_IP_TYPE_NON_IPV4;
+            else
+                value->aclfield.data.u32 = SAI_ACL_IP_TYPE_ANY;
+        }
+		break;
+
+    case SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_FRAG:
+        (fpa_flow_entry.data.acl_policy.match.ipv4Fragmented) ? 
+            (value->aclfield.data.u32 = SAI_ACL_IP_FRAG_ANY) : (value->aclfield.data.u32 = SAI_ACL_IP_FRAG_NON_FRAG);
+        (fpa_flow_entry.data.acl_policy.match.ipv4Fragmented) ? 
+            (value->aclfield.mask.u32 = fpa_flow_entry.data.acl_policy.match.ipv4FragmentedMask) : (value->aclfield.mask.u32 = 0);
+		break;
+
 	default:
     	MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", (int64_t)arg);
 		return ((int64_t)arg);
@@ -1962,7 +2779,6 @@ static sai_status_t mrvl_acl_entry_attrib_set(
     FPA_STATUS    fpa_status = FPA_OK;
     FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
     FPA_FLOW_TABLE_ENTRY_STC     fpa_flow_entry = {0};
-    bool update_is_needed = false;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -1992,22 +2808,30 @@ static sai_status_t mrvl_acl_entry_attrib_set(
 
 	switch ((int64_t)arg) {
 	case SAI_ACL_ENTRY_ATTR_PRIORITY:
-		if (mrvl_sai_acl_entry_db[acl_table_index].priority != value->u32){
+		if (mrvl_sai_acl_entry_db[acl_entry_index].priority != value->u32){
 			fpa_priority = mrvl_sai_acl_table_db[acl_table_index].priority * mrvl_sai_acl_table_db[acl_table_index].table_size + value->u32;
 			fpa_flow_entry.priority = fpa_priority;
-			update_is_needed = true;
-		}
+            fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
+            if (fpa_status != FPA_OK) {
+               MRVL_SAI_LOG_ERR("Failed to update entry to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+               status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+               MRVL_SAI_API_RETURN(status);
+            }
+            mrvl_sai_acl_entry_db[acl_entry_index].priority = value->u32;
+        }
 		break;
 	case SAI_ACL_ENTRY_ATTR_ADMIN_STATE:
 		if (mrvl_sai_acl_entry_db[acl_entry_index].admin_state != value->booldata){
-			if (value->booldata == true){
-				if ((mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap != 0) && (mrvl_sai_acl_table_db[acl_table_index].bound_port != SAI_ACL_INVALID_BOUND_PORT))
-				fpa_flow_entry.data.acl_policy.match.inPort = mrvl_sai_acl_table_db[acl_table_index].bound_port;
-			}
-			else {
-				fpa_flow_entry.data.acl_policy.match.inPort = SAI_ACL_INVALID_BOUND_PORT;
-			}
-			update_is_needed = true;
+            if (value->booldata == false) {
+                fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_INVALID_FLAG;
+            }
+            fpa_status = fpaLibFlowEntrySetValid(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
+            if (fpa_status != FPA_OK) {
+               MRVL_SAI_LOG_ERR("Failed to update valid to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+               status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+               MRVL_SAI_API_RETURN(status);
+            }
+            mrvl_sai_acl_entry_db[acl_entry_index].admin_state = value->booldata;
 		}
 		break;
 	default:
@@ -2015,26 +2839,6 @@ static sai_status_t mrvl_acl_entry_attrib_set(
 		return (SAI_STATUS_INVALID_ATTRIBUTE_0+(int64_t)arg);
 	}
 
-	if (update_is_needed){
-		/* update by cookie from FPA */
-		fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
-		if (fpa_status != FPA_OK) {
-			MRVL_SAI_LOG_ERR("Failed to update entry to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
-			status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
-			MRVL_SAI_API_RETURN(status);
-		}
-		switch ((int64_t)arg) {
-		case SAI_ACL_ENTRY_ATTR_PRIORITY:
-			mrvl_sai_acl_entry_db[acl_entry_index].priority = value->u32;
-			break;
-		case SAI_ACL_ENTRY_ATTR_ADMIN_STATE:
-			mrvl_sai_acl_entry_db[acl_entry_index].admin_state = value->booldata;
-			break;
-		default:
-	    	MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", (int64_t)arg);
-			return (SAI_STATUS_INVALID_ATTRIBUTE_0+(int64_t)arg);
-		}
-	}
     return SAI_STATUS_SUCCESS;
 }
 
@@ -2044,12 +2848,14 @@ static sai_status_t mrvl_acl_entry_match_attrib_set(
     _In_ const sai_attribute_value_t *value,
     void                             *arg)
 {
-	uint32_t acl_entry_index = 0, acl_table_index = 0;
+	uint32_t acl_entry_index = 0, acl_table_index = 0, attr_port = SAI_ACL_INVALID_INTERFACE, attr_vlan = SAI_ACL_INVALID_INTERFACE;
 	sai_status_t status = SAI_STATUS_SUCCESS;
     FPA_STATUS    fpa_status = FPA_OK;
     FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
-    FPA_FLOW_TABLE_ENTRY_STC     fpa_flow_entry = {0};
+    FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry = {0};
     uint32_t entry_fields_bitmap = 0;
+    sai_attribute_t attr_list = {0};
+
 
     MRVL_SAI_LOG_ENTER();
 
@@ -2065,13 +2871,6 @@ static sai_status_t mrvl_acl_entry_match_attrib_set(
     assert(mrvl_sai_acl_entry_db[acl_entry_index].is_used != false);
     acl_table_index = mrvl_sai_acl_entry_db[acl_entry_index].table_index;
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_set_mapping_field_for_entry_attrib((PTR_TO_INT)arg,
-    														mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap,
-    														&entry_fields_bitmap))){
-        MRVL_SAI_LOG_ERR("Match attribute is not allowed by ACL Table: attr - %d\n", (PTR_TO_INT)arg);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-
 	memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
 	fpa_flow_entry.cookie = mrvl_sai_acl_entry_db[acl_entry_index].fpa_cookie;
 	acl_table_index = mrvl_sai_acl_entry_db[acl_entry_index].table_index;
@@ -2085,86 +2884,18 @@ static sai_status_t mrvl_acl_entry_match_attrib_set(
 		MRVL_SAI_API_RETURN(status);
 	}
 
-	/* TODO check is changed */
-	switch ((int64_t)arg) {
-	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6, &value->aclfield.data.ip6, sizeof(sai_ip6_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.ipv6.srcIp6Mask, &value->aclfield.mask.ip6, sizeof(sai_ip6_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6, &value->aclfield.data.ip6, sizeof(sai_ip6_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.ipv6.dstIp6Mask, &value->aclfield.mask.ip6, sizeof(sai_ip6_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcMac, &value->aclfield.data.mac, sizeof(sai_mac_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcMacMask, &value->aclfield.mask.mac, sizeof(sai_mac_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.dstMac, &value->aclfield.data.mac, sizeof(sai_mac_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.dstMacMask, &value->aclfield.mask.mac, sizeof(sai_mac_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcIp4, &value->aclfield.data.ip4, sizeof(sai_ip4_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcIp4Mask, &value->aclfield.mask.ip4, sizeof(sai_ip4_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_DST_IP:
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcIp4, &value->aclfield.data.ip4, sizeof(sai_ip4_t));
-	    memcpy(&fpa_flow_entry.data.acl_policy.match.srcIp4Mask, &value->aclfield.mask.ip4, sizeof(sai_ip4_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT:
-	case SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT:
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &fpa_flow_entry.data.acl_policy.match.inPort))) {
-            return status;
-        }
-        memset(&fpa_flow_entry.data.acl_policy.match.inPortMask, SAI_ACL_BOUND_PORT_MASK, sizeof(uint32_t));
-		break;
+    attr_list.id = (int64_t)arg;
+    memcpy(&attr_list.value, value, sizeof(attr_list.value));
+    if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_acl_entry_match_fields_validation(1, &attr_list, acl_table_index,
+        													&entry_fields_bitmap, &fpa_flow_entry.data.acl_policy.match,
+                                                            &attr_port, &attr_vlan))){
+        MRVL_SAI_LOG_ERR("Match fields validation failed\n");
+        MRVL_SAI_API_RETURN(status);
+    }
 
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT:
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &fpa_flow_entry.data.acl_policy.match.outPort))) {
-            return status;
-        }
-        memset(&fpa_flow_entry.data.acl_policy.match.outPortMask, SAI_ACL_BOUND_PORT_MASK, sizeof(uint32_t));
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID:
-	    fpa_flow_entry.data.acl_policy.match.vlanId     = value->aclfield.data.u16;
-	    fpa_flow_entry.data.acl_policy.match.vlanIdMask = value->aclfield.mask.u16;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI:
-	    fpa_flow_entry.data.acl_policy.match.vlanPcp     = (sai_uint16_t)value->aclfield.data.u8;
-	    fpa_flow_entry.data.acl_policy.match.vlanPcpMask = (sai_uint16_t)value->aclfield.mask.u8;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT:
-	    fpa_flow_entry.data.acl_policy.match.srcL4Port     = (sai_uint32_t)value->aclfield.data.u16;;
-	    fpa_flow_entry.data.acl_policy.match.srcL4PortMask = (sai_uint32_t)value->aclfield.mask.u16;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT:
-	    fpa_flow_entry.data.acl_policy.match.dstL4Port     = (sai_uint32_t)value->aclfield.data.u16;;
-	    fpa_flow_entry.data.acl_policy.match.dstL4PortMask = (sai_uint32_t)value->aclfield.mask.u16;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE:
-	    fpa_flow_entry.data.acl_policy.match.etherType     = value->aclfield.data.u16;
-	    fpa_flow_entry.data.acl_policy.match.etherTypeMask = value->aclfield.mask.u16;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL:
-	    fpa_flow_entry.data.acl_policy.match.ipProtocol     = (sai_uint16_t)value->aclfield.data.u8;
-	    fpa_flow_entry.data.acl_policy.match.ipProtocolMask = (sai_uint16_t)value->aclfield.mask.u8;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_DSCP:
-	    fpa_flow_entry.data.acl_policy.match.dscp     = (sai_uint16_t)value->aclfield.data.u8;
-	    fpa_flow_entry.data.acl_policy.match.dscpMask = (sai_uint16_t)value->aclfield.mask.u8;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE:
-	    fpa_flow_entry.data.acl_policy.match.icmpV4Type     = value->aclfield.data.u8;
-	    fpa_flow_entry.data.acl_policy.match.icmpV4TypeMask = value->aclfield.mask.u8;
-		break;
-	case SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE:
-	    fpa_flow_entry.data.acl_policy.match.icmpV4Code     = value->aclfield.data.u8;
-	    fpa_flow_entry.data.acl_policy.match.icmpV4CodeMask = value->aclfield.mask.u8;
-		break;
-	default:
-    	MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", (int64_t)arg);
-		return ((int64_t)arg);
-	}
+    mrvl_sai_acl_entry_db[acl_entry_index].attr_port = attr_port;
+    mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan = attr_vlan;
 
 	/* update by cookie from FPA */
 	fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
@@ -2179,6 +2910,191 @@ static sai_status_t mrvl_acl_entry_match_attrib_set(
     return SAI_STATUS_SUCCESS;
 }
 
+/*ACL ENTRY ACTION ATTR SET/GET */
+static sai_status_t mrvl_acl_entry_action_attrib_get(
+    _In_ const sai_object_key_t     *key,
+    _Inout_ sai_attribute_value_t   *value,
+    _In_ uint32_t                   attr_index,
+    _Inout_ vendor_cache_t          *cache,
+    void                            *arg)
+{
+	uint32_t acl_entry_index = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_ENTRY, &acl_entry_index))) {
+        return status;
+    }
+
+    if (acl_entry_index >= SAI_ACL_ENTRIES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_entry_index %d\n", acl_entry_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    assert(mrvl_sai_acl_entry_db[acl_entry_index].is_used != false);
+
+    value->aclaction.enable = false;
+
+	switch ((int64_t)arg) {
+	case SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION:
+        if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_entry_db[acl_entry_index].entry_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION)) {
+    	    value->aclaction.enable = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].enable;
+            value->aclaction.parameter.u32 = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].parameter.u32;
+        }
+		break;
+	case SAI_ACL_ENTRY_ATTR_ACTION_SET_TC:
+        if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_entry_db[acl_entry_index].entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC)) {
+            value->aclaction.enable = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].enable;
+            value->aclaction.parameter.u8 = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8;
+        }	
+		break;
+	case SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP:
+        if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_entry_db[acl_entry_index].entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP)) {
+            value->aclaction.enable = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].enable;
+            value->aclaction.parameter.u8 = mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8;
+        }
+		break;
+	default:
+    	MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", (int64_t)arg);
+		return ((int64_t)arg);
+	}
+
+    return SAI_STATUS_SUCCESS;
+}
+
+
+static sai_status_t mrvl_acl_entry_action_attrib_set(
+    _In_ const sai_object_key_t      *key,
+    _In_ const sai_attribute_value_t *value,
+    void                             *arg)
+{
+	uint32_t acl_entry_index = 0, acl_table_index = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+    FPA_STATUS    fpa_status = FPA_OK;
+    FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
+    FPA_FLOW_TABLE_ENTRY_STC fpa_flow_entry = {0};
+    uint32_t entry_actions_bitmap = 0;
+    sai_attribute_t attr_list = {0};
+    sai_acl_action_data_t entry_action_data[SAI_ACL_MAX_ACTION_TYPES];
+    bool do_update = false;
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_ENTRY, &acl_entry_index))) {
+        return status;
+    }
+
+    if (acl_entry_index >= SAI_ACL_ENTRIES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_entry_index %d\n", acl_entry_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    assert(mrvl_sai_acl_entry_db[acl_entry_index].is_used != false);
+    acl_table_index = mrvl_sai_acl_entry_db[acl_entry_index].table_index;
+
+	memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
+	fpa_flow_entry.cookie = mrvl_sai_acl_entry_db[acl_entry_index].fpa_cookie;
+	acl_table_index = mrvl_sai_acl_entry_db[acl_entry_index].table_index;
+	fpa_table_type = mrvl_sai_acl_table_db[acl_table_index].fpa_table_type;
+	/* get by cookie from FPA */
+	fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
+
+	if (fpa_status != FPA_OK) {
+		MRVL_SAI_LOG_ERR("Failed to get entry from FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+		status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+		MRVL_SAI_API_RETURN(status);
+	}
+
+    attr_list.id = (int64_t)arg;
+    memcpy(&attr_list.value, value, sizeof(attr_list.value));
+	memset(entry_action_data, 0, sizeof(entry_action_data));
+    if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_acl_entry_actions_validation(1, &attr_list, acl_table_index,
+        													&entry_actions_bitmap, entry_action_data))){
+        MRVL_SAI_LOG_ERR("Actions fields validation failed\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (mrvl_acl_is_all_0_MAC(entry_actions_bitmap)) {
+        MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    }
+
+    /* handle actions */
+
+    /* attr action SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION exist in list */
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION) && 
+       ((entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].enable != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].enable) ||
+       (entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].parameter.u32 != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].parameter.u32))){ /* case of update */
+        if (entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].enable && entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION].parameter.u32 == SAI_PACKET_ACTION_DROP){
+            fpa_flow_entry.data.acl_policy.instructionFlags &= ~(FPA_FLOW_TABLE_PCL_ACTION_GOTO_FLAG & 0xFFFFFFFF);
+            fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_CLEAR_ACTION_FLAG;
+        }
+        else { /* forward */
+            if (fpa_flow_entry.entryType != FPA_FLOW_TABLE_TYPE_EPCL_E){
+                fpa_flow_entry.data.acl_policy.gotoTableNo = fpa_table_type + 1;
+                fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_GOTO_FLAG & 0xFFFFFFF;
+            }
+            fpa_flow_entry.data.acl_policy.instructionFlags &= ~(FPA_FLOW_TABLE_PCL_ACTION_CLEAR_ACTION_FLAG & 0xFFFFFFFF);
+        } 
+        do_update = true;       
+    }
+
+    /* attr action SAI_ACL_ACTION_TYPE_SET_TC exist in list */
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC) && 
+        ((entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].enable != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].enable) ||
+        (entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8 != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8))){ /* case of update */
+        if (entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].enable){ 
+            fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_QUEUE_FLAG;
+            fpa_flow_entry.data.acl_policy.queueId = entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8;
+        }
+        else {
+            fpa_flow_entry.data.acl_policy.instructionFlags &= ~(FPA_FLOW_TABLE_PCL_ACTION_QUEUE_FLAG & 0xFFFFFFFF);
+        }
+        do_update = true;
+    }
+
+    /* attr action SAI_ACL_ACTION_TYPE_SET_DSCP exist in list */
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP) && 
+        ((entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].enable != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].enable) ||
+        (entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8 != mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8))){ /* case of update */
+        if (entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].enable){ 
+            fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_DSCP_FLAG;
+            fpa_flow_entry.data.acl_policy.dscp = entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8;
+        }
+        else {
+            fpa_flow_entry.data.acl_policy.instructionFlags &= ~(FPA_FLOW_TABLE_PCL_ACTION_DSCP_FLAG & 0xFFFFFFFF);
+        }
+        do_update = true;
+    }
+
+    if (do_update){
+
+    	/* update by cookie from FPA */
+    	fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
+    	if (fpa_status != FPA_OK) {
+    		MRVL_SAI_LOG_ERR("Failed to update entry to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+    		status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+    		MRVL_SAI_API_RETURN(status);
+    	}
+
+        /* update entry_action_data of mrvl_sai_acl_entry_db */
+        mrvl_sai_acl_entry_db[acl_entry_index].entry_actions_bitmap |= entry_actions_bitmap;
+        if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION)) {
+            memcpy(&mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION], &entry_action_data[SAI_ACL_ACTION_TYPE_PACKET_ACTION], sizeof(sai_acl_action_data_t));
+        }
+        if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC)) {
+            memcpy(&mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC], &entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC], sizeof(sai_acl_action_data_t));
+        }
+        if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP)) {
+            memcpy(&mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP], &entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP], sizeof(sai_acl_action_data_t));
+        }
+    }
+
+    MRVL_SAI_LOG_EXIT()
+    return SAI_STATUS_SUCCESS;
+}
 
 
 /* private functions implementation */
@@ -2282,6 +3198,33 @@ static sai_status_t mrvl_acl_find_free_index_in_group_table_db(_Out_ uint32_t *f
 }
 
 
+/* find free index in mrvl_sai_acl_range_db */
+static sai_status_t mrvl_acl_find_free_index_in_range_db(_Out_ uint32_t *free_index)
+{
+    sai_status_t status;
+    uint32_t     i;
+
+    MRVL_SAI_LOG_ENTER();
+    assert(free_index != NULL);
+
+    for (i = 0; i < SAI_ACL_RANGES_MAX_NUM; i++) {
+        if (false == mrvl_sai_acl_range_db[i].is_used) {
+            *free_index              = i;
+            mrvl_sai_acl_range_db[i].is_used = true;
+            status                   = SAI_STATUS_SUCCESS;
+            break;
+        }
+    }
+
+    if (i == SAI_ACL_RANGES_MAX_NUM) {
+    	MRVL_SAI_LOG_ERR("NO free indexes\n");
+        status = SAI_STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    MRVL_SAI_LOG_EXIT()
+    return status;
+}
+
 static void mrvl_sai_acl_group_remove(_In_ uint32_t acl_acl_group_index)
 {
 
@@ -2300,7 +3243,7 @@ static void mrvl_sai_acl_table_remove(_In_ uint32_t acl_table_index)
     memset(&mrvl_sai_acl_table_db[acl_table_index], 0, sizeof(mrvl_acl_table_db_t));
     mrvl_sai_acl_table_db[acl_table_index].head_entry_index = SAI_ACL_INVALID_INDEX;
     mrvl_sai_acl_table_db[acl_table_index].acl_group_index = SAI_ACL_INVALID_INDEX;
-    mrvl_sai_acl_table_db[acl_table_index].bound_port = SAI_ACL_INVALID_BOUND_PORT;
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_MAX_BIND_POINT_TYPES;
     MRVL_SAI_LOG_EXIT();
 }
 
@@ -2320,7 +3263,7 @@ static void mrvl_sai_acl_entry_add_to_table(_In_ uint32_t acl_entry_index, _In_ 
         *head_entry_index            = acl_entry_index;
         new_entry->next_acl_entry_index        = SAI_ACL_INVALID_INDEX;
         new_entry->prev_acl_entry_index        = SAI_ACL_INVALID_INDEX;
-    } else { /* next_emtry is added to head */
+    } else { /* next_entry is added to head */
         table_head_entry             = &mrvl_sai_acl_entry_db[*head_entry_index];
         new_entry->next_acl_entry_index        = *head_entry_index;
         new_entry->prev_acl_entry_index        = SAI_ACL_INVALID_INDEX;
@@ -2378,16 +3321,38 @@ static void mrvl_sai_acl_entry_remove_from_table(_In_ uint32_t acl_entry_index, 
     MRVL_SAI_LOG_EXIT();
 }
 
-/* add table to bound ports db and remove table from bound ports db internal functions */
-static void mrvl_sai_acl_table_add_to_bound_ports(_In_ uint32_t acl_table_index, _In_ uint32_t port)
+/* link table to bound point db and unlink table from bound point db internal functions */
+static void mrvl_sai_acl_table_link_to_bound_point(_In_ uint32_t acl_table_index, _In_ sai_acl_bind_point_type_t type, _In_ uint32_t iface)
 {
-	uint32_t                 *head_table_index  = &mrvl_sai_acl_bound_port_db[port].head_table_index;
-	mrvl_acl_bound_port_db_t *bound_port        = &mrvl_sai_acl_bound_port_db[port];
+	uint32_t                 *head_table_index  = 0;
+	mrvl_acl_bound_db_t      *bound_point        = 0;
 	mrvl_acl_table_db_t      *table_to_be_added = &mrvl_sai_acl_table_db[acl_table_index];
 	mrvl_acl_table_db_t      *table_head_current;
 
     MRVL_SAI_LOG_ENTER();
-    assert(bound_port != NULL);
+
+    switch (type) {
+    case SAI_ACL_BIND_POINT_TYPE_PORT:
+        head_table_index = &mrvl_sai_acl_bound_port_db[iface].head_table_index;
+        bound_point = &mrvl_sai_acl_bound_port_db[iface];
+        break;
+    case SAI_ACL_BIND_POINT_TYPE_LAG:
+        head_table_index = &mrvl_sai_acl_bound_lag_db[iface].lag_bound_db.head_table_index;
+        bound_point = &mrvl_sai_acl_bound_lag_db[iface].lag_bound_db;
+        break;
+    case SAI_ACL_BIND_POINT_TYPE_VLAN:
+        head_table_index = &mrvl_sai_acl_bound_vlan_db[iface].head_table_index;
+        bound_point = &mrvl_sai_acl_bound_vlan_db[iface];
+        break;
+    case SAI_ACL_BIND_POINT_TYPE_SWITCH:
+        head_table_index = &mrvl_sai_acl_bound_switch_db.head_table_index;
+        bound_point = &mrvl_sai_acl_bound_switch_db;
+        break;
+    default:
+        break;
+    }
+
+    assert(bound_point != NULL);
 
     if (SAI_ACL_INVALID_INDEX == *head_table_index) { /*       first entry */
         *head_table_index                        = acl_table_index;
@@ -2401,37 +3366,54 @@ static void mrvl_sai_acl_table_add_to_bound_ports(_In_ uint32_t acl_table_index,
         *head_table_index                        = acl_table_index;
     }
 
-    mrvl_sai_acl_bound_port_db[port].bound_tables_count++;
+    bound_point->bound_tables_count++;
 
-    MRVL_SAI_LOG_DBG("Number tables bound to port - %d is %d\n", port, mrvl_sai_acl_bound_port_db[port].bound_tables_count);
+    MRVL_SAI_LOG_DBG("Number tables bound to bind_point - %d type - %d is %d\n", iface, type, bound_point->bound_tables_count);
     MRVL_SAI_LOG_EXIT();
 
 }
 
-static void mrvl_sai_acl_table_remove_from_bound_ports(_In_ uint32_t acl_table_index, _In_ uint32_t port)
+static void mrvl_sai_acl_table_unlink_from_bound_point(_In_ uint32_t acl_table_index, _In_ sai_acl_bind_point_type_t type, _In_ uint32_t iface)
 {
-	mrvl_acl_bound_port_db_t *bound_port;
+	mrvl_acl_bound_db_t      *bound_point = 0;
 	mrvl_acl_table_db_t      *table_to_be_removed;
     uint32_t                  prev_index, next_index;
 
 
     MRVL_SAI_LOG_ENTER();
+    assert(SAI_ACL_INVALID_INDEX != acl_table_index);
+     
+    switch (type) {
+    case SAI_ACL_BIND_POINT_TYPE_PORT:
+         assert(SAI_ACL_PORTLIST_MAX_NUM > iface);
+         bound_point = &mrvl_sai_acl_bound_port_db[iface];
+         break;
+    case SAI_ACL_BIND_POINT_TYPE_LAG:
+         assert(SAI_LAG_MAX_GROUPS_CNS > iface);
+         bound_point = &mrvl_sai_acl_bound_lag_db[iface].lag_bound_db;
+         break;
+    case SAI_ACL_BIND_POINT_TYPE_VLAN:
+         assert(SAI_MAX_NUM_OF_VLANS > iface);
+         bound_point = &mrvl_sai_acl_bound_vlan_db[iface];
+         break;
+    case SAI_ACL_BIND_POINT_TYPE_SWITCH:
+         bound_point = &mrvl_sai_acl_bound_switch_db;
+         break;
+    default:
+        break;
+    }
 
-    assert(SAI_ACL_INVALID_INDEX != acl_table_index && SAI_MAX_NUM_OF_PORTS > port);
-
-    bound_port               = &mrvl_sai_acl_bound_port_db[port];
     table_to_be_removed      = &mrvl_sai_acl_table_db[acl_table_index];
     prev_index               = table_to_be_removed->prev_acl_table_index;
 	next_index               = table_to_be_removed->next_acl_table_index;
 
-	table_to_be_removed->bound_port              = SAI_ACL_INVALID_BOUND_PORT;
-	table_to_be_removed->next_acl_table_index    = SAI_ACL_INVALID_INDEX;
+ 	table_to_be_removed->next_acl_table_index    = SAI_ACL_INVALID_INDEX;
 	table_to_be_removed->prev_acl_table_index    = SAI_ACL_INVALID_INDEX;
 
     if (SAI_ACL_INVALID_INDEX == prev_index) { /* removing of head_entry_index */
     	if (next_index != SAI_ACL_INVALID_INDEX)
     		mrvl_sai_acl_table_db[next_index].prev_acl_table_index = SAI_ACL_INVALID_INDEX;
-    	bound_port->head_table_index = next_index;
+    	bound_point->head_table_index = next_index;
     } else {
     	mrvl_sai_acl_table_db[prev_index].next_acl_table_index = acl_table_index;
 
@@ -2440,14 +3422,18 @@ static void mrvl_sai_acl_table_remove_from_bound_ports(_In_ uint32_t acl_table_i
         }
     }
 
-    mrvl_sai_acl_bound_port_db[port].bound_tables_count--;
-
-    MRVL_SAI_LOG_DBG("Number tables bound to port - %d is %d\n", port, mrvl_sai_acl_bound_port_db[port].bound_tables_count);
+    bound_point->bound_tables_count--;
+    MRVL_SAI_LOG_DBG("Number tables bound to bind point - %d type - %d is %d\n", iface, type, bound_point->bound_tables_count);
     MRVL_SAI_LOG_EXIT();
 }
 
-/* Bind and unbind table to/from port */
-static sai_status_t mrvl_sai_acl_entry_update_with_port(_In_ void *arg, _In_ uint32_t acl_table_index, _In_ uint32_t port)
+/* Update FPA when binding to table is done */
+static sai_status_t mrvl_sai_acl_table_update(_In_ sai_acl_bind_point_type_t type,
+                                              _In_ int64_t attr, 
+                                              _In_ uint32_t acl_table_index,  
+                                              _In_ bool bind, 
+                                              _In_ uint32_t interface, 
+                                              _In_ uint32_t portbitmap)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
     FPA_STATUS    fpa_status = FPA_OK;
@@ -2463,33 +3449,113 @@ static sai_status_t mrvl_sai_acl_entry_update_with_port(_In_ void *arg, _In_ uin
 	acl_entry_index = mrvl_sai_acl_table_db[acl_table_index].head_entry_index;
 
 	while (acl_entry_index != SAI_ACL_INVALID_INDEX){
-		if (mrvl_sai_acl_entry_db[acl_entry_index].admin_state == true){
-			memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
-			fpa_flow_entry.cookie = mrvl_sai_acl_entry_db[acl_entry_index].fpa_cookie;
-			/* get by cookie from FPA */
-			fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
+        memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
+        fpa_flow_entry.cookie = mrvl_sai_acl_entry_db[acl_entry_index].fpa_cookie;
+        /* get by cookie from FPA */
+        fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
 
-			if (fpa_status != FPA_OK) {
-				MRVL_SAI_LOG_ERR("Failed to get entry from FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
-				/* TODO rollback */
-				status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
-				MRVL_SAI_API_RETURN(status);
-			}
+        if (fpa_status != FPA_OK) {
+            MRVL_SAI_LOG_ERR("Failed to get entry from FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+            /* TODO rollback */
+            status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(status);
+        }
 
-			if ((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL)
-				fpa_flow_entry.data.acl_policy.match.inPort = port;
-			else
-				fpa_flow_entry.data.acl_policy.match.outPort = port;
+        switch (type) {
 
-			/* update by cookie from FPA */
-			fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
-			if (fpa_status != FPA_OK) {
-				MRVL_SAI_LOG_ERR("Failed to update entry to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
-				/* TODO rollback */
-				status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
-				MRVL_SAI_API_RETURN(status);
-			}
-		}
+        case SAI_ACL_BIND_POINT_TYPE_PORT:
+            if ((attr != SAI_PORT_ATTR_INGRESS_ACL) && (attr != SAI_PORT_ATTR_EGRESS_ACL)){
+                MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", attr);
+                return (SAI_STATUS_INVALID_ATTRIBUTE_0+attr);
+            }
+
+            if (bind) {
+                if ((mrvl_sai_acl_entry_db[acl_entry_index].attr_port != SAI_ACL_INVALID_INTERFACE) &&
+                    (mrvl_sai_acl_entry_db[acl_entry_index].attr_port != (uint16_t)interface)){
+                    MRVL_SAI_LOG_ERR("Unable to bind table %d missmatch between attr_port %d and bind interface %d\n",
+                                    acl_table_index, mrvl_sai_acl_entry_db[acl_entry_index].attr_port, (uint16_t)interface);
+                    MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+                }
+                else {
+                  mrvl_acl_set_bit_MAC(fpa_flow_entry.data.acl_policy.match.portBmpVal, interface);
+                  mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+                }
+            }
+            else {
+                mrvl_acl_clear_bit_MAC(fpa_flow_entry.data.acl_policy.match.portBmpVal, interface);
+                mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+            }
+            break;
+
+        case SAI_ACL_BIND_POINT_TYPE_LAG:
+            if ((attr != SAI_LAG_ATTR_INGRESS_ACL) && (attr != SAI_LAG_ATTR_EGRESS_ACL)){
+                MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", attr);
+                return (SAI_STATUS_INVALID_ATTRIBUTE_0+attr);
+            }
+
+            fpa_flow_entry.data.acl_policy.match.portBmpVal = portbitmap;
+            mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+            break;
+
+        case SAI_ACL_BIND_POINT_TYPE_VLAN:
+            if ((attr != SAI_VLAN_ATTR_INGRESS_ACL) && (attr != SAI_VLAN_ATTR_EGRESS_ACL)){
+                MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", attr);
+                return (SAI_STATUS_INVALID_ATTRIBUTE_0+attr);
+            }
+
+            if (bind) {
+                if ((mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan != SAI_ACL_INVALID_INTERFACE) &&
+                    (mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan != (uint16_t)interface)){
+                    MRVL_SAI_LOG_ERR("Unable to bind table %d missmatch between attr_vlan %d and bind interface %d\n",
+                                    acl_table_index, mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan, (uint16_t)interface);
+                    MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+                }
+                else {
+                    fpa_flow_entry.data.acl_policy.match.vlanId = (uint16_t)interface;
+                    fpa_flow_entry.data.acl_policy.match.vlanIdMask = SAI_ACL_VLAN_MASK;
+
+                    /* open to all ports */
+                    mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpVal);
+                    mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+                }
+            }
+            else { /* remove vlan */
+                fpa_flow_entry.data.acl_policy.match.vlanId = 0;
+                mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.vlanIdMask);
+
+                /* close to all ports */
+                mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpVal);
+                mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+            }
+            break;
+
+        case SAI_ACL_BIND_POINT_TYPE_SWITCH:
+            if ((attr != SAI_SWITCH_ATTR_INGRESS_ACL) && (attr != SAI_SWITCH_ATTR_EGRESS_ACL)){
+                MRVL_SAI_LOG_ERR("Not supported attribute - PRId64\n", attr);
+                return (SAI_STATUS_INVALID_ATTRIBUTE_0+attr);
+            }
+
+            if (bind) { /* the rule must match to all ports - mask 0 */
+                mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+            }
+            else { /*no match to any port - set mask to no match to any port */
+                mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
+            }
+            break;
+
+        default:
+            MRVL_SAI_LOG_ERR("Not supported type - %d\n", type);
+            return (SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        /* update by cookie from FPA */
+        fpa_status = fpaLibFlowEntryModify(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, 0);
+        if (fpa_status != FPA_OK) {
+            MRVL_SAI_LOG_ERR("Failed to update entry to FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+            /* TODO rollback */
+            status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(status);
+        }
 		acl_entry_index = mrvl_sai_acl_entry_db[acl_entry_index].next_acl_entry_index;
 	}
 
@@ -2499,51 +3565,68 @@ static sai_status_t mrvl_sai_acl_entry_update_with_port(_In_ void *arg, _In_ uin
 }
 
 
-/* Bind table to port */
+/* Bind ACL table to port */
 sai_status_t mrvl_sai_acl_table_bind_to_port(_In_ void *arg,
 											_In_ const sai_object_id_t object_id,
-											_In_ uint32_t port_or_lag)
+											_In_ uint32_t port)
 
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
-    uint32_t acl_table_index = 0, port_index = port_or_lag;
+    uint32_t acl_table_index = 0;
 
     MRVL_SAI_LOG_ENTER();
+
+    if (((int64_t)arg != SAI_PORT_ATTR_INGRESS_ACL) && ((int64_t)arg != SAI_PORT_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (port >= SAI_ACL_PORTLIST_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Unsupported port %d is received\n", port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
 	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index)))
 		return status;
 
 	if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS){
-		if (((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL) || ((int64_t)arg == SAI_LAG_ATTR_INGRESS_ACL)){
+		if ((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL){
 			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d egress table stage, but bind acl attr - %d\n",
 			    			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
-			    	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+			MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
 		}
 	}
 	else { /* SAI_ACL_STAGE_INGRESS */
-		if (((int64_t)arg == SAI_PORT_ATTR_EGRESS_ACL) || ((int64_t)arg == SAI_LAG_ATTR_EGRESS_ACL)){
+		if ((int64_t)arg == SAI_PORT_ATTR_EGRESS_ACL){
 			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d ingress table stage, but bind acl attr - %d\n",
 							acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
-					MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
 		}
 	}
 
-	if (((int64_t)arg == SAI_LAG_ATTR_INGRESS_ACL) || ((int64_t)arg == SAI_LAG_ATTR_EGRESS_ACL)){
-		port_index = port_or_lag + SAI_MAX_NUM_OF_PORTS;
-	}
+    /* verify if table bind_point_types_bitmap corresponding to port type */
+    if (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, SAI_ACL_BIND_POINT_TYPE_PORT)){
+        MRVL_SAI_LOG_ERR("Table's bind_point_types_bitmap - %d is not matched, table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
-	if (mrvl_sai_acl_bound_port_db[port_index].is_bound == false){ /*(int64_t)arg first port binding */
-		mrvl_sai_acl_bound_port_db[port_index].head_table_index = SAI_ACL_INVALID_INDEX;
-	}
+    /* table can be bound to only one bound type */
+    if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES) &&
+        (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_PORT) ){
+        MRVL_SAI_LOG_ERR("Table's bound to bind point - %d to table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
-	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_entry_update_with_port(arg, acl_table_index, port_or_lag))){
-		MRVL_SAI_LOG_ERR("Can't bind port_or_lag - %d to table - %d \n", port_or_lag, acl_table_index);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_PORT, (int64_t)(arg), acl_table_index, true /* bind */, port, 0))){
+		MRVL_SAI_LOG_ERR("Can't bind port - %d to table - %d \n", port, acl_table_index);
 		MRVL_SAI_API_RETURN(status);
 	}
-	mrvl_sai_acl_bound_port_db[port_index].is_bound = true;
-	mrvl_sai_acl_table_add_to_bound_ports(acl_table_index, port_index);
 
-	mrvl_sai_acl_table_db[acl_table_index].bound_port = port_or_lag;
+	mrvl_sai_acl_table_link_to_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_PORT, port);
+
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_BIND_POINT_TYPE_PORT;
+    mrvl_acl_set_bit_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_portbitmap, port);  
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -2558,6 +3641,21 @@ sai_status_t mrvl_sai_acl_table_unbind_from_port(_In_ void *arg,
 
 
     MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_PORT_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_PORT_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (port >= SAI_ACL_PORTLIST_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Unsupported port %d is received\n", port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_port_db[port].bound_tables_count == 0){
+        MRVL_SAI_LOG_ERR("Port is not bound to any table - %d\n", port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
     while (mrvl_sai_acl_bound_port_db[port].head_table_index != SAI_ACL_INVALID_INDEX){
     	acl_table_index = mrvl_sai_acl_bound_port_db[port].head_table_index;
@@ -2568,20 +3666,23 @@ sai_status_t mrvl_sai_acl_table_unbind_from_port(_In_ void *arg,
         	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
         }
 
-		if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_entry_update_with_port(arg, acl_table_index, SAI_ACL_INVALID_BOUND_PORT))){
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_PORT, (int64_t)(arg), acl_table_index, false /* unbind */, port, 0))){
 			MRVL_SAI_LOG_ERR("Can't unbind port - %d from table - %d \n", port, acl_table_index);
 			MRVL_SAI_API_RETURN(status);
 		}
-		mrvl_sai_acl_table_remove_from_bound_ports(acl_table_index, port);
-    }
+		mrvl_sai_acl_table_unlink_from_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_PORT, port);
 
-    if (mrvl_sai_acl_bound_port_db[port].bound_tables_count == 0)
-    	mrvl_sai_acl_bound_port_db[port].is_bound = false;
+        mrvl_acl_clear_bit_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_portbitmap, port);
+        if (mrvl_acl_is_all_0_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_portbitmap)) {
+            mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_MAX_BIND_POINT_TYPES;
+        }
+    }
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
-
+#if 0 
+get function support sai_object_list_t
 sai_status_t mrvl_sai_acl_get_table_id_per_port(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
@@ -2618,440 +3719,647 @@ sai_status_t mrvl_sai_acl_get_table_id_per_port(_In_ void *arg, _In_ uint32_t po
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
+#endif
 
-static sai_status_t mrvl_sai_acl_fill_table_match_fields(_In_ uint32_t attr_count,
-														 _In_ const sai_attribute_t  *attr_list,
-														 _In_ sai_acl_stage_t  stage,
-														_Out_ uint32_t *table_fields_bitmap,
-														_Out_ bool *is_ipv6_table,
-														_Out_ bool *is_ipv4_table,
-														_Out_ bool *is_non_ip_table,
-														_Out_ bool *is_egress_ipv4_table)
+sai_status_t mrvl_sai_acl_get_table_id_per_port(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value)
 {
-    uint32_t i;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+    sai_object_id_t acl_table_id = SAI_NULL_OBJECT_ID;
 
     MRVL_SAI_LOG_ENTER();
 
-    assert(attr_list != NULL);
-    assert(table_fields_bitmap != NULL);
-    assert(is_ipv6_table != NULL);
-    assert(is_ipv4_table != NULL);
-    assert(is_non_ip_table != NULL);
-
-    for (i = 0; i < attr_count; i++) {
-        if (SAI_STATUS_SUCCESS !=
-        		    	mrvl_sai_set_mapping_field_for_table_attrib(attr_list[i].id, table_fields_bitmap)){
-        	MRVL_SAI_LOG_DBG("Unsupported attribute in field match db\n");
-        }
-    }
-
-    if ((mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
-    	mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) &&
-       (mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
-		mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP))){
-		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 and ipv6 addresses \n");
-		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-
-    if (mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
-        mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)){
-    	*is_ipv6_table = true;
-    }
-    else if (mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
-    		mrvl_acl_match_is_field_exist_MAC(*table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP)){
-    	if (stage == SAI_ACL_STAGE_EGRESS){
-    		*is_egress_ipv4_table = true;
-    	}
-    	else {
-    		*is_ipv4_table = true;
-    	}
-    }
-    else
-    	*is_non_ip_table = true;
-
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-}
-
-static sai_status_t mrvl_sai_acl_validate_and_fill_table_action_type_list(_In_ const sai_s32_list_t *attr_list, 
-                                                                          _In_ uint32_t              attr_index,
-                                                                          _In_ sai_acl_stage_t stage,
-                                                                          _Out_ uint32_t *action_types_bitmap)
-{
-    uint32_t i;;
-    sai_acl_action_type_t action_type;
-
-    MRVL_SAI_LOG_ENTER();
-
-    assert(attr_list != NULL);
-    assert(action_types_bitmap != NULL);
-
-
-    for (i = 0; i < attr_list->count; i++) {
-        action_type = attr_list->list[i];
-
-        if (action_type > SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN) {
-            MRVL_SAI_LOG_ERR("Invalid action type (%d) at index [%d] in the list\n", action_type, i);
-            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
-        }
-
-        if ((stage == SAI_ACL_STAGE_INGRESS) && 
-           ((action_type == SAI_ACL_ACTION_TYPE_MIRROR_EGRESS) ||
-            (action_type == SAI_ACL_ACTION_TYPE_EGRESS_SAMPLEPACKET_ENABLE) ||
-            (action_type == SAI_ACL_ACTION_TYPE_EGRESS_BLOCK_PORT_LIST))){
-            MRVL_SAI_LOG_ERR("Invalid combination stage (%d) action type (%d) at index [%d] in the list\n", stage, action_type, i);
-            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
-        }
-        else if ((stage == SAI_ACL_STAGE_EGRESS) && 
-           ((action_type == SAI_ACL_ACTION_TYPE_MIRROR_INGRESS) ||
-            (action_type == SAI_ACL_ACTION_TYPE_INGRESS_SAMPLEPACKET_ENABLE))){
-            MRVL_SAI_LOG_ERR("Invalid combination stage (%d) action type (%d) at index [%d] in the list\n", stage, action_type, i);
-            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
-        }
-
-        if (mrvl_acl_match_is_field_exist_MAC(*action_types_bitmap, action_type)) {
-            MRVL_SAI_LOG_ERR("Already exist action type (%d)", action_type);
-            return SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_index;
-        }
-
-        mrvl_acl_match_set_field_exist_MAC(*action_types_bitmap, action_type);
-    }
-
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-}
-
-/* the function checks match fields attribute validity vs table attributes, validates attr values and builds fields bitmap and match fpa structure  */
-static sai_status_t mrvl_sai_acl_fill_entry_match_fields(_In_ uint32_t attr_count, _In_ sai_attribute_t const *attr_list, _In_ uint32_t table_fields_bitmap,
-														_Out_ uint32_t *entry_fields_bitmap, _Out_ FPA_FLOW_TABLE_MATCH_FIELDS_ACL_POLICY_STC *fpa_match_entry)
-{
-    const sai_attribute_value_t  *tmp_value, *src_mac, *dest_mac;
-    uint32_t tmp_index = 0, in_port = 0, src_port = 0, out_port = 0;
-    sai_status_t status;
-
-    MRVL_SAI_LOG_ENTER();
-
-    assert(attr_list != NULL);
-    assert(entry_fields_bitmap != NULL);
-    assert(fpa_match_entry != NULL);
-
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_SRC_IPV6);
-        	memcpy(&fpa_match_entry->ipv6.srcIp6, &tmp_value->aclfield.data.ip6, sizeof(tmp_value->aclfield.data.ip6));
-        	memcpy(&fpa_match_entry->ipv6.srcIp6Mask, &tmp_value->aclfield.mask.ip6, sizeof(tmp_value->aclfield.mask.ip6));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPv6 is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_DST_IPV6);
-        	memcpy(&fpa_match_entry->ipv6.dstIp6, &tmp_value->aclfield.data.ip6, sizeof(tmp_value->aclfield.data.ip6));
-        	memcpy(&fpa_match_entry->ipv6.dstIp6Mask, &tmp_value->aclfield.mask.ip6, sizeof(tmp_value->aclfield.mask.ip6));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_IPv6 is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC, &src_mac, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_MAC)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_SRC_MAC);
-        	memcpy(&fpa_match_entry->srcMac, &src_mac->aclfield.data.mac, sizeof(src_mac->aclfield.data.mac));
-        	memcpy(&fpa_match_entry->srcMacMask, &src_mac->aclfield.mask.mac, sizeof(src_mac->aclfield.mask.mac));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC, &dest_mac, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_MAC)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_DST_MAC);
-        	memcpy(&fpa_match_entry->dstMac, &dest_mac->aclfield.data.mac, sizeof(dest_mac->aclfield.data.mac));
-        	memcpy(&fpa_match_entry->dstMacMask, &dest_mac->aclfield.mask.mac, sizeof(dest_mac->aclfield.mask.mac));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_SRC_IP);
-        	memcpy(&fpa_match_entry->srcIp4, &tmp_value->aclfield.data.ip4, sizeof(tmp_value->aclfield.data.ip4));
-        	memcpy(&fpa_match_entry->srcIp4Mask, &tmp_value->aclfield.mask.ip4, sizeof(tmp_value->aclfield.mask.ip4));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DST_IP, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_DST_IP);
-        	memcpy(&fpa_match_entry->dstIp4, &tmp_value->aclfield.data.ip4, sizeof(tmp_value->aclfield.data.ip4));
-        	memcpy(&fpa_match_entry->dstIp4Mask, &tmp_value->aclfield.mask.ip4, sizeof(tmp_value->aclfield.mask.ip4));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DST_IP is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if ((mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
-    	mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) &&
-       (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IP) ||
-		mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IP))){
-		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 and ipv6 addresses \n");
-		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_OUT_PORT);
-            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &out_port))) {
-                return status;
-            }
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_IN_PORT);
-            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &in_port))) {
-                return status;
-            }
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_SRC_PORT);
-            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tmp_value->aclfield.data.oid, SAI_OBJECT_TYPE_PORT, &src_port))) {
-                return status;
-            }
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) &&
-         mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT) &&
-         (in_port != src_port)){
-        MRVL_SAI_LOG_ERR("Illegal combination of SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT and SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT in_port - %d src_port - %d\n", in_port, src_port);
+    if (((int64_t)arg != SAI_PORT_ATTR_INGRESS_ACL) && ((int64_t)arg != SAI_PORT_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    if (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) &&
-         mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)){
-        MRVL_SAI_LOG_ERR("Illegal combination of SAI_ACL_MATCH_FIELD_IN_PORT and SAI_ACL_MATCH_FIELD_OUT_PORT in_port - %d out_port - %d\n", in_port, out_port);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    if (mrvl_sai_acl_bound_port_db[port].head_table_index == SAI_ACL_INVALID_INDEX){
+        value->oid = SAI_NULL_OBJECT_ID;
+    }
+    else {
+    	acl_table_index = mrvl_sai_acl_bound_port_db[port].head_table_index;
+    	if ((((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_PORT_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_PORT) &&
+            (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES)){
+            MRVL_SAI_LOG_ERR("Missmatch for table bind point %d of table acl_table_index - %d\n", 
+                             mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+            MRVL_SAI_API_RETURN(status);
+        }
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, acl_table_index, &acl_table_id))) {
+        	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE acl_table_index - %d\n", acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+
+    	value->oid = acl_table_id;
     }
 
-    if (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) ||
-        mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT)){
-		memcpy(&fpa_match_entry->inPort, &in_port, sizeof(in_port));
-		memset(&fpa_match_entry->inPortMask, SAI_ACL_BOUND_PORT_MASK, sizeof(uint32_t));
-    }
-    else if (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)) {
-    	memcpy(&fpa_match_entry->outPort, &out_port, sizeof(out_port));
-    	memset(&fpa_match_entry->outPortMask, SAI_ACL_BOUND_PORT_MASK, sizeof(uint32_t));
-    }
 
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_ID)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_OUTER_VLAN_ID);
-        	memcpy(&fpa_match_entry->vlanId, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->vlanIdMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_PRI)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_OUTER_VLAN_PRI);
-        	memcpy(&fpa_match_entry->vlanPcp, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->vlanPcpMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_SRC_PORT)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_L4_SRC_PORT);
-        	memcpy(&fpa_match_entry->srcL4Port, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->srcL4PortMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_L4_DST_PORT)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_L4_DST_PORT);
-        	memcpy(&fpa_match_entry->dstL4Port, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->dstL4PortMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ETHER_TYPE)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_ETHER_TYPE);
-        	memcpy(&fpa_match_entry->etherType, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->etherTypeMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_IP_PROTOCOL)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_IP_PROTOCOL);
-        	memcpy(&fpa_match_entry->ipProtocol, &tmp_value->aclfield.data.u16, sizeof(tmp_value->aclfield.data.u16));
-        	memcpy(&fpa_match_entry->ipProtocolMask, &tmp_value->aclfield.mask.u16, sizeof(tmp_value->aclfield.mask.u16));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_DSCP, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_DSCP)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_DSCP);
-        	memcpy(&fpa_match_entry->dscp, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
-        	memcpy(&fpa_match_entry->dscpMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_DSCP is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    /* TODO add support of iptype*/
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_TYPE)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_ACL_IP_TYPE);
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    /* TODO add support of ipfrag*/
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_FRAG, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_FRAG)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_ACL_IP_FRAG);
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_IP_FRAG is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_TYPE)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_ICMP_TYPE);
-        	memcpy(&fpa_match_entry->icmpV4Type, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
-        	memcpy(&fpa_match_entry->icmpV4TypeMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE, &tmp_value, &tmp_index)) {
-        if (mrvl_acl_match_is_field_exist_MAC(table_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_CODE)) {
-        	*entry_fields_bitmap |=  (1 << SAI_ACL_MATCH_FIELD_ICMP_CODE);
-        	memcpy(&fpa_match_entry->icmpV4Code, &tmp_value->aclfield.data.u8, sizeof(tmp_value->aclfield.data.u8));
-        	memcpy(&fpa_match_entry->icmpV4CodeMask, &tmp_value->aclfield.mask.u8, sizeof(tmp_value->aclfield.mask.u8));
-        }
-        else {
-            MRVL_SAI_LOG_ERR("Attribute SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE is not part of table attributes\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-        }
-    }
-
-    if ((mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_IPV6) ||
-    	mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_DST_IPV6)) &&
-       (mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_TYPE) ||
-		mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ICMP_CODE) ||
-		mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_IP_PROTOCOL) ||
-		mrvl_acl_match_is_field_exist_MAC(*entry_fields_bitmap, SAI_ACL_MATCH_FIELD_ACL_IP_FRAG))){
-		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 fields and ipv6 addresses collision\n");
-		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
     MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
-/* the function checks match actions attribute validity vs table attributes, validates attr values and builds actions bitmap and match actions structure  */
-static sai_status_t mrvl_sai_acl_fill_entry_match_actions(_In_ uint32_t attr_count, _In_ const sai_attribute_t  *attr_list, _In_ uint32_t table_actions_bitmap,
-														_Out_ uint32_t *entry_actions_bitmap, _Out_ bool *is_drop)
+/* LAG */
+/* the function called when port is added/removed to/from lag  */
+sai_status_t mrvl_sai_acl_lag_port_update(_In_ uint32_t lag, _In_ uint32_t port, _In_ bool is_added)
 {
-    const sai_attribute_value_t  *tmp_value;
-    uint32_t tmp_index = 0;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0, 
+             aggr_portbitmap = 0,
+             portbitmap = 0,
+             attr;
 
     MRVL_SAI_LOG_ENTER();
 
-    assert(attr_list != NULL);
-    assert(entry_actions_bitmap != NULL);
+    if (mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index == SAI_ACL_INVALID_INDEX){
+        MRVL_SAI_LOG_EXIT();
+        MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    }
 
-    if (SAI_STATUS_SUCCESS ==
-    		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION, &tmp_value, &tmp_index)) {
-		*entry_actions_bitmap |=  (1 << SAI_ACL_MATCH_ACTION_PACKET_ACTION);
-		if (tmp_value->u32 != SAI_PACKET_ACTION_DROP){
-			MRVL_SAI_LOG_ERR("Value of SAI_ACL_ENTRY_ATTR_PACKET_ACTION is not available - %d\n", tmp_value->u32);
+    if (port >= SAI_ACL_PORTLIST_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Unsupported port %d is received\n", port);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    acl_table_index = mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index;
+    if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_LAG) &&
+        (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES)){
+        MRVL_SAI_LOG_ERR("Missmatch for table bind point %d of table acl_table_index - %d\n", 
+                         mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (!is_added && !mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_bound_lag_db[lag].portbitmap, port)){
+        MRVL_SAI_LOG_ERR("Port %d lag %d missmatch\n", 
+                         port, lag);
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    }
+
+    if (is_added && mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_bound_lag_db[lag].portbitmap, port)){
+        MRVL_SAI_LOG_ERR("Port %d lag %d missmatch\n", 
+                         port, lag);
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    }
+
+    if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS)
+        attr = SAI_LAG_ATTR_INGRESS_ACL;
+    else 
+        attr = SAI_LAG_ATTR_EGRESS_ACL;
+
+    portbitmap      = mrvl_sai_acl_bound_lag_db[lag].portbitmap;
+    aggr_portbitmap = mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap;
+
+    if (is_added) {
+        mrvl_acl_set_bit_MAC(portbitmap, port);
+        mrvl_acl_set_bit_MAC(aggr_portbitmap, port);
+    }
+    else {
+        mrvl_acl_clear_bit_MAC(portbitmap, port);
+        mrvl_acl_clear_bit_MAC(aggr_portbitmap, port);
+    }
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_LAG, (int64_t)attr, acl_table_index, true /* bind */, lag, aggr_portbitmap))){
+		MRVL_SAI_LOG_ERR("Can't update lag - %d by port %d to table - %d \n", lag, port, acl_table_index);
+		MRVL_SAI_API_RETURN(status);
+	}
+
+    mrvl_sai_acl_bound_lag_db[lag].portbitmap = portbitmap; /* update new lag portbitmap */ 
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap = aggr_portbitmap;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+
+/* Bind ACL table to lag */
+sai_status_t mrvl_sai_acl_table_bind_to_lag(_In_ void *arg,
+											_In_ const sai_object_id_t object_id,
+											_In_ uint32_t lag)
+
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0, 
+             aggr_portbitmap = 0,
+             portbitmap = 0,
+             port, i;
+    sai_object_list_t port_objlist;
+    sai_object_id_t   port_id[SAI_LAG_MAX_GROUPS_CNS] = {0};
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (((int64_t)arg != SAI_LAG_ATTR_INGRESS_ACL) && ((int64_t)arg != SAI_LAG_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index)))
+		return status;
+
+	if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS){
+		if ((int64_t)arg == SAI_LAG_ATTR_INGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d egress table stage, but bind acl attr - %d\n",
+			    			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
 			MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
 		}
-		else
-			*is_drop = true;
+	}
+	else { /* SAI_ACL_STAGE_INGRESS */
+		if ((int64_t)arg == SAI_LAG_ATTR_EGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d ingress table stage, but bind acl attr - %d\n",
+							acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+		}
+	}
+
+    /* verify if table bind_point_types_bitmap corresponding to port type */
+    if (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, SAI_ACL_BIND_POINT_TYPE_LAG)){
+        MRVL_SAI_LOG_ERR("Table's bind_point_types_bitmap - %d is not matched, table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    /* table can be bound to only one bound type */
+    if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES) &&
+        (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_LAG) ){
+        MRVL_SAI_LOG_ERR("Table's bound to bind point - %d to table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    /* get port members of lag */
+    port_objlist.count = 0;
+    port_objlist.list = port_id;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_lag_port_list(lag, &port_objlist))){
+        MRVL_SAI_LOG_ERR("Can't get portbitmap for lag - %d to table - %d \n", lag, acl_table_index);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    /* translate port_objlist to port bitmap */
+    for (i=0; i<port_objlist.count; i++) {
+        if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_objlist.list[i], SAI_OBJECT_TYPE_PORT, &port)) {
+            MRVL_SAI_LOG_ERR("invalid port_objlist\n");
+            return SAI_STATUS_INVALID_PARAMETER;
+        } 
+        if (port >= SAI_ACL_PORTLIST_MAX_NUM){
+            MRVL_SAI_LOG_ERR("Unsupported port %d is received\n", port);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+        mrvl_acl_set_bit_MAC(portbitmap, port);
+    }
+
+    aggr_portbitmap = portbitmap | mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap;
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_LAG, (int64_t)(arg), acl_table_index, true /* bind */, lag, aggr_portbitmap))){
+		MRVL_SAI_LOG_ERR("Can't bind lag - %d to table - %d \n", lag, acl_table_index);
+		MRVL_SAI_API_RETURN(status);
+	}
+
+	mrvl_sai_acl_table_link_to_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_LAG, lag);
+    mrvl_sai_acl_bound_lag_db[lag].portbitmap = portbitmap; /* update new lag portbitmap */
+
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type                = SAI_ACL_BIND_POINT_TYPE_LAG;
+    mrvl_acl_set_bit_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.bound_lagbitmap, lag);  
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap = aggr_portbitmap;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* unbind  ACL table from the lag */
+sai_status_t mrvl_sai_acl_table_unbind_from_lag(_In_ void *arg,
+												_In_ uint32_t lag)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0,
+             aggr_portbitmap = 0,
+             portbitmap = 0,
+             port, i;
+    sai_object_list_t port_objlist;
+    sai_object_id_t   port_id[SAI_LAG_MAX_GROUPS_CNS] = {0};
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (((int64_t)arg != SAI_LAG_ATTR_INGRESS_ACL) && ((int64_t)arg != SAI_LAG_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.bound_tables_count == 0){
+        MRVL_SAI_LOG_ERR("Lag %d is not bound to any table\n", lag);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    while (mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index != SAI_ACL_INVALID_INDEX){
+    	acl_table_index = mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index;
+    	if ((((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_PORT_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        /* get port members of lag */
+        port_objlist.count = 0;
+        port_objlist.list = port_id;
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_get_lag_port_list(lag, &port_objlist))){
+            MRVL_SAI_LOG_ERR("Can't get portbitmap for lag - %d to table - %d \n", lag, acl_table_index);
+            MRVL_SAI_API_RETURN(status);
+        }
+
+        /* translate port_objlist to port bitmap */
+        for (i=0; i<port_objlist.count; i++) {
+            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_objlist.list[i], SAI_OBJECT_TYPE_PORT, &port)) {
+                MRVL_SAI_LOG_ERR("invalid port_objlist\n");
+                return SAI_STATUS_INVALID_PARAMETER;
+            } 
+            mrvl_acl_set_bit_MAC(portbitmap, port);
+        }
+
+        /* substruct the portbitmap from aggr_portbitmap */
+        aggr_portbitmap = ~portbitmap & mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap;
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_LAG, (int64_t)(arg), acl_table_index, false /* unbind */, lag, aggr_portbitmap))){
+			MRVL_SAI_LOG_ERR("Can't unbind lag - %d from table - %d \n", lag, acl_table_index);
+			MRVL_SAI_API_RETURN(status);
+		}
+
+		mrvl_sai_acl_table_unlink_from_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_LAG, lag);
+        mrvl_sai_acl_bound_lag_db[lag].portbitmap = 0; /* update new lag portbitmap */
+
+        mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.aggr_portbitmap = aggr_portbitmap;
+        mrvl_acl_clear_bit_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.bound_lagbitmap, lag); 
+        if (mrvl_acl_is_all_0_MAC(mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_lag.bound_lagbitmap))
+            mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_MAX_BIND_POINT_TYPES;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+sai_status_t mrvl_sai_acl_get_table_id_per_lag(_In_ void *arg, _In_ uint32_t lag, _Inout_ sai_attribute_value_t *value)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+    sai_object_id_t acl_table_id = SAI_NULL_OBJECT_ID;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (((int64_t)arg != SAI_LAG_ATTR_INGRESS_ACL) && ((int64_t)arg != SAI_LAG_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index == SAI_ACL_INVALID_INDEX){
+        value->oid = SAI_NULL_OBJECT_ID;
+    }
+    else {
+    	acl_table_index = mrvl_sai_acl_bound_lag_db[lag].lag_bound_db.head_table_index;
+
+        if ((((int64_t)arg == SAI_LAG_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_LAG_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_LAG) &&
+            (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES)){
+            MRVL_SAI_LOG_ERR("Missmatch for table bind point %d of table acl_table_index - %d\n", 
+                             mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+            MRVL_SAI_API_RETURN(status);
+        }
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, acl_table_index, &acl_table_id))) {
+        	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE acl_table_index - %d\n", acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+
+    	value->oid = acl_table_id;
+    }
+
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* Bind table to switch */
+sai_status_t mrvl_sai_acl_table_bind_to_switch(_In_ void *arg,
+											_In_ const sai_object_id_t object_id,
+											_In_ uint32_t switch_idx)
+
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_SWITCH_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_SWITCH_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+
+	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index)))
+		return status;
+
+	if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS){
+		if ((int64_t)arg == SAI_SWITCH_ATTR_INGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d egress table stage, but bind acl attr - %d\n",
+			    			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+			    	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+		}
+	}
+	else { /* SAI_ACL_STAGE_INGRESS */
+		if ((int64_t)arg == SAI_SWITCH_ATTR_EGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d ingress table stage, but bind acl attr - %d\n",
+							acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+					MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+		}
+	}
+
+    /* verify if table bind_point_types_bitmap corresponding to switch type */
+    if (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, SAI_ACL_BIND_POINT_TYPE_SWITCH)){
+        MRVL_SAI_LOG_ERR("Table's bind_point_types_bitmap - %d is not matched, table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    /* verify if table table_fields_bitmap corresponding to switch type */
+    if (mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap, SAI_ACL_MATCH_FIELD_SRC_PORT) ||
+        mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap, SAI_ACL_MATCH_FIELD_IN_PORT) ||
+        mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUT_PORT)||
+        mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap, SAI_ACL_MATCH_FIELD_OUTER_VLAN_ID)){
+        MRVL_SAI_LOG_ERR("Table's table_fields_bitmap - %d is not matched, table - %d \n", mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    /* table can be bound to only once */
+    if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES) {
+        MRVL_SAI_LOG_ERR("Table is already bound to bind point - %d to table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_SWITCH, (int64_t)(arg), acl_table_index, true /* bind */, 0, 0))){
+		MRVL_SAI_LOG_ERR("Can't bind switch to table - %d \n", acl_table_index);
+		MRVL_SAI_API_RETURN(status);
+	}
+
+	mrvl_sai_acl_table_link_to_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_SWITCH, 0);
+
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_BIND_POINT_TYPE_SWITCH;
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_switch = SAI_DEFAULT_ETH_SWID_CNS;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* unbind  ACL table from the switch */
+sai_status_t mrvl_sai_acl_table_unbind_from_switch(_In_ void *arg,
+												_In_ uint32_t switch_idx)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_SWITCH_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_SWITCH_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    if (mrvl_sai_acl_bound_switch_db.bound_tables_count == 0){
+        MRVL_SAI_LOG_ERR("switch is not bound to any table\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    while (mrvl_sai_acl_bound_switch_db.head_table_index != SAI_ACL_INVALID_INDEX){
+    	acl_table_index = mrvl_sai_acl_bound_switch_db.head_table_index;
+    	if ((((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_PORT_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+		if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_SWITCH, (int64_t)(arg), acl_table_index, false /* unbind */, 0, 0))){
+			MRVL_SAI_LOG_ERR("Can't unbind switch from table - %d \n", acl_table_index);
+			MRVL_SAI_API_RETURN(status);
+		}
+		mrvl_sai_acl_table_unlink_from_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_SWITCH, 0);
+        mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_MAX_BIND_POINT_TYPES;
+        mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_switch = SAI_ACL_INVALID_INTERFACE;
     }
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-
 }
+sai_status_t mrvl_sai_acl_get_table_id_per_switch(_In_ void *arg, _In_ uint32_t switch_idx, _Inout_ sai_attribute_value_t *value)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+    sai_object_id_t acl_table_id = SAI_NULL_OBJECT_ID;
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_SWITCH_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_SWITCH_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_switch_db.head_table_index == SAI_ACL_INVALID_INDEX){
+        value->oid = SAI_NULL_OBJECT_ID;
+    }
+    else {
+    	acl_table_index = mrvl_sai_acl_bound_switch_db.head_table_index;
+    	if ((((int64_t)arg == SAI_SWITCH_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_SWITCH_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_SWITCH) &&
+           (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES)){
+            MRVL_SAI_LOG_ERR("Another interface type %d is bound to table acl_table_index - %d\n", 
+                             mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+            MRVL_SAI_API_RETURN(status);
+        }
+
+        if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_switch != switch_idx) {
+        	MRVL_SAI_LOG_ERR("switch is not bound to table acl_table_index - %d\n", acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, acl_table_index, &acl_table_id))) {
+        	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE acl_table_index - %d\n", acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+    	value->oid = acl_table_id;
+    }
+
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* Bind table to vlan */
+sai_status_t mrvl_sai_acl_table_bind_to_vlan(_In_ void *arg,
+											_In_ const sai_object_id_t object_id,
+											_In_ uint32_t vlan_idx)
+
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_VLAN_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_VLAN_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index)))
+		return status;
+
+	if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS){
+		if ((int64_t)arg == SAI_VLAN_ATTR_INGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d egress table stage, but bind acl attr - %d\n",
+			    			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+			MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+		}
+	}
+	else { /* SAI_ACL_STAGE_INGRESS */
+		if ((int64_t)arg == SAI_VLAN_ATTR_EGRESS_ACL){
+			MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d ingress table stage, but bind acl attr - %d\n",
+							acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+		}
+	}
+
+    /* verify if table bind_point_types_bitmap corresponding to vlan type */
+    if (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, SAI_ACL_BIND_POINT_TYPE_VLAN)){
+        MRVL_SAI_LOG_ERR("Table's bind_point_types_bitmap - %d is not matched, table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    /* table can be bound to only once */
+    if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES) && 
+        (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_VLAN)) {
+        MRVL_SAI_LOG_ERR("Table's bound to bind point - %d to table - %d \n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_VLAN, (int64_t)(arg), acl_table_index, true /* true */, vlan_idx, 0))){
+		MRVL_SAI_LOG_ERR("Can't bind vlan - %d to table - %d \n", vlan_idx, acl_table_index);
+		MRVL_SAI_API_RETURN(status);
+	}
+
+	mrvl_sai_acl_table_link_to_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_VLAN, vlan_idx);
+
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_BIND_POINT_TYPE_VLAN;
+	mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan = vlan_idx;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/* unbind  ACL table from the vlan */
+sai_status_t mrvl_sai_acl_table_unbind_from_vlan(_In_ void *arg,
+												_In_ uint32_t vlan_idx)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_VLAN_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_VLAN_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_vlan_db[vlan_idx].bound_tables_count == 0){
+        MRVL_SAI_LOG_ERR("VLAN index is not bound to any table - %d\n", vlan_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    while (mrvl_sai_acl_bound_vlan_db[vlan_idx].head_table_index != SAI_ACL_INVALID_INDEX){
+    	acl_table_index = mrvl_sai_acl_bound_vlan_db[vlan_idx].head_table_index;
+    	if ((((int64_t)arg == SAI_VLAN_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_VLAN_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+		if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_update(SAI_ACL_BIND_POINT_TYPE_VLAN, (sai_int64_t)(arg), acl_table_index, false, vlan_idx, 0))){
+			MRVL_SAI_LOG_ERR("Can't unbind vlan_idx - %d from table - %d \n", vlan_idx, acl_table_index);
+			MRVL_SAI_API_RETURN(status);
+		}
+		mrvl_sai_acl_table_unlink_from_bound_point(acl_table_index, SAI_ACL_BIND_POINT_TYPE_VLAN, vlan_idx);
+
+        mrvl_sai_acl_table_db[acl_table_index].bound_interface.type = SAI_ACL_MAX_BIND_POINT_TYPES;
+        mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan = SAI_ACL_INVALID_INTERFACE;
+
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+sai_status_t mrvl_sai_acl_get_table_id_per_vlan(_In_ void *arg, _In_ uint32_t vlan_idx, _Inout_ sai_attribute_value_t *value)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t acl_table_index = 0;
+    sai_object_id_t acl_table_id = SAI_NULL_OBJECT_ID;
+
+    MRVL_SAI_LOG_ENTER();
+    if (((int64_t)arg != SAI_VLAN_ATTR_INGRESS_ACL) &&((int64_t)arg != SAI_VLAN_ATTR_EGRESS_ACL)){
+        MRVL_SAI_LOG_ERR("Wrong attr %d is received\n",
+                            (int64_t)arg);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (mrvl_sai_acl_bound_vlan_db[vlan_idx].head_table_index == SAI_ACL_INVALID_INDEX){
+        value->oid = SAI_NULL_OBJECT_ID;
+    }
+    else {
+        acl_table_index = mrvl_sai_acl_bound_vlan_db[vlan_idx].head_table_index;
+    	if ((((int64_t)arg == SAI_VLAN_ATTR_INGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS)) ||
+			(((int64_t)arg == SAI_VLAN_ATTR_EGRESS_ACL) && (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_INGRESS))){
+        	MRVL_SAI_LOG_ERR("Missmatch for binding stages for acl_table_index - %d, mrvl_sai_acl_table_db[acl_table_index].stage - %d, bind acl attr - %d\n",
+        			acl_table_index, mrvl_sai_acl_table_db[acl_table_index].stage, (int64_t)arg);
+        	MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        }
+
+        if ((mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_BIND_POINT_TYPE_VLAN)  &&
+            (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES)){
+            MRVL_SAI_LOG_ERR("Another interface type %d is bound to table acl_table_index - %d\n", 
+                             mrvl_sai_acl_table_db[acl_table_index].bound_interface.type, acl_table_index);
+            MRVL_SAI_API_RETURN(status);
+        }
+
+        if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan != vlan_idx){
+        	MRVL_SAI_LOG_ERR("Another vlan %d is bound to table acl_table_index - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.id.bound_vlan, acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, acl_table_index, &acl_table_id))) {
+        	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE acl_table_index - %d\n", acl_table_index);
+        	MRVL_SAI_API_RETURN(status);
+        }
+
+    	value->oid = acl_table_id;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
 /**
  * Routine Description:
  *   @brief Set ACL table attribute
@@ -3221,7 +4529,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
 {
     char    acl_str[MAX_KEY_STR_LEN];
     char    list_str[MAX_LIST_VALUE_STR_LEN];
-    const sai_attribute_value_t *stage, *size, /**group_id,*/ *bind_point_types, *action_types;
+    const sai_attribute_value_t *stage, *size, *bind_point_types, *action_types;
     uint32_t tmp_index;
     sai_status_t  status;
     uint32_t      acl_table_index  = 0, acl_table_size = 0;
@@ -3300,7 +4608,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
     if (SAI_STATUS_SUCCESS ==
             (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_TABLE_ATTR_ACL_ACTION_TYPE_LIST, &action_types, &tmp_index))){
         if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_acl_validate_and_fill_table_action_type_list(&action_types->s32list,
+            (status = mrvl_sai_acl_table_validate_action_type_list(&action_types->s32list,
                                                               tmp_index,
                                                               (sai_acl_stage_t)(stage->u32),
                                                               &table_actions_bitmap))){
@@ -3331,9 +4639,8 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
-    MRVL_SAI_LOG_DBG("READ-WRITE attributes: stage - %d bind_point count - %d actions count - %d size->u32 - %d\n",
+    MRVL_SAI_LOG_DBG("READ-WRITE attributes: stage - %d, bind_point count - %d, actions count - %d, table size - %d\n",
     		stage->u32, bind_point_types->u32list.count, action_types->u32list.count, size->u32);
-
 
     if (true == is_non_ip_table){
     	fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
@@ -3376,7 +4683,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
     mrvl_sai_acl_table_db[acl_table_index].head_entry_index       = SAI_ACL_INVALID_INDEX;
 
     mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap  = table_bind_point_bitmap;
-    mrvl_sai_acl_table_db[acl_table_index].bound_port             = SAI_ACL_INVALID_BOUND_PORT;
+    mrvl_sai_acl_table_db[acl_table_index].bound_interface.type     = SAI_ACL_MAX_BIND_POINT_TYPES;
     mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap    = table_fields_bitmap;
     mrvl_sai_acl_table_db[acl_table_index].table_actions_bitmap   = table_actions_bitmap;
 
@@ -3432,9 +4739,9 @@ sai_status_t mrvl_remove_acl_table(_In_ sai_object_id_t acl_table_id)
     /* error to delete table with valid group */
     assert(mrvl_sai_acl_table_db[acl_table_index].acl_group_index != SAI_ACL_INVALID_INDEX);
 
-    /* can remove act table that is bound to port */
-    if (mrvl_sai_acl_table_db[acl_table_index].bound_port != SAI_ACL_INVALID_BOUND_PORT){
-		MRVL_SAI_LOG_ERR("Unable to remove ACT Table - bound to port - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_port);
+    /* can remove act table that is bound  */
+    if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type != SAI_ACL_MAX_BIND_POINT_TYPES){
+		MRVL_SAI_LOG_ERR("Unable to remove ACT Table - bound to interface - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_interface.type);
 		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
@@ -3470,7 +4777,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     char    list_str[MAX_LIST_VALUE_STR_LEN];
     const sai_attribute_value_t *priority, *table_id, *admin_state;
     uint32_t temp_index;
-    uint32_t      acl_entry_index = 0, acl_table_index = 0;
+    uint32_t      acl_entry_index = 0, acl_table_index = 0, attr_port = SAI_ACL_INVALID_INTERFACE, attr_vlan = SAI_ACL_INVALID_INTERFACE;
     sai_status_t  status;
     FPA_STATUS    fpa_status = FPA_OK;
     FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
@@ -3478,7 +4785,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     FPA_FLOW_TABLE_MATCH_FIELDS_ACL_POLICY_STC fpa_match_entry = {0};
     uint32_t entry_fields_bitmap = 0, entry_actions_bitmap = 0;
     uint32_t fpa_priority = 0;
-    bool is_drop = false;
+    sai_acl_action_data_t entry_action_data[SAI_ACL_MAX_ACTION_TYPES];
     bool admin_value = false;
 
     MRVL_SAI_LOG_ENTER();
@@ -3537,30 +4844,18 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     else
     	admin_value = true; /* default is enabled */
 
-    /* are entry match fields subset of table match fields */
     if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_acl_fill_entry_match_fields(attr_count, attr_list, mrvl_sai_acl_table_db[acl_table_index].table_fields_bitmap,
-        													&entry_fields_bitmap, &fpa_match_entry))){
-        MRVL_SAI_LOG_ERR("No match for entry fields vs table fields\n");
+            (status = mrvl_sai_acl_entry_match_fields_validation(attr_count, attr_list, acl_table_index,
+        													&entry_fields_bitmap, &fpa_match_entry, &attr_port, &attr_vlan))){
+        MRVL_SAI_LOG_ERR("Match fields validation failed\n");
         MRVL_SAI_API_RETURN(status);
     }
 
-    if (entry_fields_bitmap == 0){
-		MRVL_SAI_LOG_ERR("At least one match field must be given - %x \n", entry_fields_bitmap);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-
-	if (mrvl_sai_acl_table_db[acl_table_index].bound_port != SAI_ACL_INVALID_BOUND_PORT){
-		if (mrvl_sai_acl_table_db[acl_table_index].bound_port != fpa_match_entry.inPort){
-			MRVL_SAI_LOG_ERR("Bound port is different from inport attribute - bound_port - %d, inport - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_port, fpa_match_entry.inPort);
-			MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-		}
-	}
-
-    /* are entry match actions subset of table match actions */
+    /* are entry match actions subset of table actions */
+    memset(entry_action_data, 0, sizeof(entry_action_data));
     if (SAI_STATUS_SUCCESS !=
-        	(status = mrvl_sai_acl_fill_entry_match_actions(attr_count, attr_list, mrvl_sai_acl_table_db[acl_table_index].table_actions_bitmap,
-        													&entry_actions_bitmap, &is_drop))){
+        	(status = mrvl_sai_acl_entry_actions_validation(attr_count, attr_list, acl_table_index,
+        													&entry_actions_bitmap, entry_action_data))){
         MRVL_SAI_LOG_ERR("No match for entry vs table actions\n");
         MRVL_SAI_API_RETURN(status);
     }
@@ -3573,7 +4868,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     }
 
     /* initialize FPA flow entry */
-    fpa_table_type = mrvl_sai_acl_group_db[mrvl_sai_acl_table_db[acl_table_index].acl_group_index].fpa_table_type;
+    fpa_table_type = mrvl_sai_acl_table_db[acl_table_index].fpa_table_type; /*mrvl_sai_acl_group_db[mrvl_sai_acl_table_db[acl_table_index].acl_group_index].fpa_table_type;*/
     fpa_priority = mrvl_sai_acl_table_db[acl_table_index].priority * mrvl_sai_acl_table_db[acl_table_index].table_size + priority->u32;
     fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
     if (fpa_status != FPA_OK) {
@@ -3591,24 +4886,40 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     fpa_flow_entry.timeoutHardTime = 0;
     fpa_flow_entry.timeoutIdleTime = 0;
     memcpy(&fpa_flow_entry.data.acl_policy.match, &fpa_match_entry, sizeof(fpa_match_entry));
-    if ((mrvl_sai_acl_table_db[acl_table_index].bound_port == SAI_ACL_INVALID_BOUND_PORT) || (admin_value == false)){ /* invalid port in order to not match entry */
-    	fpa_flow_entry.data.acl_policy.match.inPort     = SAI_ACL_INVALID_BOUND_PORT;
-    	fpa_flow_entry.data.acl_policy.match.inPortMask = SAI_ACL_BOUND_PORT_MASK;
-    	fpa_flow_entry.data.acl_policy.match.outPort     = SAI_ACL_INVALID_BOUND_PORT;
-    	fpa_flow_entry.data.acl_policy.match.outPortMask = SAI_ACL_BOUND_PORT_MASK;
+    if (mrvl_sai_acl_table_db[acl_table_index].bound_interface.type == SAI_ACL_MAX_BIND_POINT_TYPES){ /* invalid portBmp in order to not match entry */
+            mrvl_acl_clear_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpVal);
+            mrvl_acl_set_all_MAC(fpa_flow_entry.data.acl_policy.match.portBmpMask);
     }
+    /* in case of valid bind type - > portBmp and portBmpMask are already set */
+
+    /* handle admin attribute - set instruction in case of invalid, if not set - always valid  */
+    if (admin_value == false)
+        fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_INVALID_FLAG;
+
+    /* handle actions */
     fpa_flow_entry.data.acl_policy.clearActions = true;
-    if (is_drop)
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_PACKET_ACTION))
     	fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_CLEAR_ACTION_FLAG;
-    else {
+    else if (fpa_flow_entry.entryType != FPA_FLOW_TABLE_TYPE_EPCL_E){
     	fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_GOTO_FLAG;
     	fpa_flow_entry.data.acl_policy.gotoTableNo = fpa_table_type + 1;
     }
+
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_TC)){
+        fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_QUEUE_FLAG;
+        fpa_flow_entry.data.acl_policy.queueId = entry_action_data[SAI_ACL_ACTION_TYPE_SET_TC].parameter.u8;
+    }
+
+    if (mrvl_acl_is_bit_set_MAC(entry_actions_bitmap, SAI_ACL_ACTION_TYPE_SET_DSCP)){
+        fpa_flow_entry.data.acl_policy.instructionFlags |= FPA_FLOW_TABLE_PCL_ACTION_DSCP_FLAG;
+        fpa_flow_entry.data.acl_policy.dscp = entry_action_data[SAI_ACL_ACTION_TYPE_SET_DSCP].parameter.u8;
+    }
+
     /* add FPA flow entry */
     fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
     if (fpa_status != FPA_OK) {
     	mrvl_sai_acl_entry_db[acl_entry_index].is_used = false;
-    	MRVL_SAI_LOG_ERR("Failed to add entry cookie %llx, fpa_table_type - %d , status = %d\n", fpa_table_type, fpa_flow_entry.cookie, fpa_status);
+    	MRVL_SAI_LOG_ERR("Failed to add entry cookie %llx, fpa_table_type - %d , status = %d\n", fpa_flow_entry.cookie, fpa_table_type, fpa_status);
         status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
         MRVL_SAI_API_RETURN(status);
     }
@@ -3618,10 +4929,11 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     mrvl_sai_acl_entry_db[acl_entry_index].admin_state          = admin_value;
     mrvl_sai_acl_entry_db[acl_entry_index].priority             = priority->u32;
     mrvl_sai_acl_entry_db[acl_entry_index].table_index          = acl_table_index;
-    mrvl_sai_acl_entry_db[acl_entry_index].is_drop_action       = is_drop;
+    mrvl_sai_acl_entry_db[acl_entry_index].attr_port            = attr_port;
+    mrvl_sai_acl_entry_db[acl_entry_index].attr_vlan            = attr_vlan;
     mrvl_sai_acl_entry_db[acl_entry_index].entry_fields_bitmap  = entry_fields_bitmap;
     mrvl_sai_acl_entry_db[acl_entry_index].entry_actions_bitmap = entry_actions_bitmap;
-
+    memcpy(mrvl_sai_acl_entry_db[acl_entry_index].entry_action_data, entry_action_data, sizeof(entry_action_data));
 
     mrvl_sai_acl_entry_add_to_table(acl_entry_index, acl_table_index);
 
@@ -3822,10 +5134,13 @@ sai_status_t mrvl_remove_acl_counter(_In_ sai_object_id_t acl_counter_id)
 sai_status_t mrvl_set_acl_counter_attribute(_In_ sai_object_id_t acl_counter_id, _In_ const sai_attribute_t *attr)
 {
     const sai_object_key_t key = { .key.object_id = acl_counter_id };
-    char                   key_str[MAX_KEY_STR_LEN];
+    char                   key_str[MAX_LIST_VALUE_STR_LEN];
 
     MRVL_SAI_LOG_ENTER();
-    snprintf(key_str, MAX_KEY_STR_LEN, "acl_counter %llx", (long long int)acl_counter_id);
+
+    mrvl_sai_acl_object_id_to_str(SAI_OBJECT_TYPE_ACL_COUNTER, acl_counter_id, key_str);
+    MRVL_SAI_LOG_NTC("Get attributes for ACL Counter %s\n", key_str);
+
     return mrvl_sai_utl_set_attribute(&key, key_str, acl_counter_attribs, acl_counter_vendor_attribs, attr);
 }
 
@@ -3848,12 +5163,19 @@ sai_status_t mrvl_get_acl_counter_attribute(_In_ sai_object_id_t acl_counter_id,
                                          _Inout_ sai_attribute_t *attr_list)
 {
     const sai_object_key_t key = { .key.object_id = acl_counter_id };
-    char                   key_str[MAX_KEY_STR_LEN];
+    char                   key_str[MAX_LIST_VALUE_STR_LEN];
     sai_status_t status;
 
     MRVL_SAI_LOG_ENTER();
-    snprintf(key_str, MAX_KEY_STR_LEN, "acl_counter %llx", (long long int)acl_counter_id);
+
+    mrvl_sai_acl_object_id_to_str(SAI_OBJECT_TYPE_ACL_COUNTER, acl_counter_id, key_str);
+    MRVL_SAI_LOG_NTC("Get attributes for ACL counter %s\n", key_str);
+
     status = mrvl_sai_utl_get_attributes(&key, key_str, acl_counter_attribs, acl_counter_vendor_attribs, attr_count, attr_list);
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, acl_counter_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", key_str);
+
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
@@ -3875,7 +5197,12 @@ sai_status_t mrvl_create_acl_range(
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
-    char key_str[MAX_KEY_STR_LEN];
+    char acl_str[MAX_LIST_VALUE_STR_LEN];
+    uint32_t        range_type, acl_range_index = 0;
+    sai_u32_range_t range_limit;
+    sai_status_t status;
+    const sai_attribute_value_t *att_val;
+    uint32_t tmp_index;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -3884,10 +5211,59 @@ sai_status_t mrvl_create_acl_range(
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
+    if (NULL == acl_range_id) {
+        MRVL_SAI_LOG_ERR("NULL acl_range_id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
 
-    snprintf(key_str, MAX_KEY_STR_LEN, "acl_range %llx", (long long int)*acl_range_id);
-    /*TODO*/
-    MRVL_SAI_LOG_NTC("Create  %s\n", key_str);
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, acl_range_attribs, acl_range_vendor_attribs, SAI_OPERATION_CREATE))) {
+        MRVL_SAI_LOG_ERR("Failed attribs check\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, acl_range_attribs, MAX_LIST_VALUE_STR_LEN, acl_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", acl_str);
+
+    /* check mandatory field SAI_ACL_RANGE_ATTR_TYPE  */
+    assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_RANGE_ATTR_TYPE, &att_val, &tmp_index));
+    if (att_val->u32 > SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE) {
+        MRVL_SAI_LOG_ERR("Wrong value for SAI_ACL_RANGE_ATTR_TYPE - %d\n", att_val->u32);
+        MRVL_SAI_API_RETURN(status);
+    }
+    else {
+        range_type = att_val->u32;
+    }
+
+    /* check mandatory field SAI_ACL_RANGE_ATTR_LIMIT  */
+    assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_RANGE_ATTR_LIMIT, &att_val, &tmp_index));
+    if (att_val->u32range.min > att_val->u32range.max) {
+        MRVL_SAI_LOG_ERR("Invalid value for SAI_ACL_RANGE_ATTR_LIMIT - [%d - %d]\n", att_val->u32range.min, att_val->u32range.max);
+        MRVL_SAI_API_RETURN(status);
+    }
+    else {
+        memcpy(&range_limit, &att_val->u32range, sizeof(att_val->u32range));
+    }
+
+    /* get free index */
+    if (SAI_STATUS_SUCCESS !=
+        		(status = mrvl_acl_find_free_index_in_range_db(&acl_range_index))){
+    	MRVL_SAI_LOG_ERR("No free index for ACL ENTRY db\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    /* create ACL range object */
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_RANGE, acl_range_index, acl_range_id))) {
+        MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_RANGE acl_range_index - %d\n", acl_range_index);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    mrvl_sai_acl_range_db[acl_range_index].entry_index = SAI_ACL_INVALID_INDEX;
+    memcpy(&mrvl_sai_acl_range_db[acl_range_index].range_limit, &range_limit, sizeof(sai_u32_range_t));
+    mrvl_sai_acl_range_db[acl_range_index].range_type = range_type;
+
+    mrvl_sai_acl_object_id_to_str(SAI_OBJECT_TYPE_ACL_RANGE, *acl_range_id, acl_str);
+    MRVL_SAI_LOG_NTC("Created ACL range %s\n", acl_str);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -3903,14 +5279,24 @@ sai_status_t mrvl_create_acl_range(
 sai_status_t mrvl_remove_acl_range(
         _In_ sai_object_id_t acl_range_id)
 {
-    char key_str[MAX_KEY_STR_LEN];
+    char acl_str[MAX_KEY_STR_LEN];
+    sai_status_t  status;
+    uint32_t      acl_range_index = 0;
 
     MRVL_SAI_LOG_ENTER();
-    snprintf(key_str, MAX_KEY_STR_LEN, "acl_counter %llx", (long long int)acl_range_id);
-    MRVL_SAI_LOG_NTC("Delete  %s\n", key_str);
-    /*TODO*/
-    MRVL_SAI_LOG_EXIT();
 
+    mrvl_sai_acl_object_id_to_str(SAI_OBJECT_TYPE_ACL_RANGE, acl_range_id, acl_str);
+    MRVL_SAI_LOG_NTC("Delete ACL counter %s\n", acl_str);
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(acl_range_id, SAI_OBJECT_TYPE_ACL_RANGE, &acl_range_index))) {
+        return status;
+    }
+
+    assert(mrvl_sai_acl_range_db[acl_range_index].is_used == true);
+
+    mrvl_sai_acl_range_db[acl_range_index].is_used = false;
+
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 /**
@@ -3926,10 +5312,10 @@ sai_status_t mrvl_set_acl_range_attribute(
 {
     const sai_object_key_t key = { .key.object_id = acl_range_id };
     char                   key_str[MAX_KEY_STR_LEN];
-/*TODO*/
+
     MRVL_SAI_LOG_ENTER();
     snprintf(key_str, MAX_KEY_STR_LEN, "acl_range %llx", (long long int)acl_range_id);
-    return mrvl_sai_utl_set_attribute(&key, key_str, acl_counter_attribs, acl_counter_vendor_attribs, attr);
+    return mrvl_sai_utl_set_attribute(&key, key_str, acl_range_attribs, acl_range_vendor_attribs, attr);
 }
 
 /**
@@ -3949,10 +5335,15 @@ sai_status_t mrvl_get_acl_range_attribute(
     const sai_object_key_t key = { .key.object_id = acl_range_id };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
-/*TODO*/
+
     MRVL_SAI_LOG_ENTER();
-    snprintf(key_str, MAX_KEY_STR_LEN, "acl_range %llx", (long long int)acl_range_id);
-    status = mrvl_sai_utl_get_attributes(&key, key_str, acl_counter_attribs, acl_counter_vendor_attribs, attr_count, attr_list);
+
+    snprintf(key_str, MAX_KEY_STR_LEN, "acl_range_id %llx", (long long int)acl_range_id);
+    status = mrvl_sai_utl_get_attributes(&key, key_str, acl_range_attribs, acl_range_vendor_attribs, attr_count, attr_list);
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, acl_range_attribs, MAX_LIST_VALUE_STR_LEN, key_str);
+    MRVL_SAI_LOG_DBG("Attribs %s\n", key_str);
+
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 }
@@ -4106,14 +5497,6 @@ sai_status_t mrvl_remove_acl_table_group(
     }
 
     assert(mrvl_sai_acl_group_db[acl_group_index].is_used != false);
-
-#if 0
-/* TODO support on bind interface to group */
-    if (mrvl_sai_acl_table_db[acl_table_index].bound_port != SAI_ACL_INVALID_BOUND_PORT){ /* can remove act table that is bound to port */
-        MRVL_SAI_LOG_ERR("Unable to remove ACT Table - bound to port - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_port);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-#endif
 
     assert(mrvl_sai_acl_group_db[acl_group_index].tables_count == 0);
 
@@ -4285,8 +5668,8 @@ sai_status_t mrvl_create_acl_table_group_member(
 
     /* are table bind point list is a subset of group bind point list? */
     for (type = 0; type < SAI_ACL_MAX_BIND_POINT_TYPES; type++) {
-        if ((mrvl_acl_match_is_field_exist_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, type)) &&
-            (!mrvl_acl_match_is_field_exist_MAC(mrvl_sai_acl_group_db[acl_group_index].bind_point_types_bitmap, type))) {
+        if ((mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_table_db[acl_table_index].bind_point_types_bitmap, type)) &&
+            (!mrvl_acl_is_bit_set_MAC(mrvl_sai_acl_group_db[acl_group_index].bind_point_types_bitmap, type))) {
             MRVL_SAI_LOG_ERR("No match for bind point type (%d)", type);
             return SAI_STATUS_INVALID_PARAMETER;
         }
@@ -4300,8 +5683,10 @@ sai_status_t mrvl_create_acl_table_group_member(
     		(mrvl_sai_acl_group_db[acl_group_index].entries_count + 
                 mrvl_sai_acl_table_db[acl_table_index].table_size > 
                     mrvl_sai_acl_group_db[acl_group_index].group_size)) {
-    	MRVL_SAI_LOG_ERR("Can't reserve table size - %d, current num of entries per group - %d\n",
-    			mrvl_sai_acl_table_db[acl_table_index].table_size, mrvl_sai_acl_group_db[acl_group_index].entries_count);
+    	MRVL_SAI_LOG_ERR("Can't reserve table size - %d, current num of entries per group - %d, max group size %d\n",
+    			mrvl_sai_acl_table_db[acl_table_index].table_size, 
+                mrvl_sai_acl_group_db[acl_group_index].entries_count,
+                mrvl_sai_acl_group_db[acl_group_index].group_size);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
@@ -4381,16 +5766,10 @@ sai_status_t mrvl_remove_acl_table_group_member(
     assert(mrvl_sai_acl_table_db[acl_table_index].acl_group_index == acl_group_index);
     assert(mrvl_sai_acl_group_db[acl_group_index].is_used != false);
     assert(mrvl_sai_acl_table_db[acl_table_index].is_used != false);
-    assert(mrvl_sai_acl_table_db[acl_table_index].entries_count == 0);
     assert(mrvl_sai_acl_group_db[acl_group_index].tables_count != 0);
+    assert(mrvl_sai_acl_table_db[acl_table_index].bound_interface.type == SAI_ACL_MAX_BIND_POINT_TYPES);
+    assert(mrvl_sai_acl_table_db[acl_table_index].entries_count == 0);
 
-#if 0
-    if (mrvl_sai_acl_table_db[acl_table_index].bound_port != SAI_ACL_INVALID_BOUND_PORT){ /* can remove act table that is bound to port */
-        MRVL_SAI_LOG_ERR("Unable to remove ACT Table - bound to port - %d\n", mrvl_sai_acl_table_db[acl_table_index].bound_port);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }
-#endif    
-    
     mrvl_sai_acl_table_db[acl_table_index].acl_group_index = 0;
     mrvl_sai_acl_group_db[acl_group_index].tables_count--;
 
@@ -4471,6 +5850,45 @@ sai_status_t mrvl_get_acl_table_group_member_attribute(
  * @brief Port methods table retrieved with sai_api_query()
  */
 
+sai_status_t mrvl_sai_acl_init(void)
+{
+    sai_uint32_t   i;
+
+    memset(mrvl_sai_acl_group_db, 0, sizeof(mrvl_acl_group_db_t)*SAI_ACL_GROUP_MAX_NUM);
+
+    memset(mrvl_sai_acl_table_db, 0, sizeof(mrvl_sai_acl_table_db));
+    for(i=0;i<SAI_ACL_TABLES_MAX_NUM; i++) {
+      mrvl_sai_acl_table_db[i].head_entry_index =  SAI_ACL_INVALID_INDEX;
+    }
+
+    memset(mrvl_sai_acl_entry_db, 0, sizeof(mrvl_sai_acl_entry_db));
+    for(i=0;i<SAI_ACL_ENTRIES_MAX_NUM; i++) {
+      mrvl_sai_acl_entry_db[i].next_acl_entry_index =  SAI_ACL_INVALID_INDEX;
+      mrvl_sai_acl_entry_db[i].prev_acl_entry_index =  SAI_ACL_INVALID_INDEX;
+    }
+
+    memset(mrvl_sai_acl_range_db, 0, sizeof(mrvl_sai_acl_range_db));
+
+    memset(mrvl_sai_acl_bound_port_db, 0, sizeof(mrvl_sai_acl_bound_port_db));
+    for(i=0;i<SAI_ACL_PORTLIST_MAX_NUM; i++) {
+      mrvl_sai_acl_bound_port_db[i].head_table_index =  SAI_ACL_INVALID_INDEX;
+    }
+
+    memset(mrvl_sai_acl_bound_lag_db, 0, sizeof(mrvl_sai_acl_bound_lag_db));
+    for(i=0;i<SAI_LAG_MAX_GROUPS_CNS; i++) {
+      mrvl_sai_acl_bound_lag_db[i].lag_bound_db.head_table_index =  SAI_ACL_INVALID_INDEX;
+    }
+
+    memset(&mrvl_sai_acl_bound_switch_db, 0, sizeof(mrvl_sai_acl_bound_switch_db));
+    mrvl_sai_acl_bound_switch_db.head_table_index = SAI_ACL_INVALID_INDEX;
+
+    memset(mrvl_sai_acl_bound_vlan_db, 0, sizeof(mrvl_sai_acl_bound_vlan_db));
+    for(i=0;i<SAI_MAX_NUM_OF_VLANS; i++) {
+      mrvl_sai_acl_bound_vlan_db[i].head_table_index =  SAI_ACL_INVALID_INDEX;
+    }
+
+    return SAI_STATUS_SUCCESS;
+}
 
 const sai_acl_api_t acl_api = {
     mrvl_create_acl_table,
