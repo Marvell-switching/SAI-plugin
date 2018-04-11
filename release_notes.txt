@@ -1,5 +1,5 @@
 Marvell SAI for SONiC release notes
 ===================================
 
-Current SAI implementation is partial and is updated to SAI branch v1.0, as used by SONiC 201712 revision.
+Current SAI implementation is partial and is updated to SAI branch v1.2, as used by SONiC 201803 revision.
 Not all the APIs that are defined were fully implemented in this release.
