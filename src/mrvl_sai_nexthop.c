@@ -26,13 +26,13 @@ static mrvl_sai_nh_table_t mrvl_sai_nh_table[SAI_NEXTHOP_TABLE_SIZE_CNS] = {};
 
 static const sai_attribute_entry_t mrvl_sai_next_hop_attribs[] = {
     { SAI_NEXT_HOP_ATTR_TYPE, true, true, false, true,
-      "Next hop entry type", SAI_ATTR_VAL_TYPE_S32 },
+      "Next hop entry type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_NEXT_HOP_ATTR_IP, true, true, false, true,
-      "Next hop entry IP address", SAI_ATTR_VAL_TYPE_IPADDR },
+      "Next hop entry IP address", SAI_ATTR_VALUE_TYPE_IP_ADDRESS },
     { SAI_NEXT_HOP_ATTR_ROUTER_INTERFACE_ID, true, true, false, true,
-      "Next hop entry router interface ID", SAI_ATTR_VAL_TYPE_U32 },
+      "Next hop entry router interface ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static sai_status_t mrvl_sai_next_hop_type_get_prv(_In_ const sai_object_key_t   *key,
@@ -648,7 +648,36 @@ static sai_status_t mrvl_sai_next_hop_rif_get_prv(_In_ const sai_object_key_t   
     }
     
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_IMPLEMENTED;
+    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+}
+
+sai_status_t mrvl_sai_next_hop_db_free_entries_get(_In_ sai_switch_attr_t  resource_type,
+                                                   _Out_ uint32_t         *free_entries)
+{
+    uint32_t ii, count = 0;
+    bool     is_ipv4;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV4_NEXTHOP_ENTRY || resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV6_NEXTHOP_ENTRY);
+    assert(free_entries != NULL);
+
+    is_ipv4 = (resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV4_NEXTHOP_ENTRY) ? true : false;
+
+    for (ii = 0; ii < SAI_NEXTHOP_TABLE_SIZE_CNS; ii++) 
+    {
+        if (false == mrvl_sai_nh_table[ii].used) {
+            if (true == is_ipv4 && mrvl_sai_nh_table[ii].inet_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+                count++;
+            else if (false == is_ipv4 && mrvl_sai_nh_table[ii].inet_address.addr_family == SAI_IP_ADDR_FAMILY_IPV6)
+                count++;
+        }
+    }
+
+    *free_entries = count;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 const sai_next_hop_api_t nexthop_api = {

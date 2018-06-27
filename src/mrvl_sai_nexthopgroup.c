@@ -22,18 +22,18 @@
 extern uint32_t mrvl_sai_switch_ecmp_hash_algorithm;
 static const sai_attribute_entry_t mrvl_sai_next_hop_group_attribs[] = {
     { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_COUNT, false, false, false, true,
-      "Next hop group entries count", SAI_ATTR_VAL_TYPE_U32 },
+      "Next hop group entries count", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_NEXT_HOP_GROUP_ATTR_TYPE, true, true, false, true,
-      "Next hop group type", SAI_ATTR_VAL_TYPE_S32 },
+      "Next hop group type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_NEXT_HOP_GROUP_ATTR_NEXT_HOP_MEMBER_LIST, true, true, true, true,
-      "Next hop group hop list", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "Next hop group hop list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_attribute_entry_t mrvl_sai_next_hop_group_member_attribs[] = {
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static mrvl_sai_next_hop_group_table_t mrvl_sai_next_hop_group_table[SAI_ECMP_MAX_GROUPS_CNS] = {};
@@ -598,6 +598,27 @@ static sai_status_t mrvl_sai_next_hop_group_hop_list_set_prv(_In_ const sai_obje
     return status;
 }
 
+sai_status_t mrvl_sai_next_hop_group_db_free_entries_get(_In_ sai_switch_attr_t  resource_type,
+                                                         _Out_ uint32_t         *free_entries)
+{
+    uint32_t ii, count = 0;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert(resource_type == SAI_SWITCH_ATTR_AVAILABLE_NEXT_HOP_GROUP_ENTRY);
+    assert(free_entries != NULL);
+
+    for (ii = 0; ii < SAI_ECMP_MAX_GROUPS_CNS; ii++) {
+        if (false == mrvl_sai_next_hop_group_table[ii].used) {
+            count++;
+        }
+    }
+
+    *free_entries = count;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
 #if 0
 /*
  * Routine Description:
@@ -835,7 +856,7 @@ sai_status_t mrvl_sai_create_next_hop_group_members(
         _In_ uint32_t object_count,
         _In_ const uint32_t *attr_count,
         _In_ const sai_attribute_t **attr_list,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_object_id_t *object_id,
         _Out_ sai_status_t *object_statuses)
 {
@@ -862,7 +883,7 @@ sai_status_t mrvl_sai_create_next_hop_group_members(
 sai_status_t mrvl_sai_remove_next_hop_group_members(
         _In_ uint32_t object_count,
         _In_ const sai_object_id_t *object_id,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses)
 {
     MRVL_SAI_LOG_ENTER();

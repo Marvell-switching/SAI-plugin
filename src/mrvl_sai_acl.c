@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_ACL
@@ -27,6 +26,7 @@
 #define SAI_ACL_GROUP_MAX_NUM        4
 #define SAI_ACL_TABLES_MAX_NUM        32*SAI_ACL_GROUP_MAX_NUM
 #define SAI_ACL_ENTRIES_MAX_NUM       SAI_ACL_ENTRIES_PER_GROUP_MAX_NUM*SAI_ACL_GROUP_MAX_NUM
+#define SAI_ACL_COUNTERS_MAX_NUM     1024 /*temporary - needs to be changed! */
 #define SAI_ACL_RANGES_MAX_NUM       8
 #define SAI_ACL_PORTLIST_MAX_NUM       28 /* current limitation of supported ports in ACL */
 
@@ -100,7 +100,7 @@ typedef struct _mrvl_acl_group_db_t {
 
 typedef struct _mrvl_acl_table_db_t {
     bool                          is_used;
-    uint32_t                      stage;
+    sai_acl_stage_t               stage;
     uint32_t                      attr_table_size; 
     uint32_t                      table_size; /* SAI_ACL_TABLE_ATTR_SIZE or SAI_ACL_ENTRIES_MAX_NUM */
     uint32_t                      priority;
@@ -226,104 +226,132 @@ static sai_status_t mrvl_acl_table_match_attrib_get(
     _Inout_ vendor_cache_t          *cache,
     void                            *arg);
 
+static sai_status_t mrvl_acl_table_entry_list_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg);
+
+static sai_status_t mrvl_acl_table_available_entries_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg);
+
+static sai_status_t mrvl_acl_table_available_counters_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg);
+
 /* ACL TABLE ATTRIBUTES */
 static const sai_attribute_entry_t acl_table_attribs[] = {
     { SAI_ACL_TABLE_ATTR_ACL_STAGE, true, true, false, true,
-      "ACL Table Stage", SAI_ATTR_VAL_TYPE_S32 },
+      "ACL Table Stage", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST, false, true, false, true,
-      "ACL Table Bind point type list", SAI_ATTR_VAL_TYPE_S32LIST },
+      "ACL Table Bind point type list", SAI_ATTR_VALUE_TYPE_INT32_LIST},
     { SAI_ACL_TABLE_ATTR_SIZE, false, true, false, true,
-      "ACL Table Size", SAI_ATTR_VAL_TYPE_S32 },
+      "ACL Table Size", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_ACL_TABLE_ATTR_ACL_ACTION_TYPE_LIST, false, true, false, true,
-      "ACL Table Action type list", SAI_ATTR_VAL_TYPE_S32LIST },
+      "ACL Table Action type list", SAI_ATTR_VALUE_TYPE_INT32_LIST},
     { SAI_ACL_TABLE_ATTR_FIELD_SRC_IPV6, false, true, false, true,
-      "Src IPV6 Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Src IPV6 Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_DST_IPV6, false, true, false, true,
-      "Dst IPV6 Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Dst IPV6 Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_SRC_MAC, false, true, false, true,
-      "Src MAC Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Src MAC Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_DST_MAC, false, true, false, true,
-      "Dst MAC Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Dst MAC Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_SRC_IP, false, true, false, true,
-      "Src IPv4 Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Src IPv4 Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_DST_IP, false, true, false, true,
-      "Dst IPv4 Address", SAI_ATTR_VAL_TYPE_BOOL },
+      "Dst IPv4 Address", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_IN_PORTS, false, true, false, true,
-      "In-Ports", SAI_ATTR_VAL_TYPE_BOOL },
+      "In-Ports", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_OUT_PORTS, false, true, false, true,
-      "Out-Ports", SAI_ATTR_VAL_TYPE_BOOL },
+      "Out-Ports", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_IN_PORT, false, true, false, true,
-      "In-Port", SAI_ATTR_VAL_TYPE_BOOL },
+      "In-Port", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_OUT_PORT, false, true, false, true,
-      "Out-Port", SAI_ATTR_VAL_TYPE_BOOL },
+      "Out-Port", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_SRC_PORT, false, true, false, true,
-      "Src-Port", SAI_ATTR_VAL_TYPE_BOOL },
+      "Src-Port", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_OUTER_VLAN_ID, false, true, false, true,
-      "Outer Vlan-Id", SAI_ATTR_VAL_TYPE_BOOL },
+      "Outer Vlan-Id", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_OUTER_VLAN_PRI, false, true, false, true,
-      "Outer Vlan-Priority", SAI_ATTR_VAL_TYPE_BOOL },
+      "Outer Vlan-Priority", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_OUTER_VLAN_CFI, false, true, false, true,
-      "Outer Vlan-CFI", SAI_ATTR_VAL_TYPE_BOOL },
+      "Outer Vlan-CFI", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_INNER_VLAN_ID, false, true, false, true,
-      "Inner Vlan-Id", SAI_ATTR_VAL_TYPE_BOOL },
+      "Inner Vlan-Id", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_INNER_VLAN_PRI, false, true, false, true,
-      "Inner Vlan-Priority", SAI_ATTR_VAL_TYPE_BOOL },
+      "Inner Vlan-Priority", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_INNER_VLAN_CFI, false, true, false, true,
-      "Inner Vlan-CFI", SAI_ATTR_VAL_TYPE_BOOL },
+      "Inner Vlan-CFI", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_L4_SRC_PORT, false, true, false, true,
-      "L4 Src Port", SAI_ATTR_VAL_TYPE_BOOL },
+      "L4 Src Port", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT, false, true, false, true,
-      "L4 Dst Port", SAI_ATTR_VAL_TYPE_BOOL },
+      "L4 Dst Port", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE, false, true, false, true,
-      "EtherType", SAI_ATTR_VAL_TYPE_BOOL },
+      "EtherType", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL, false, true, false, true,
-      "IP Protocol", SAI_ATTR_VAL_TYPE_BOOL },
+      "IP Protocol", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_DSCP, false, true, false, true,
-      "IP Dscp", SAI_ATTR_VAL_TYPE_BOOL },
+      "IP Dscp", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ECN, false, true, false, true,
-      "IP Ecn", SAI_ATTR_VAL_TYPE_BOOL },
+      "IP Ecn", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TTL, false, true, false, true,
-      "Ip Ttl", SAI_ATTR_VAL_TYPE_BOOL },
+      "Ip Ttl", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TOS, false, true, false, true,
-      "Ip Tos", SAI_ATTR_VAL_TYPE_BOOL },
+      "Ip Tos", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_IP_FLAGS, false, true, false, true,
-      "Ip Flags", SAI_ATTR_VAL_TYPE_BOOL },
+      "Ip Flags", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TCP_FLAGS, false, true, false, false,
-      "Tcp Flags", SAI_ATTR_VAL_TYPE_BOOL },
+      "Tcp Flags", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ACL_IP_TYPE, false, true, false, true,
-      "Ip Type", SAI_ATTR_VAL_TYPE_BOOL },
+      "Ip Type", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ACL_IP_FRAG, false, true, false, true,
-      "Ip Frag", SAI_ATTR_VAL_TYPE_BOOL },
+      "Ip Frag", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_IPV6_FLOW_LABEL, false, false, false, false,
-      "IPV6 Flow Label", SAI_ATTR_VAL_TYPE_BOOL },
+      "IPV6 Flow Label", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_TC, false, true, false, true,
-      "Class-of-Service", SAI_ATTR_VAL_TYPE_BOOL },
+      "Class-of-Service", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ICMP_TYPE, false, true, false, true,
-      "ICMP Type", SAI_ATTR_VAL_TYPE_BOOL },
+      "ICMP Type", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ICMP_CODE, false, true, false, true,
-      "ICMP Code", SAI_ATTR_VAL_TYPE_BOOL },
+      "ICMP Code", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_PACKET_VLAN, false, true, false, true,
-      "Vlan tags", SAI_ATTR_VAL_TYPE_BOOL },
+      "Vlan tags", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_FDB_DST_USER_META, false, false, false, false,
-      "FDB DST user meta data", SAI_ATTR_VAL_TYPE_BOOL },
+      "FDB DST user meta data", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ROUTE_DST_USER_META, false, false, false, false,
-      "ROUTE DST User Meta data", SAI_ATTR_VAL_TYPE_BOOL },
+      "ROUTE DST User Meta data", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_NEIGHBOR_DST_USER_META, false, false, false, false,
-      "Neighbor DST User Meta Data", SAI_ATTR_VAL_TYPE_BOOL },
+      "Neighbor DST User Meta Data", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_PORT_USER_META, false, false, false, false,
-      "Port User Meta Data", SAI_ATTR_VAL_TYPE_BOOL },
+      "Port User Meta Data", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_VLAN_USER_META, false, false, false, false,
-      "Vlan User Meta Data", SAI_ATTR_VAL_TYPE_BOOL },
+      "Vlan User Meta Data", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ACL_USER_META, false, true, false, true,
-      "Meta Data carried from previous ACL Stage", SAI_ATTR_VAL_TYPE_BOOL },
+      "Meta Data carried from previous ACL Stage", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_FDB_NPU_META_DST_HIT, false, true, false, false,
-      "DST MAC address match in FDB", SAI_ATTR_VAL_TYPE_BOOL },
+      "DST MAC address match in FDB", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_NEIGHBOR_NPU_META_DST_HIT, false, true, false, false,
-      "DST IP address match in neighbor table", SAI_ATTR_VAL_TYPE_BOOL },
+      "DST IP address match in neighbor table", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ACL_TABLE_ATTR_FIELD_ROUTE_NPU_META_DST_HIT, false, true, false, false,
-       "DST IP address match in route table", SAI_ATTR_VAL_TYPE_BOOL },
+       "DST IP address match in route table", SAI_ATTR_VALUE_TYPE_BOOL },
+    { SAI_ACL_TABLE_ATTR_ENTRY_LIST, false, false, false, true,
+       "ACL table entries associated with this table", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
+    { SAI_ACL_TABLE_ATTR_AVAILABLE_ACL_ENTRY, false, false, false, true,
+       "ACL table available entries", SAI_ATTR_VALUE_TYPE_UINT32 },
+    { SAI_ACL_TABLE_ATTR_AVAILABLE_ACL_COUNTER, false, false, false, true,
+       "ACL table available counters", SAI_ATTR_VALUE_TYPE_UINT32 },
+    
     {   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-        "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+        "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
     }
 };
 
@@ -564,6 +592,27 @@ static const sai_vendor_attribute_entry_t acl_table_vendor_attribs[] = {
 	  { false, false, false, true },
 	  NULL, NULL,
 	  NULL, NULL },
+    { SAI_ACL_TABLE_ATTR_ENTRY_LIST,
+	  { false, false, false, true },
+	  { false, false, false, true },
+	  mrvl_acl_table_entry_list_get, NULL,
+	  NULL, NULL },
+    { SAI_ACL_TABLE_ATTR_AVAILABLE_ACL_ENTRY,
+	  { false, false, false, true },
+	  { false, false, false, true },
+	  mrvl_acl_table_available_entries_get, NULL,
+	  NULL, NULL },
+    { SAI_ACL_TABLE_ATTR_AVAILABLE_ACL_COUNTER,
+	  { false, false, false, true },
+	  { false, false, false, true },
+	  mrvl_acl_table_available_counters_get, NULL,
+	  NULL, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+	  { false, false, false, true },
+	  { false, false, false, true },
+	  NULL, NULL,
+	  NULL, NULL }
+    
 };
 
 
@@ -607,166 +656,164 @@ static sai_status_t mrvl_acl_entry_action_attrib_set(
 /* ACL ENTRY ATTRIBUTES */
 static const sai_attribute_entry_t acl_entry_attribs[] = {   
 	{ SAI_ACL_ENTRY_ATTR_TABLE_ID, true, true, false, true,
-	  "ACL Entry Table Id", SAI_ATTR_VAL_TYPE_OID },
+	  "ACL Entry Table Id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_PRIORITY, false, true, true, true,
-	  "ACL Entry Priority ", SAI_ATTR_VAL_TYPE_U32 },
+	  "ACL Entry Priority ", SAI_ATTR_VALUE_TYPE_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_ADMIN_STATE, false, true, true, true,
-	  "ACL Entry Admin State", SAI_ATTR_VAL_TYPE_BOOL },
+	  "ACL Entry Admin State", SAI_ATTR_VALUE_TYPE_BOOL },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_SRC_IPV6, false, true, true, true,
-	  "Src IPV6 Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6 },
+	  "Src IPV6 Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV6 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_DST_IPV6, false, true, true, true,
-	  "Dst IPV6 Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6 },
+	  "Dst IPV6 Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV6 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC, false, true, true, true,
-	  "Src MAC Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_MAC },
+	  "Src MAC Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_MAC },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_DST_MAC, false, true, true, true,
-	  "Dst MAC Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_MAC },
+	  "Dst MAC Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_MAC },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_SRC_IP, false, true, true, true,
-	  "Src IPv4 Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4 },
+	  "Src IPv4 Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_DST_IP, false, true, true, true,
-	  "Dst IPv4 Address", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4 },
+	  "Dst IPv4 Address", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS, false, true, true, true,
-	  "In-Ports",  SAI_ATTR_VAL_TYPE_OID },
+	  "In-Ports",  SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORTS, false, true, true, true,
-	  "Out-Ports", SAI_ATTR_VAL_TYPE_OID},
+	  "Out-Ports", SAI_ATTR_VALUE_TYPE_OBJECT_ID},
 	{ SAI_ACL_ENTRY_ATTR_FIELD_IN_PORT, false, true, true, true,
-	  "In-Port", SAI_ATTR_VAL_TYPE_OID },
+	  "In-Port", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORT, false, true, true, true,
-	  "Out-Port", SAI_ATTR_VAL_TYPE_OID },
+	  "Out-Port", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_SRC_PORT, false, true, true, true,
-	  "Src-Port", SAI_ATTR_VAL_TYPE_OID },
+	  "Src-Port", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID, false, true, true, true,
-	  "Outer Vlan-Id", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16 },
+	  "Outer Vlan-Id", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_PRI, false, true, true, true,
-	  "Outer Vlan-Priority", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Outer Vlan-Priority", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_CFI, false, true, true, true,
-	  "Outer Vlan-CFI", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Outer Vlan-CFI", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_ID, false, true, true, true,
-	  "Inner Vlan-Id", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16 },
+	  "Inner Vlan-Id", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_PRI, false, true, true, true,
-	  "Inner Vlan-Priority", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Inner Vlan-Priority", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_INNER_VLAN_CFI, false, true, true, true,
-	  "Inner Vlan-CFI", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Inner Vlan-CFI", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT, false, true, true, true,
-	  "L4 Src Port", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16 },
+	  "L4 Src Port", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT, false, true, true, true,
-	  "L4 Dst Port", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16 },
+	  "L4 Dst Port", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE, false, true, true, true,
-	  "EtherType", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16 },
+	  "EtherType", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL, false, true, true, true,
-	  "IP Protocol", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "IP Protocol", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_DSCP, false, true, true, true,
-	  "Ip Dscp", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Ip Dscp", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ECN, false, true, true, true,
-	  "Ip Ecn", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Ip Ecn", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_TTL, false, true, true, true,
-	  "Ip Ttl", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Ip Ttl", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_TOS, false, true, true, true,
-	  "Ip Tos", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Ip Tos", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_IP_FLAGS, false, true, true, true,
-	  "Ip Flags", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Ip Flags", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_TCP_FLAGS, false, true, true, true,
-	  "Tcp Flags", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Tcp Flags", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_TYPE, false, true, true, true,
-	  "Ip Type",  SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Ip Type",  SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ACL_IP_FRAG, false, true, true, true,
-	  "Ip Frag", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Ip Frag", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_IPV6_FLOW_LABEL, false, false, false, false,
-	  "IPV6 Flow Label",  SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "IPV6 Flow Label",  SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_TC, false, true, true, true,
-	  "Class-of-Service (Traffic Class)", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "Class-of-Service (Traffic Class)", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ICMP_TYPE, false, true, true, true,
-	  "ICMP Type", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "ICMP Type", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ICMP_CODE, false, true, true, true,
-	  "ICMP Code", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8 },
+	  "ICMP Code", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_PACKET_VLAN, false, true, true, true,
-	  "Vlan tags", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Vlan tags", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_FDB_DST_USER_META, false, false, false, false,
-	  "FDB DST user meta data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "FDB DST user meta data", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ROUTE_DST_USER_META, false, false, false, false,
-	  "ROUTE DST User Meta data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "ROUTE DST User Meta data", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_NEIGHBOR_DST_USER_META, false, false, false, false,
-	  "Neighbor DST User Meta Data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Neighbor DST User Meta Data", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_PORT_USER_META, false, false, false, false,
-	  "Port User Meta Data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Port User Meta Data", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_VLAN_USER_META, false, false, false, false,
-	  "Vlan User Meta Data", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Vlan User Meta Data", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ACL_USER_META, false, true, true, true,
-	  "Meta Data carried from previous ACL Stage", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32 },
+	  "Meta Data carried from previous ACL Stage", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_FDB_NPU_META_DST_HIT, false, false, false, false,
-	  "DST MAC address match in FDB", SAI_ATTR_VAL_TYPE_MAC },
+	  "DST MAC address match in FDB", SAI_ATTR_VALUE_TYPE_MAC },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_NEIGHBOR_NPU_META_DST_HIT, false, false, false, false,
-	  "DST IP address match in neighbor table", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4 },
+	  "DST IP address match in neighbor table", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ROUTE_NPU_META_DST_HIT, false, false, false, false,
-	  "DST IP address match in neighbor table", SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4 },
+	  "DST IP address match in neighbor table", SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE, false, true, true, true,
-	  "Range Type", SAI_ATTR_VAL_TYPE_OID },
+	  "Range Type", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 
 
 
 	{ SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT, false, true, true, true,
-	  "Redirect Packet to a destination", SAI_ATTR_VAL_TYPE_OID },
+	  "Redirect Packet to a destination", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT_LIST, false, true, true, true,
-	  "Redirect Packet to a destination list", SAI_ATTR_VAL_TYPE_OBJLIST },
+	  "Redirect Packet to a destination list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION, false, true, true, true,
-	  "Drop Packet", SAI_ATTR_VAL_TYPE_ACLACTION_U32 },
+	  "Drop Packet", SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_FLOOD, false, true, true, false,
-	  "Flood Packet on Vlan domain", SAI_ATTR_VAL_TYPE_UNDETERMINED },
+	  "Flood Packet on Vlan domain", SAI_ATTR_VALUE_TYPE_UNDETERMINED },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_COUNTER, false, true, true, true,
-	  "Attach/detach counter id to the entry", SAI_ATTR_VAL_TYPE_OID },
+	  "Attach/detach counter id to the entry", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS, false, true, true, true,
-	  "Ingress Mirror", SAI_ATTR_VAL_TYPE_OID },
+	  "Ingress Mirror", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS, false, true, true, true,
-	  "Egress Mirror", SAI_ATTR_VAL_TYPE_OID },
+	  "Egress Mirror", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER, false, true, true, true,
-	  "Associate with policer", SAI_ATTR_VAL_TYPE_OID },
+	  "Associate with policer", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_DECREMENT_TTL, false, true, true, false,
-	  "Decrement TTL", SAI_ATTR_VAL_TYPE_UNDETERMINED },
+	  "Decrement TTL", SAI_ATTR_VALUE_TYPE_UNDETERMINED },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_TC, false, true, true, true,
-	  "Set Class-of-Service",  SAI_ATTR_VAL_TYPE_ACLACTION_U8 },
+	  "Set Class-of-Service",  SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR, false, true, true, true,
-	  "Set packet color",  SAI_ATTR_VAL_TYPE_U8 },
+	  "Set packet color",  SAI_ATTR_VALUE_TYPE_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_INNER_VLAN_ID, false, true, true, true,
-	  "Set Packet Inner Vlan-Id", SAI_ATTR_VAL_TYPE_U16 },
+	  "Set Packet Inner Vlan-Id", SAI_ATTR_VALUE_TYPE_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_INNER_VLAN_PRI, false, true, true, true,
-	  "Set Packet Inner Vlan-Priority", SAI_ATTR_VAL_TYPE_U8 },
+	  "Set Packet Inner Vlan-Priority", SAI_ATTR_VALUE_TYPE_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_ID, false, true, true, true,
-	  "Set Packet Outer Vlan-Id", SAI_ATTR_VAL_TYPE_U16 },
+	  "Set Packet Outer Vlan-Id", SAI_ATTR_VALUE_TYPE_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_OUTER_VLAN_PRI, false, true, true, true,
-	  "Set Packet Outer Vlan-Priority", SAI_ATTR_VAL_TYPE_U8 },
+	  "Set Packet Outer Vlan-Priority", SAI_ATTR_VALUE_TYPE_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_SRC_MAC, false, true, true, true,
-	  "Set Packet Src MAC Address", SAI_ATTR_VAL_TYPE_MAC },
+	  "Set Packet Src MAC Address", SAI_ATTR_VALUE_TYPE_MAC },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DST_MAC, false, true, true, true,
-	  "Set Packet Dst MAC Address", SAI_ATTR_VAL_TYPE_MAC },
+	  "Set Packet Dst MAC Address", SAI_ATTR_VALUE_TYPE_MAC },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_SRC_IP, false, false, false, false,
-	  "Set Packet Src IPv4 Address", SAI_ATTR_VAL_TYPE_IPV4 },
+	  "Set Packet Src IPv4 Address", SAI_ATTR_VALUE_TYPE_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DST_IP, false, false, false, false,
-	  "Set Packet Dst IPv4 Address", SAI_ATTR_VAL_TYPE_IPV4 },
+	  "Set Packet Dst IPv4 Address", SAI_ATTR_VALUE_TYPE_IPV4 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_SRC_IPV6, false, false, false, false,
-	  "Set Packet Src IPV6 Address", SAI_ATTR_VAL_TYPE_IPV6 },
+	  "Set Packet Src IPV6 Address", SAI_ATTR_VALUE_TYPE_IPV6 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DST_IPV6, false, false, false, false,
-	  "Set Packet Dst IPV6 Address", SAI_ATTR_VAL_TYPE_IPV6 },
+	  "Set Packet Dst IPV6 Address", SAI_ATTR_VALUE_TYPE_IPV6 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_DSCP, false, true, true, true,
-	  "Set Packet DSCP", SAI_ATTR_VAL_TYPE_ACLACTION_U8 },
+	  "Set Packet DSCP", SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN, false, true, true, true,
-	  "Set Packet ECN", SAI_ATTR_VAL_TYPE_U8 },
+	  "Set Packet ECN", SAI_ATTR_VALUE_TYPE_UINT8 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_L4_SRC_PORT, false, false, false, false,
-	  "Set Packet L4 Src Port", SAI_ATTR_VAL_TYPE_U16 },
+	  "Set Packet L4 Src Port", SAI_ATTR_VALUE_TYPE_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_L4_DST_PORT, false, false, false, false,
-	  "Set Packet L4 Dst Port", SAI_ATTR_VAL_TYPE_U16 },
+	  "Set Packet L4 Dst Port", SAI_ATTR_VALUE_TYPE_UINT16 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_INGRESS_SAMPLEPACKET_ENABLE, false, false, false, false,
-	  "Set ingress packet sampling", SAI_ATTR_VAL_TYPE_OID },
+	  "Set ingress packet sampling", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_SAMPLEPACKET_ENABLE, false, false, false, false,
-	  "Set egress packet sampling", SAI_ATTR_VAL_TYPE_OID },
-	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_CPU_QUEUE, false, false, false, false,
-	  "Set CPU Queue", SAI_ATTR_VAL_TYPE_OID },
+	  "Set egress packet sampling", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_ACL_META_DATA, false, true, true, true,
-	  "Set Meta Data", SAI_ATTR_VAL_TYPE_U32 },
+	  "Set Meta Data", SAI_ATTR_VALUE_TYPE_UINT32 },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_BLOCK_PORT_LIST, false, true, true, true,
-	  "Egress block port list", SAI_ATTR_VAL_TYPE_OBJLIST },
+	  "Egress block port list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
 	{ SAI_ACL_ENTRY_ATTR_ACTION_SET_USER_TRAP_ID, false, true, true, true,
-	  "Set user def trap ID", SAI_ATTR_VAL_TYPE_U32 },
+	  "Set user def trap ID", SAI_ATTR_VALUE_TYPE_UINT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-        "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+        "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
     }
 };
 
@@ -1145,11 +1192,6 @@ static const sai_vendor_attribute_entry_t acl_entry_vendor_attribs[] = {
       { false, false, false, false},
       NULL, NULL,
       NULL, NULL },
-    { SAI_ACL_ENTRY_ATTR_ACTION_SET_CPU_QUEUE,
-      { false, false, false, false},
-      { false, false, false, false},
-      NULL, NULL,
-      NULL, NULL },
     { SAI_ACL_ENTRY_ATTR_ACTION_SET_ACL_META_DATA,
       { false, false, false, false},
       { false, false, false, false},
@@ -1176,13 +1218,13 @@ static sai_status_t mrvl_acl_group_attrib_get(
 /* ACL TABLE GROUP ATTRIBUTES */
 static const sai_attribute_entry_t acl_table_group_attribs[] = {
     { SAI_ACL_TABLE_GROUP_ATTR_ACL_STAGE, true, true, false, true,
-      "ACL Table Group Stage", SAI_ATTR_VAL_TYPE_U32 },
+      "ACL Table Group Stage", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_ACL_TABLE_GROUP_ATTR_ACL_BIND_POINT_TYPE_LIST, false, true, false, true,
-      "ACL Table Group Bind point type list", SAI_ATTR_VAL_TYPE_S32LIST },
+      "ACL Table Group Bind point type list", SAI_ATTR_VALUE_TYPE_INT32_LIST},
     { SAI_ACL_TABLE_GROUP_ATTR_TYPE, false, true, false, true,
-      "ACL Table Group type", SAI_ATTR_VAL_TYPE_U32 },
+      "ACL Table Group type", SAI_ATTR_VALUE_TYPE_UINT32 },
 	{   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
     }
 };
 
@@ -1216,13 +1258,13 @@ static sai_status_t mrvl_acl_group_member_attrib_get(
 /* ACL TABLE GROUP MEMBER ATTRIBUTES */
 static const sai_attribute_entry_t acl_table_group_member_attribs[] = {
     { SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_GROUP_ID, true, true, false, true,
-      "ACL Table Group Member group id", SAI_ATTR_VAL_TYPE_OID },
+      "ACL Table Group Member group id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_ID, true, true, false, true,
-      "ACL Table Group Member table id", SAI_ATTR_VAL_TYPE_OID },
+      "ACL Table Group Member table id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY, true, true, false, true,
-      "ACL Table Group Member Priority", SAI_ATTR_VAL_TYPE_U32 },
+      "ACL Table Group Member Priority", SAI_ATTR_VALUE_TYPE_UINT32 },
 	{   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
     }
 };
 
@@ -1261,17 +1303,17 @@ static sai_status_t mrvl_acl_counter_attrib_set(
 /* ACL COUNTERS ATTRIBUTES */
 static const sai_attribute_entry_t acl_counter_attribs[] = {   
 	{ SAI_ACL_COUNTER_ATTR_TABLE_ID, true, true, false, true,
-	  "ACL Table id", SAI_ATTR_VAL_TYPE_OID },
+	  "ACL Table id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_ACL_COUNTER_ATTR_ENABLE_PACKET_COUNT, false, true, false, true,
-	  "Enable/disable packet count", SAI_ATTR_VAL_TYPE_BOOL },
+	  "Enable/disable packet count", SAI_ATTR_VALUE_TYPE_BOOL },
 	{ SAI_ACL_COUNTER_ATTR_ENABLE_BYTE_COUNT, false, true, false, true,
-	  "Enable/disable byte count", SAI_ATTR_VAL_TYPE_BOOL },
+	  "Enable/disable byte count", SAI_ATTR_VALUE_TYPE_BOOL },
 	{ SAI_ACL_COUNTER_ATTR_PACKETS, false, true, true, true,
-	  "Get/set packet count", SAI_ATTR_VAL_TYPE_U64 },
+	  "Get/set packet count", SAI_ATTR_VALUE_TYPE_UINT64 },
 	{ SAI_ACL_COUNTER_ATTR_BYTES, false, true, true, true,
-	  "Get/set byte count", SAI_ATTR_VAL_TYPE_U64 },
+	  "Get/set byte count", SAI_ATTR_VALUE_TYPE_UINT64 },
 	{   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-	  "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+	  "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
 	}
 };
 /* ACL COUNTERS VENDOR ATTRIBUTES */
@@ -1314,11 +1356,11 @@ static sai_status_t mrvl_acl_range_attrib_get(
 /* ACL RANGE ATTRIBUTES */
 static const sai_attribute_entry_t acl_range_attribs[] = {
     { SAI_ACL_RANGE_ATTR_TYPE, true, true, false, true,
-      "ACL Range type", SAI_ATTR_VAL_TYPE_U32 },
+      "ACL Range type", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_ACL_RANGE_ATTR_LIMIT, true, true, false, true,
-      "ACL Range limit", SAI_ATTR_VAL_TYPE_U32RANGE },
+      "ACL Range limit", SAI_ATTR_VALUE_TYPE_UINT32_RANGE },
 	{   END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED
     }
 };
 
@@ -1832,6 +1874,7 @@ static sai_status_t mrvl_acl_table_attrib_get(
 
 	switch ((int64_t)arg) {
     case SAI_ACL_TABLE_ATTR_ACL_STAGE:
+		value->s32 = mrvl_sai_acl_table_db[acl_table_index].stage;
 		value->u32 = mrvl_sai_acl_table_db[acl_table_index].stage;
         break;
     case SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST:
@@ -1898,6 +1941,151 @@ static sai_status_t mrvl_acl_table_match_attrib_get(
     return SAI_STATUS_SUCCESS;
 }
 
+static sai_status_t mrvl_acl_table_entry_list_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg)
+{
+    uint32_t acl_table_index = 0, i = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+    sai_object_id_t      *entry_list = NULL;
+    uint32_t              entries_count = 0, ii;
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index))) {
+        return status;
+    }
+
+    if (acl_table_index >= SAI_ACL_TABLES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_table_index %d\n", acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    entry_list = (sai_object_id_t*)calloc(mrvl_sai_acl_table_db[acl_table_index].entries_count, sizeof(sai_object_id_t));
+    if (!entry_list) {
+    MRVL_SAI_LOG_ERR("Failed to allocate memory\n");
+    MRVL_SAI_API_RETURN(SAI_STATUS_NO_MEMORY);
+    }
+
+    for (ii = 0;ii < SAI_ACL_ENTRIES_PER_TABLE_MAX_NUM; ii++){
+        if ((mrvl_sai_acl_entry_db[ii].is_used) && (mrvl_sai_acl_entry_db[ii].table_index == acl_table_index)) {
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_ENTRY, ii, &entry_list[entries_count])))
+            {
+                MRVL_SAI_LOG_ERR("Failed to create ACL entry index %d\n", i);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            }
+
+        entries_count++;
+        }
+    }
+    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_fill_objlist(entry_list, entries_count, &value->objlist)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to fill objlist for SAI_OBJECT_TYPE_QUEUE\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+
+}
+
+static sai_status_t mrvl_acl_table_available_entries_get(_In_ const sai_object_key_t   *key,
+                                                         _Inout_ sai_attribute_value_t *value,
+                                                         _In_ uint32_t                  attr_index,
+                                                         _Inout_ vendor_cache_t        *cache,
+                                                         void                          *arg)
+{
+    uint32_t acl_table_index = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t              free_entries = 0;
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index))) {
+        return status;
+    }
+
+    if (acl_table_index >= SAI_ACL_TABLES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_table_index %d\n", acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    assert(mrvl_sai_acl_table_db[acl_table_index].is_used == true);
+
+    free_entries = mrvl_sai_acl_table_db[acl_table_index].table_size - mrvl_sai_acl_table_db[acl_table_index].entries_count; 
+    
+    value->u32 = MIN(SAI_ACL_ENTRIES_PER_TABLE_MAX_NUM, free_entries);
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
+
+static sai_status_t mrvl_acl_table_available_counters_get(_In_ const sai_object_key_t   *key,
+                                                         _Inout_ sai_attribute_value_t *value,
+                                                         _In_ uint32_t                  attr_index,
+                                                         _Inout_ vendor_cache_t        *cache,
+                                                         void                          *arg)
+{
+    uint32_t acl_table_index = 0;
+	uint32_t acl_entry_index = 0;
+	sai_status_t status = SAI_STATUS_SUCCESS;
+    FPA_STATUS    fpa_status = FPA_OK;
+    FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
+    FPA_FLOW_TABLE_ENTRY_STC     fpa_flow_entry = {0};
+    FPA_FLOW_ENTRY_COUNTERS_STC counters = {0};
+    uint32_t              free_counters = 0;
+
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index))) {
+        return status;
+    }
+
+    if (acl_table_index >= SAI_ACL_TABLES_MAX_NUM){
+        MRVL_SAI_LOG_ERR("Invalid acl_table_index %d\n", acl_table_index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    assert(mrvl_sai_acl_table_db[acl_table_index].is_used == true);
+
+    /* For all entries in table */
+    acl_entry_index = mrvl_sai_acl_table_db[acl_table_index].head_entry_index;
+    fpa_table_type = mrvl_sai_acl_table_db[acl_table_index].fpa_table_type;
+    while (acl_entry_index != SAI_ACL_INVALID_INDEX){
+        memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
+        fpa_flow_entry.cookie = mrvl_sai_acl_entry_db[acl_entry_index].fpa_cookie;
+
+        /* get by cookie from FPA */
+        fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry);
+        if (fpa_status != FPA_OK) {
+            MRVL_SAI_LOG_ERR("Failed to get entry from FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+            status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(status);
+        }
+        fpaLibFlowEntryStatisticsGet(SAI_DEFAULT_ETH_SWID_CNS, fpa_table_type, &fpa_flow_entry, &counters);
+        if (fpa_status != FPA_OK) {
+            MRVL_SAI_LOG_ERR("Failed to clear counters from FPA: cookie - %llx, status = %d\n", fpa_flow_entry.cookie, fpa_status);
+            status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(status);
+        }
+        if (0 == counters.packetCount && 0 == counters.byteCount){
+            free_counters++;
+        }
+        acl_entry_index = mrvl_sai_acl_entry_db[acl_entry_index].next_acl_entry_index;
+    }
+
+    value->u32 = MIN(free_counters, SAI_ACL_COUNTERS_MAX_NUM);
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
 
 static sai_status_t mrvl_sai_acl_fill_table_match_fields(_In_ uint32_t attr_count,
 														 _In_ const sai_attribute_t  *attr_list,
@@ -2376,8 +2564,8 @@ static sai_status_t mrvl_sai_acl_fill_entry_match_fields(_In_ uint32_t attr_coun
 		MRVL_SAI_LOG_ERR("Incorrect fields bitmap - ipv4 fields and ipv6 addresses collision\n");
 		MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
     MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* the function checks actions attribute validity vs table attributes, validates attr values and builds actions bitmap and actions structure  */
@@ -2546,9 +2734,8 @@ static sai_status_t mrvl_sai_acl_entry_match_fields_validation(_In_ uint32_t att
     default:
         break;
     }
-
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
     MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 static sai_status_t mrvl_acl_entry_attrib_get(
@@ -2578,7 +2765,7 @@ static sai_status_t mrvl_acl_entry_attrib_get(
 	case SAI_ACL_ENTRY_ATTR_TABLE_ID:
 	    /* create ACL table object */
 	    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, mrvl_sai_acl_entry_db[acl_entry_index].table_index, &value->oid))) {
-	    	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE acl_table_index - %d\n", mrvl_sai_acl_entry_db[acl_entry_index].table_index);
+	    	MRVL_SAI_LOG_ERR("Can't create object id for SAI_OBJECT_TYPE_ACL_TABLE index - %d\n", mrvl_sai_acl_entry_db[acl_entry_index].table_index);
 	    	MRVL_SAI_API_RETURN(status);
 	    }
 		break;
@@ -2595,6 +2782,9 @@ static sai_status_t mrvl_acl_entry_attrib_get(
 
     return SAI_STATUS_SUCCESS;
 }
+ 
+/* currently unused, unabling API to avoid unreferenced function error*/
+/*
 static bool mrvl_sai_utl_is_mask_empty(_In_ uint8_t   *mask, _In_ uint32_t  maskSize)
 {
    bool empty = true;
@@ -2608,7 +2798,7 @@ static bool mrvl_sai_utl_is_mask_empty(_In_ uint8_t   *mask, _In_ uint32_t  mask
    }
    return empty;
 }
-
+*/
 static sai_status_t mrvl_acl_entry_match_attrib_get(
     _In_ const sai_object_key_t     *key,
     _Inout_ sai_attribute_value_t   *value,
@@ -3092,7 +3282,7 @@ static sai_status_t mrvl_acl_entry_action_attrib_set(
         }
     }
 
-    MRVL_SAI_LOG_EXIT()
+    MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
@@ -3139,7 +3329,7 @@ static sai_status_t mrvl_acl_find_free_index_in_table_db(_Out_ uint32_t *free_in
         status = SAI_STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    MRVL_SAI_LOG_EXIT()
+    MRVL_SAI_LOG_EXIT();
     return status;
 }
 
@@ -3166,7 +3356,7 @@ static sai_status_t mrvl_acl_find_free_index_in_entry_db(_Out_ uint32_t *free_in
         status = SAI_STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    MRVL_SAI_LOG_EXIT()
+    MRVL_SAI_LOG_EXIT();
     return status;
 }
 
@@ -3193,7 +3383,7 @@ static sai_status_t mrvl_acl_find_free_index_in_group_table_db(_Out_ uint32_t *f
         status = SAI_STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    MRVL_SAI_LOG_EXIT()
+    MRVL_SAI_LOG_EXIT();
     return status;
 }
 
@@ -3221,8 +3411,38 @@ static sai_status_t mrvl_acl_find_free_index_in_range_db(_Out_ uint32_t *free_in
         status = SAI_STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    MRVL_SAI_LOG_EXIT()
+    MRVL_SAI_LOG_EXIT();
     return status;
+}
+
+sai_status_t mrvl_acl_db_free_entries_get(_In_ sai_object_type_t  object_type,
+                                          _Out_ uint32_t         *free_entries)
+{
+    uint32_t ii, count = 0;
+
+    MRVL_SAI_LOG_ENTER();
+
+    assert((object_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP) || (object_type == SAI_OBJECT_TYPE_ACL_TABLE));
+    assert(free_entries != NULL);
+
+    if (object_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP) {
+        for (ii = 0; ii < SAI_ACL_GROUP_MAX_NUM; ii++) {
+            if (false == mrvl_sai_acl_group_db[ii].is_used) {
+                count++;
+            }
+        }
+    } else { /* SAI_OBJECT_TYPE_ACL_TABLE */
+        for (ii = 0; ii < SAI_ACL_TABLES_MAX_NUM; ii++) {
+            if (false == mrvl_sai_acl_table_db[ii].is_used) {
+                count++;
+            }
+        }
+    }
+
+    *free_entries = count;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 static void mrvl_sai_acl_group_remove(_In_ uint32_t acl_acl_group_index)
@@ -4562,8 +4782,8 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
 
     /* check mandatory attr SAI_ACL_TABLE_ATTR_ACL_STAGE  */
     assert(SAI_STATUS_SUCCESS == mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_TABLE_ATTR_ACL_STAGE, &stage, &tmp_index));
-    if (SAI_ACL_STAGE_EGRESS < stage->u32) {
-    	MRVL_SAI_LOG_ERR("Invalid value for SAI_ACL_TABLE_ATTR_ACL_STAGE - %d\n", stage->u32);
+    if (SAI_ACL_STAGE_EGRESS < stage->s32) {
+    	MRVL_SAI_LOG_ERR("Invalid value for SAI_ACL_TABLE_ATTR_ACL_STAGE - %u\n", stage->s32);
         MRVL_SAI_API_RETURN(status);
     }
 
@@ -4586,13 +4806,13 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
     /* check attr SAI_ACL_TABLE_ATTR_SIZE  */
     if (SAI_STATUS_SUCCESS ==
     		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ACL_TABLE_ATTR_SIZE, &size, &tmp_index))){
-		if (size->u32 > SAI_ACL_ENTRIES_PER_GROUP_MAX_NUM){
+		if (size->u32 > SAI_ACL_ENTRIES_PER_TABLE_MAX_NUM){
 			MRVL_SAI_LOG_ERR("Invalid value for SAI_ACL_TABLE_ATTR_SIZE - %d\n", size->u32);
 	        MRVL_SAI_API_RETURN(status);
 		}
 		else if (0 == size->u32) {
 			MRVL_SAI_LOG_ERR("Table size received is zero. Value is set to DEFAULT TABLE SIZE \n");
-            acl_table_size   = SAI_ACL_ENTRIES_PER_GROUP_MAX_NUM;
+            acl_table_size   = SAI_ACL_ENTRIES_PER_TABLE_MAX_NUM;
             is_dynamic_sized = true;
         } else {
             acl_table_size   = size->u32;
@@ -4600,7 +4820,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
         }
     }
     else { /* SAI_ACL_TABLE_ATTR_SIZE attr is not present */
-		acl_table_size   = SAI_ACL_ENTRIES_PER_GROUP_MAX_NUM;
+		acl_table_size   = SAI_ACL_ENTRIES_PER_TABLE_MAX_NUM;
 		is_dynamic_sized = true;
 	}
 

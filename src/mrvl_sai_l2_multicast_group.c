@@ -42,12 +42,12 @@ static sai_status_t mrvl_sai_l2mc_group_member_list_set(_In_ const sai_object_ke
 
 static const sai_attribute_entry_t mrvl_sai_l2mc_group_attribs[] = {
     { SAI_L2MC_GROUP_ATTR_L2MC_OUTPUT_COUNT, false, false, false, true,
-      "Number of L2MC output in the group", SAI_ATTR_VAL_TYPE_U32 },
+      "Number of L2MC output in the group", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_L2MC_GROUP_ATTR_L2MC_MEMBER_LIST, false, false, false, true,
-      "L2MC member list", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "L2MC member list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_l2mc_group_vendor_attribs[] = {
@@ -88,12 +88,12 @@ static sai_status_t mrvl_sai_l2mc_group_member_l2mc_output_id_set(_In_ const sai
     
 static const sai_attribute_entry_t mrvl_sai_l2mc_group_member_attribs[] = {
     { SAI_L2MC_GROUP_MEMBER_ATTR_L2MC_GROUP_ID, false, false, false, true,
-      "L2MC group id", SAI_ATTR_VAL_TYPE_OID },
+      "L2MC group id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_L2MC_GROUP_MEMBER_ATTR_L2MC_OUTPUT_ID, false, false, false, true,
-      "L2MC output id", SAI_ATTR_VAL_TYPE_OID },
+      "L2MC output id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_l2mc_group_member_vendor_attribs[] = {
@@ -122,9 +122,7 @@ static sai_status_t mrvl_sai_l2mc_group_output_count_get(_In_ const sai_object_k
                                                     void                          *arg)
 {
     sai_object_id_t l2mc_group_id   = key->key.object_id;
-    uint32_t    l2mc_group_data;
     sai_status_t     status;
-    int32_t list_data;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -184,9 +182,7 @@ static sai_status_t mrvl_sai_l2mc_group_member_l2mc_group_id_get(_In_ const sai_
                                                                  _Inout_ vendor_cache_t        *cache,
                                                                  void                          *arg)
 {
-    sai_object_id_t l2mc_group_member_id   = key->key.object_id;
     sai_status_t     status;
-    int32_t list_data;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -207,9 +203,7 @@ static sai_status_t mrvl_sai_l2mc_group_member_l2mc_output_id_get(_In_ const sai
                                                                   _Inout_ vendor_cache_t        *cache,
                                                                   void                          *arg)
 {
-    sai_object_id_t l2mc_group_id   = key->key.object_id;
     sai_status_t     status;
-    int32_t list_data;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -273,7 +267,6 @@ sai_status_t mrvl_create_l2mc_group(
         _In_ const sai_attribute_t *attr_list)
 {
 	sai_status_t                 status;
-    char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
 
     MRVL_SAI_LOG_ENTER();
@@ -395,7 +388,6 @@ sai_status_t mrvl_create_l2mc_group_member(
         _In_ const sai_attribute_t *attr_list)
 {
 	sai_status_t                 status;
-    char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
 
     MRVL_SAI_LOG_ENTER();

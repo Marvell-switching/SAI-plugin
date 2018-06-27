@@ -17,11 +17,10 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
+#include "mrvl_versions.h"
 
-service_method_table_t g_services;
+sai_service_method_table_t g_services;
 bool                   g_initialized = false;
-
-char sai_ver[] = "v1.0";
 
 /*
  * Routine Description:
@@ -35,7 +34,7 @@ char sai_ver[] = "v1.0";
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t sai_api_initialize(_In_ uint64_t flags, _In_ const service_method_table_t* services)
+sai_status_t sai_api_initialize(_In_ uint64_t flags, _In_ const sai_service_method_table_t* services)
 {
     mrvl_sai_trace_init();
 	MRVL_SAI_LOG_ENTER();
@@ -257,6 +256,26 @@ sai_status_t sai_api_query(_In_ sai_api_t sai_api_id, _Out_ void** api_method_ta
         MRVL_SAI_LOG_EXIT();
     	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 
+    case SAI_API_TAM:
+        *(const sai_tam_api_t **)api_method_table= &tam_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
+    case SAI_API_SEGMENTROUTE:
+        *(const sai_segmentroute_api_t **)api_method_table= &segmentroute_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
+    case SAI_API_MPLS:
+        *(const sai_mpls_api_t **)api_method_table= &mpls_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
+    case SAI_API_UBURST:
+        *(const sai_uburst_api_t **)api_method_table= &uburst_api;
+        MRVL_SAI_LOG_EXIT();
+    	MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+
     default:
     	*api_method_table = NULL;
     	MRVL_SAI_LOG_ERR("Invalid API type %d\n", sai_api_id);
@@ -418,6 +437,14 @@ sai_status_t sai_log_set(_In_ sai_api_t sai_api_id, _In_ sai_log_level_t log_lev
         break;
     case SAI_API_BRIDGE:
     	break;
+    case SAI_API_TAM:
+    	break;
+    case SAI_API_SEGMENTROUTE:
+    	break;
+    case SAI_API_MPLS:
+    	break;
+    case SAI_API_UBURST:
+    	break;
 
     default:
     	MRVL_SAI_LOG_ERR("Invalid API type %d\n", sai_api_id);
@@ -443,12 +470,7 @@ sai_object_type_t sai_object_type_query(_In_ sai_object_id_t sai_object_id)
     sai_object_type_t type;
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_NULL_OBJECT_ID == sai_object_id)
-    {
-        MRVL_SAI_LOG_ERR("NULL object id\n");
-    	MRVL_SAI_LOG_EXIT();
-        return SAI_OBJECT_TYPE_NULL;
-    }
+    
     type = ((mrvl_object_id_t *)&sai_object_id)->object_type; 
     if SAI_TYPE_CHECK_RANGE(type) {
     	MRVL_SAI_LOG_EXIT();
@@ -490,7 +512,7 @@ sai_object_id_t sai_switch_id_query(
             MRVL_SAI_LOG_EXIT();
             return SAI_NULL_OBJECT_ID;
         }
-        MRVL_SAI_LOG_EXIT()
+        MRVL_SAI_LOG_EXIT();
         return sai_object_id;
     } else {
     	MRVL_SAI_LOG_ERR("Invalid object type %d", type);

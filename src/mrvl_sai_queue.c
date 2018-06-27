@@ -59,26 +59,26 @@ static sai_status_t mrvl_sai_queue_parent_sched_node_set(_In_ const sai_object_k
 
 static const sai_attribute_entry_t mrvl_sai_queue_attribs[] = {
     { SAI_QUEUE_ATTR_TYPE, true, false, false, true,
-      "Queue type", SAI_ATTR_VAL_TYPE_S32 },
+      "Queue type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_QUEUE_ATTR_PORT, false, false, true, true,
-      "Queue port ID", SAI_ATTR_VAL_TYPE_OID },
+      "Queue port ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_QUEUE_ATTR_INDEX, false, false, true, true,
-      "Queue index", SAI_ATTR_VAL_TYPE_U8 },
+      "Queue index", SAI_ATTR_VALUE_TYPE_UINT8 },
     { SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE, false, false, true, true,
-      "Queue parent scheduler node", SAI_ATTR_VAL_TYPE_OID },
+      "Queue parent scheduler node", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_QUEUE_ATTR_WRED_PROFILE_ID, false, false, true, true,
-      "Queue WRED profile ID", SAI_ATTR_VAL_TYPE_OID },
+      "Queue WRED profile ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_QUEUE_ATTR_BUFFER_PROFILE_ID, false, false, true, true,
-      "Queue buffer profile ID", SAI_ATTR_VAL_TYPE_OID },
+      "Queue buffer profile ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_QUEUE_ATTR_SCHEDULER_PROFILE_ID, false, false, true, true,
-      "Queue scheduler profile ID", SAI_ATTR_VAL_TYPE_OID },
+      "Queue scheduler profile ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_QUEUE_ATTR_PAUSE_STATUS, false, false, false, true,
-      "Queue pause status", SAI_ATTR_VAL_TYPE_BOOL },
+      "Queue pause status", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_QUEUE_ATTR_ENABLE_PFC_DLDR, false, false, false, true,
-      "Queue enable PFC DLDR", SAI_ATTR_VAL_TYPE_BOOL },
+      "Queue enable PFC DLDR", SAI_ATTR_VALUE_TYPE_BOOL },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_queue_vendor_attribs[] = {
@@ -271,7 +271,6 @@ static sai_status_t mrvl_sai_queue_parent_sched_node_get(_In_ const sai_object_k
                                                      _Inout_ vendor_cache_t        *cache,
                                                      void                          *arg)
 {
-    sai_object_id_t queue_id   = key->key.object_id;
     sai_status_t     status;
 
     MRVL_SAI_LOG_ENTER();
@@ -496,18 +495,26 @@ sai_status_t mrvl_get_queue_stats(
         case SAI_QUEUE_STAT_RED_BYTES:
         case SAI_QUEUE_STAT_RED_DROPPED_PACKETS:
         case SAI_QUEUE_STAT_RED_DROPPED_BYTES:
-        case SAI_QUEUE_STAT_GREEN_DISCARD_DROPPED_PACKETS:
-        case SAI_QUEUE_STAT_GREEN_DISCARD_DROPPED_BYTES:
-        case SAI_QUEUE_STAT_YELLOW_DISCARD_DROPPED_PACKETS:
-        case SAI_QUEUE_STAT_YELLOW_DISCARD_DROPPED_BYTES:
-        case SAI_QUEUE_STAT_RED_DISCARD_DROPPED_PACKETS:
-        case SAI_QUEUE_STAT_RED_DISCARD_DROPPED_BYTES:
-        case SAI_QUEUE_STAT_DISCARD_DROPPED_PACKETS:
-        case SAI_QUEUE_STAT_DISCARD_DROPPED_BYTES:
+        case SAI_QUEUE_STAT_GREEN_WRED_DROPPED_PACKETS:
+        case SAI_QUEUE_STAT_GREEN_WRED_DROPPED_BYTES:
+        case SAI_QUEUE_STAT_YELLOW_WRED_DROPPED_PACKETS:
+        case SAI_QUEUE_STAT_YELLOW_WRED_DROPPED_BYTES:
+        case SAI_QUEUE_STAT_RED_WRED_DROPPED_PACKETS:
+        case SAI_QUEUE_STAT_RED_WRED_DROPPED_BYTES:
+        case SAI_QUEUE_STAT_WRED_DROPPED_PACKETS:
+        case SAI_QUEUE_STAT_WRED_DROPPED_BYTES:
         case SAI_QUEUE_STAT_CURR_OCCUPANCY_BYTES:
         case SAI_QUEUE_STAT_WATERMARK_BYTES:
         case SAI_QUEUE_STAT_SHARED_CURR_OCCUPANCY_BYTES:
         case SAI_QUEUE_STAT_SHARED_WATERMARK_BYTES:
+        case SAI_QUEUE_STAT_GREEN_WRED_ECN_MARKED_PACKETS:
+        case SAI_QUEUE_STAT_GREEN_WRED_ECN_MARKED_BYTES:
+        case SAI_QUEUE_STAT_YELLOW_WRED_ECN_MARKED_PACKETS:
+        case SAI_QUEUE_STAT_YELLOW_WRED_ECN_MARKED_BYTES:
+        case SAI_QUEUE_STAT_RED_WRED_ECN_MARKED_PACKETS:
+        case SAI_QUEUE_STAT_RED_WRED_ECN_MARKED_BYTES:
+        case SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS:
+        case SAI_QUEUE_STAT_WRED_ECN_MARKED_BYTES:
             counters[ii] = 0;
             break;
 

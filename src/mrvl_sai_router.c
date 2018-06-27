@@ -26,23 +26,27 @@ typedef struct _mrvl_sai_vr_table_t {
     bool                    valid;
     sai_mac_t               vr_mac_addr;
     uint32_t                rif_ref_cntr;
+    bool                    ipv4_enable;
+    bool                    ipv6_enable;
 } mrvl_sai_vr_table_t;
 
 mrvl_sai_vr_table_t   mrvl_sai_vr_table[SAI_SWITCH_MAX_VR_CNS] ={};
 
 static const sai_attribute_entry_t mrvl_sai_router_attribs[] = {
     { SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE, false, true, true, true,
-      "Router admin V4 state", SAI_ATTR_VAL_TYPE_BOOL },
+      "Router admin V4 state", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V6_STATE, false, true, true, true,
-      "Router admin V6 state", SAI_ATTR_VAL_TYPE_BOOL },
+      "Router admin V6 state", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_VIRTUAL_ROUTER_ATTR_SRC_MAC_ADDRESS, false, true, true, true,
-      "Router source MAC address", SAI_ATTR_VAL_TYPE_MAC },
+      "Router source MAC address", SAI_ATTR_VALUE_TYPE_MAC },
     { SAI_VIRTUAL_ROUTER_ATTR_VIOLATION_TTL1_PACKET_ACTION, false, true, true, true,
-      "Router action for TTL0/1", SAI_ATTR_VAL_TYPE_S32 },
+      "Router action for TTL0/1", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_VIRTUAL_ROUTER_ATTR_VIOLATION_IP_OPTIONS_PACKET_ACTION, false, true, true, true,
-      "Router action for IP options", SAI_ATTR_VAL_TYPE_S32 },
+      "Router action for IP options", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_VIRTUAL_ROUTER_ATTR_UNKNOWN_L3_MULTICAST_PACKET_ACTION, false, true, true, true,
+      "Router action for unknown L3 MC packets", SAI_ATTR_VALUE_TYPE_INT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static sai_status_t mrvl_sai_router_admin_get_prv(_In_ const sai_object_key_t   *key,
@@ -76,7 +80,17 @@ static const sai_vendor_attribute_entry_t mrvl_sai_router_vendor_attribs[] = {
       { false, false, false, false },
       { false, false, false, false },
       NULL, NULL,
-      NULL, NULL }
+      NULL, NULL },
+    { SAI_VIRTUAL_ROUTER_ATTR_UNKNOWN_L3_MULTICAST_PACKET_ACTION,
+      { false, false, false, false },
+      { false, false, false, false },
+      NULL, NULL,
+      NULL, NULL },
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+        { false, false, false, false },
+        { false, false, false, false },
+        NULL, NULL,
+        NULL, NULL }
 };
 static void mrvl_sai_router_key_to_str(_In_ sai_object_id_t sai_vr_id, _Out_ char *key_str)
 {
@@ -187,29 +201,36 @@ static sai_status_t mrvl_sai_router_admin_get_prv(_In_ const sai_object_key_t   
                                    void                          *arg)
 {
     uint32_t        vr_idx;
+    bool            is_valid;
 
     MRVL_SAI_LOG_ENTER();
 
-    assert((SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg));
-    /*TODO add ipv6*/
-    /* || (SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V6_STATE == (PTR_TO_INT)arg));*/
+    assert((SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg) 
+     || (SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V6_STATE == (PTR_TO_INT)arg));
 
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_VIRTUAL_ROUTER, &vr_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router VIRTUAL_ROUTER\n", key);
         return SAI_STATUS_FAILURE;
     }
-    if ((vr_idx >= SAI_SWITCH_MAX_VR_CNS) || (mrvl_sai_vr_table[vr_idx].valid == false)) {
-        value->booldata = false; 
-    }else {
-        value->booldata = true; 
+
+    if (SAI_STATUS_SUCCESS == mrvl_sai_virtual_router_is_valid(vr_idx, &is_valid)) {
+        if (false == is_valid)
+        {
+            MRVL_SAI_LOG_ERR("Virtual router %d is invalid\n", vr_idx); 
+            return SAI_STATUS_FAILURE;
+        }
     }
+
+    if (SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg)
+        value->booldata = mrvl_sai_vr_table[vr_idx].ipv4_enable;
+    else
+        value->booldata = mrvl_sai_vr_table[vr_idx].ipv6_enable;
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }
 
 /**
-
  * @brief Create virtual router
  *
  * @param[out] vr_id Virtual router id
@@ -220,9 +241,7 @@ static sai_status_t mrvl_sai_router_admin_get_prv(_In_ const sai_object_key_t   
  * @return #SAI_STATUS_SUCCESS on success
  *    #SAI_STATUS_ADDR_NOT_FOUND if neither #SAI_SWITCH_ATTR_SRC_MAC_ADDRESS nor
  *    #SAI_VIRTUAL_ROUTER_ATTR_SRC_MAC_ADDRESS is set.
-
  */
-
 sai_status_t mrvl_sai_create_virtual_router(_Out_ sai_object_id_t         *vr_id,
                                             _In_ sai_object_id_t           switch_id,
                                             _In_ uint32_t                  attr_count,
@@ -242,6 +261,12 @@ sai_status_t mrvl_sai_create_virtual_router(_Out_ sai_object_id_t         *vr_id
     if (NULL == vr_id) {
         MRVL_SAI_LOG_ERR("NULL vr_id param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
     if (SAI_STATUS_SUCCESS !=
@@ -300,31 +325,27 @@ sai_status_t mrvl_sai_create_virtual_router(_Out_ sai_object_id_t         *vr_id
     }
     mrvl_sai_vr_table[vr_idx].valid = true;
     mrvl_sai_vr_table[vr_idx].rif_ref_cntr = 0;
+    mrvl_sai_vr_table[vr_idx].ipv4_enable = ipv4_enable;
+    mrvl_sai_vr_table[vr_idx].ipv6_enable = ipv6_enable;
     
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VIRTUAL_ROUTER, vr_idx, vr_id))) {
     	MRVL_SAI_API_RETURN(status);
     }
     
     mrvl_sai_router_key_to_str(*vr_id, key_str);
-    MRVL_SAI_LOG_NTC("Created router %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /**
-
-
  * @brief Remove virtual router
  *
  * @param[in] vr_id Virtual router id
  *
  * @return #SAI_STATUS_SUCCESS on success Failure status code on error
-
-
-
  */
-
 sai_status_t mrvl_sai_remove_virtual_router(_In_ sai_object_id_t vr_id)
 {
     uint32_t        vr_idx;
@@ -341,44 +362,57 @@ sai_status_t mrvl_sai_remove_virtual_router(_In_ sai_object_id_t vr_id)
     }
     memset(&mrvl_sai_vr_table[vr_idx], 0, sizeof(mrvl_sai_vr_table_t));
     mrvl_sai_router_key_to_str(vr_id, key_str); 
-    MRVL_SAI_LOG_NTC("Remove router %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Removed %s\n", key_str);
 
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
-/* check if rif exist and valid */
+
+/* check if vrf exists and if it is valid */
 sai_status_t mrvl_sai_virtual_router_is_valid(_In_ uint32_t   vr_idx,
-                                              _Out_ bool      *is_valid)
+                                  _Out_ bool      *is_valid)
 {
     if (vr_idx >= SAI_SWITCH_MAX_VR_CNS) {
         return SAI_STATUS_FAILURE;
     }
-    if (mrvl_sai_vr_table[vr_idx].valid == false) {
-       *is_valid = false;
-    } else {
-        *is_valid = true;
-    }
+
+    *is_valid = mrvl_sai_vr_table[vr_idx].valid;
+    
     return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t mrvl_sai_virtual_router_get_mac(_In_ uint32_t   vr_idx,
                                               _Out_ sai_mac_t mac_address)
 {
-    if ((vr_idx >= SAI_SWITCH_MAX_VR_CNS) || (mrvl_sai_vr_table[vr_idx].valid == false)){
-        return SAI_STATUS_FAILURE;
+    bool is_valid;
+
+    if (SAI_STATUS_SUCCESS == mrvl_sai_virtual_router_is_valid(vr_idx, &is_valid)) {
+        if (false == is_valid)
+        {
+            MRVL_SAI_LOG_ERR("Virtual router %d is invalid\n", vr_idx); 
+            return SAI_STATUS_FAILURE;
+        }
     }
+
     memcpy(mac_address, mrvl_sai_vr_table[vr_idx].vr_mac_addr, sizeof(sai_mac_t));
     return SAI_STATUS_SUCCESS;
 }
 
 /* check if rif exist and valid */
-sai_status_t mrvl_sai_virtual_router_update_referance_cntr(_In_ uint32_t   vr_idx,
+sai_status_t mrvl_sai_virtual_router_update_reference_cntr(_In_ uint32_t   vr_idx,
                                                            _In_ bool      add)
 {
-    if ((vr_idx >= SAI_SWITCH_MAX_VR_CNS) || (mrvl_sai_vr_table[vr_idx].valid == false)) {
-        return SAI_STATUS_FAILURE;
+    bool is_valid;
+
+    if (SAI_STATUS_SUCCESS == mrvl_sai_virtual_router_is_valid(vr_idx, &is_valid)) {
+        if (false == is_valid)
+        {
+            MRVL_SAI_LOG_ERR("Virtual router %d is invalid\n", vr_idx); 
+            return SAI_STATUS_FAILURE;
+        }
     }
+
     if (add) {
         mrvl_sai_vr_table[vr_idx].rif_ref_cntr++;
     } else {

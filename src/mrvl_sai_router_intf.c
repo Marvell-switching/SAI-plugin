@@ -38,25 +38,25 @@ static mrvl_sai_rif_mtu_table_t  mrvl_sai_rif_mtu_table[SAI_RIF_MTU_PROFILES_CNS
 
 static const sai_attribute_entry_t mrvl_sai_rif_attribs[] = {
     { SAI_ROUTER_INTERFACE_ATTR_VIRTUAL_ROUTER_ID, true, true, false, true,
-      "Router interface virtual router ID", SAI_ATTR_VAL_TYPE_OID },
+      "Router interface virtual router ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_ROUTER_INTERFACE_ATTR_TYPE, true, true, false, true,
-      "Router interface type", SAI_ATTR_VAL_TYPE_S32 },
+      "Router interface type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_ROUTER_INTERFACE_ATTR_PORT_ID, false, true, false, true,
-      "Router interface port ID", SAI_ATTR_VAL_TYPE_OID },
+      "Router interface port ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_ROUTER_INTERFACE_ATTR_VLAN_ID, false, true, false, true,
-      "Router interface vlan ID", SAI_ATTR_VAL_TYPE_U16 },
+      "Router interface vlan ID", SAI_ATTR_VALUE_TYPE_UINT16 },
     { SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS, false, true, true, true,
-      "Router interface source MAC address", SAI_ATTR_VAL_TYPE_MAC },
+      "Router interface source MAC address", SAI_ATTR_VALUE_TYPE_MAC },
     { SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE, false, true, true, true,
-      "Router interface admin v4 state", SAI_ATTR_VAL_TYPE_BOOL },
+      "Router interface admin v4 state", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE, false, true, true, true,
-      "Router interface admin v6 state", SAI_ATTR_VAL_TYPE_BOOL },
+      "Router interface admin v6 state", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_ROUTER_INTERFACE_ATTR_MTU, false, true, true, true,
-      "Router interface mtu", SAI_ATTR_VAL_TYPE_U32 },
+      "Router interface mtu", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_ROUTER_INTERFACE_ATTR_NEIGHBOR_MISS_PACKET_ACTION, false, true, true, true,
-      "Router interface neighbor miss action", SAI_ATTR_VAL_TYPE_S32 },
+      "Router interface neighbor miss action", SAI_ATTR_VALUE_TYPE_INT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, true,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static sai_status_t mrvl_sai_rif_attrib_get_prv(_In_ const sai_object_key_t   *key,
@@ -210,7 +210,7 @@ sai_status_t mrvl_sai_remove_router_interface(_In_ sai_object_id_t rif_id)
     
     MRVL_SAI_LOG_ENTER();
     mrvl_sai_rif_key_to_str(rif_id, key_str);
-    MRVL_SAI_LOG_NTC("Remove rif %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Remove %s\n", key_str);
 
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(rif_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", rif_id);
@@ -294,6 +294,38 @@ sai_status_t mrvl_sai_remove_router_interface(_In_ sai_object_id_t rif_id)
                 MRVL_SAI_API_RETURN(status);
             }
 
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_NEIGHBOR_SOLICITATION_E,
+                                                       mrvl_sai_rif_table[rif_idx].intf_type,
+                                                       mrvl_sai_rif_table[rif_idx].port_vlan_id, 0);
+            fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, cookie);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to delete entry %llx from CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E,
+                                                       mrvl_sai_rif_table[rif_idx].intf_type,
+                                                       mrvl_sai_rif_table[rif_idx].port_vlan_id, 0);
+            fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, cookie);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to delete entry %llx from CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E,
+                                                       mrvl_sai_rif_table[rif_idx].intf_type,
+                                                       mrvl_sai_rif_table[rif_idx].port_vlan_id, 1);
+            fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_CONTROL_PKT_E, cookie);
+            if (fpa_status != FPA_OK) {
+                MRVL_SAI_LOG_ERR("Failed to delete entry %llx from CONTROL_PKT table status = %d\n", cookie, fpa_status);
+                status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(status);
+            }
+
+
+
             if (SAI_ROUTER_INTERFACE_TYPE_VLAN == mrvl_sai_rif_table[rif_idx].intf_type) {
                 vlan = mrvl_sai_rif_table[rif_idx].port_vlan_id;
             }
@@ -329,7 +361,7 @@ sai_status_t mrvl_sai_remove_router_interface(_In_ sai_object_id_t rif_id)
     if (mrvl_sai_rif_mtu_table[mtu_idx].ref_cntr == 0) {
         mrvl_sai_rif_mtu_table[mtu_idx].mtu_size = 0;
     }
-    mrvl_sai_virtual_router_update_referance_cntr(mrvl_sai_rif_table[rif_idx].vrf_id , false);
+    mrvl_sai_virtual_router_update_reference_cntr(mrvl_sai_rif_table[rif_idx].vrf_id , false);
 
     memset(&mrvl_sai_rif_table[rif_idx], 0, sizeof(mrvl_sai_rif_table_t));
     MRVL_SAI_LOG_EXIT(); 
@@ -505,10 +537,13 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
             MRVL_SAI_API_RETURN(status);
         }
 
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port->oid, SAI_OBJECT_TYPE_PORT, &portVlan))) {
-        	MRVL_SAI_API_RETURN(status);
+        status = mrvl_sai_utl_oid_to_lag_port(port->oid, &portVlan);
+        if (SAI_STATUS_SUCCESS != status)
+        {
+            MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to log port\n", port->oid);
+            MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
         }
-        config_fpa = 1;
+        config_fpa = 1; 
     } else if (SAI_ROUTER_INTERFACE_TYPE_LOOPBACK == type->s32) {
         if (SAI_STATUS_ITEM_NOT_FOUND !=
             (status =
@@ -570,7 +605,6 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, rif_idx, rif_id))) {
     	MRVL_SAI_API_RETURN(status);
     }
-
 
     if (config_fpa )
     {
@@ -856,7 +890,7 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
             }
 
             flowEntry.data.control_pkt.entry_type = FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E;
-            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E, type->s32, portVlan, 0);
+            cookie = MRVL_SAI_HOSTIF_CREATE_COOKIE_MAC(FPA_CONTROL_PKTS_TYPE_IPV6_LINK_LOCAL_E, type->s32, portVlan, 1);
             flowEntry.cookie = cookie;
             memset(&flowEntry.data.control_pkt.match.dstIpv6, 0, 16);
             flowEntry.data.control_pkt.match.dstIpv6.s6_addr[0]  = 0xFF;
@@ -903,12 +937,14 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
     mrvl_sai_rif_table[rif_idx].nbr_valid = false;   
     mrvl_sai_rif_table[rif_idx].nbr_miss_act = miss_action;
     mrvl_sai_rif_table[rif_idx].vrf_id = vr_id;
+    mrvl_sai_rif_table[rif_idx].ipv4_enable = ipv4_enable;
+    mrvl_sai_rif_table[rif_idx].ipv6_enable = ipv6_enable;
     mrvl_sai_utl_dlist_init(&mrvl_sai_rif_table[rif_idx].route_list_elem);
 
-    mrvl_sai_virtual_router_update_referance_cntr(vr_id, true);
+    mrvl_sai_virtual_router_update_reference_cntr(vr_id, true);
  
     mrvl_sai_rif_key_to_str(*rif_id, key_str);
-    MRVL_SAI_LOG_NTC("Created rif %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -1097,6 +1133,11 @@ static sai_status_t mrvl_sai_rif_admin_set_prv(_In_ const sai_object_key_t *key,
         MRVL_SAI_LOG_ERR("we support only admin enable\n");
         return SAI_STATUS_NOT_SUPPORTED;
     }
+
+    if (SAI_VIRTUAL_ROUTER_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg)
+        mrvl_sai_rif_table[rif_idx].ipv4_enable = value->booldata;
+    else
+        mrvl_sai_rif_table[rif_idx].ipv6_enable = value->booldata;
     
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
@@ -1192,7 +1233,7 @@ static sai_status_t mrvl_sai_rif_attrib_get_prv(_In_ const sai_object_key_t   *k
     		 MRVL_SAI_LOG_ERR("SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS not relevent for SAI_ROUTER_INTERFACE_TYPE_LOOPBACK");
     		 return SAI_STATUS_INVALID_PARAMETER;
     	 }
-        memcpy(value->mac, /*&flowEntry.data.termination.match.destMac*/ mrvl_sai_rif_table[rif_idx].src_mac, 6);
+        memcpy(value->mac, mrvl_sai_rif_table[rif_idx].src_mac, 6);
         break;
         
     case SAI_ROUTER_INTERFACE_ATTR_NEIGHBOR_MISS_PACKET_ACTION:
@@ -1200,9 +1241,8 @@ static sai_status_t mrvl_sai_rif_attrib_get_prv(_In_ const sai_object_key_t   *k
         break;
         
     default:
-        MRVL_SAI_LOG_ERR("Arg %d not supported\n", arg);
+        MRVL_SAI_LOG_ERR("Attribute %d not supported\n", (PTR_TO_INT)arg);
         return SAI_STATUS_NOT_SUPPORTED;
-
    }
 
     MRVL_SAI_LOG_EXIT();
@@ -1220,6 +1260,9 @@ static sai_status_t mrvl_sai_rif_admin_get_prv(_In_ const sai_object_key_t   *ke
 
     MRVL_SAI_LOG_ENTER();
 
+    assert((SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg) 
+     || (SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE == (PTR_TO_INT)arg));
+
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx)) {
         MRVL_SAI_LOG_ERR("input param %llx is not router ROUTER_INTERFACE\n", key);
         return SAI_STATUS_FAILURE;
@@ -1230,8 +1273,11 @@ static sai_status_t mrvl_sai_rif_admin_get_prv(_In_ const sai_object_key_t   *ke
         return SAI_STATUS_ITEM_NOT_FOUND;
     }
     
-    value->booldata = true;
-    
+    if (SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE == (PTR_TO_INT)arg)
+        value->booldata = mrvl_sai_rif_table[rif_idx].ipv4_enable;
+    else
+        value->booldata = mrvl_sai_rif_table[rif_idx].ipv6_enable;
+
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
 }

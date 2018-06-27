@@ -177,19 +177,19 @@ static mrvl_sai_hostif_trap_entry_t mrvl_sai_hostif_trap_table[INTERNAL_SAI_HOST
 
 static const sai_attribute_entry_t host_interface_attribs[] = {
     { SAI_HOSTIF_ATTR_TYPE, true, true, false, true,
-      "Host interface type", SAI_ATTR_VAL_TYPE_S32 },
+      "Host interface type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_HOSTIF_ATTR_OBJ_ID, false, true, false, true,
-      "Host interface associated port or router interface", SAI_ATTR_VAL_TYPE_OID },
+      "Host interface associated port or router interface", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_HOSTIF_ATTR_NAME, true, true, true, true,
-      "Host interface name", SAI_ATTR_VAL_TYPE_CHARDATA },
+      "Host interface name", SAI_ATTR_VALUE_TYPE_CHARDATA },
     { SAI_HOSTIF_ATTR_OPER_STATUS, false, true, true, true,
-        "Host interface oper status", SAI_ATTR_VAL_TYPE_BOOL },
+        "Host interface oper status", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_HOSTIF_ATTR_QUEUE, false, false, false, true,
-        "Host interface queue used for packets going out", SAI_ATTR_VAL_TYPE_U32 },
-    { SAI_HOSTIF_ATTR_VLAN_TAG, false, true, false, true,
-        "Host interface vlan tag strip/keep behaviour", SAI_ATTR_VAL_TYPE_S32 },
+        "Host interface queue used for packets going out", SAI_ATTR_VALUE_TYPE_UINT32 },
+    { SAI_HOSTIF_ATTR_VLAN_TAG, false, true, true, true,
+        "Host interface vlan tag strip/keep behaviour", SAI_ATTR_VALUE_TYPE_INT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 sai_status_t mrvl_sai_host_interface_type_get(_In_ const sai_object_key_t   *key,
@@ -284,26 +284,26 @@ static void mrvl_sai_host_interface_table_entry_key_to_str(_In_ sai_object_id_t 
 }
 static const sai_attribute_entry_t host_interface_trap_attribs[] = {
     { SAI_HOSTIF_TRAP_ATTR_TRAP_TYPE, true, false, true, true,
-      "Host interface trap type", SAI_ATTR_VAL_TYPE_S32 },
+      "Host interface trap type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_HOSTIF_TRAP_ATTR_PACKET_ACTION, true, false, true, true,
-      "Host interface trap action", SAI_ATTR_VAL_TYPE_S32 },
+      "Host interface trap action", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_PRIORITY, false, false, false, false,
-      "Host interface trap priority", SAI_ATTR_VAL_TYPE_U32 },
+      "Host interface trap priority", SAI_ATTR_VALUE_TYPE_UINT32 },
 /*    { SAI_HOSTIF_TRAP_ATTR_TRAP_CHANNEL, false, false, true, true,
-      "trap channel to use", SAI_ATTR_VAL_TYPE_S32 },
+      "trap channel to use", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_HOSTIF_TRAP_ATTR_FD, false, false, false, false,
-      "file descriptor", SAI_ATTR_VAL_TYPE_U64 },
+      "file descriptor", SAI_ATTR_VALUE_TYPE_UINT64 },
     { SAI_HOSTIF_TRAP_ATTR_PORT_LIST, false, false, true, true,
-      "enable trap for a list of SAI ports", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "enable trap for a list of SAI ports", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
 */
     { SAI_HOSTIF_TRAP_ATTR_EXCLUDE_PORT_LIST, false, false, true, true,
-      "Disable trap for a list of SAI ports", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "Disable trap for a list of SAI ports", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP, false, false, false, false,
-      "Trap-group ID for the trap", SAI_ATTR_VAL_TYPE_U64 },  
+      "Trap-group ID for the trap", SAI_ATTR_VALUE_TYPE_UINT64 },  
     { SAI_HOSTIF_TRAP_ATTR_VLAN_LIST, false, false, true, true,
-      "Enable trap for a list of SAI vlans", SAI_ATTR_VAL_TYPE_OBJLIST },  
+      "Enable trap for a list of SAI vlans", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },  
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 sai_status_t mrvl_hostif_trap_action_set(_In_ const sai_object_key_t *key,
@@ -398,14 +398,14 @@ static void mrvl_sai_host_interface_trap_key_to_str(_In_ sai_hostif_trap_type_t 
 
 static const sai_attribute_entry_t host_interface_trap_group_attribs[] = {
     { SAI_HOSTIF_TRAP_GROUP_ATTR_ADMIN_STATE, false, false, false, true,
-      "Hostif trap group admin mode", SAI_ATTR_VAL_TYPE_BOOL },
+      "Hostif trap group admin mode", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_HOSTIF_TRAP_GROUP_ATTR_QUEUE, true, false, true, true,
-      "Hostif trap group CPU egress queue", SAI_ATTR_VAL_TYPE_U32 },
+      "Hostif trap group CPU egress queue", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER, false, false, false, false,
-      "Hostif trap group policer id", SAI_ATTR_VAL_TYPE_OID },
+      "Hostif trap group policer id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 sai_status_t mrvl_sai_trap_group_admin_get(_In_ const sai_object_key_t   *key,
@@ -533,18 +533,18 @@ sai_status_t mrvl_sai_trap_group_policer_set(_In_ const sai_object_key_t      *k
 
 static const sai_attribute_entry_t host_interface_packet_attribs[] = {
     { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TRAP_ID, false, false, false, true,
-      "Hostif packet trap id", SAI_ATTR_VAL_TYPE_OID },
+      "Hostif packet trap id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_HOSTIF_PACKET_ATTR_INGRESS_PORT, false, false, false, true,
-      "Hostif packet ingress port", SAI_ATTR_VAL_TYPE_OID },
+      "Hostif packet ingress port", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_HOSTIF_PACKET_ATTR_INGRESS_LAG, false, false, false, true,
-      "Hostif packet ingress lag", SAI_ATTR_VAL_TYPE_OID },
+      "Hostif packet ingress lag", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_HOSTIF_PACKET_ATTR_HOSTIF_TX_TYPE, true, false, false, false,
-      "Hostif packet TX type", SAI_ATTR_VAL_TYPE_S32 },
+      "Hostif packet TX type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_HOSTIF_PACKET_ATTR_EGRESS_PORT_OR_LAG, true, false, false, false,
-      "Hostif packet egress port or lag", SAI_ATTR_VAL_TYPE_OID },
+      "Hostif packet egress port or lag", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t host_interface_packet_vendor_attribs[] = {
@@ -581,19 +581,19 @@ static const sai_vendor_attribute_entry_t host_interface_packet_vendor_attribs[]
 };
 
 static const sai_attribute_entry_t host_interface_table_entry_attribs[] = {
-    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE, true, false, false, true,
-      "Hostif table entry type", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID, false, false, false, true,
-      "Hostif table entry match field object id", SAI_ATTR_VAL_TYPE_OID },
-    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID, true, false, false, true,
-      "Hostif table entry match field trap id", SAI_ATTR_VAL_TYPE_OID },
-    { SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE, true, false, false, false,
-      "Hostif table entry action channel", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, true, false, false, false,
-      "Hostif table entry action target hostif object", SAI_ATTR_VAL_TYPE_OID },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE, true, true, false, true,
+      "Hostif table entry type", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID, true, true, false, true,
+      "Hostif table entry match field object id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID, true, true, false, true,
+      "Hostif table entry match field trap id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE, true, true, false, false,
+      "Hostif table entry action channel", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, true, true, false, false,
+      "Hostif table entry action target hostif object", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 /* Host interface table entry type (sai_hostif_table_entry_type_t)
@@ -623,7 +623,7 @@ static const sai_vendor_attribute_entry_t host_interface_table_entry_vendor_attr
       mrvl_sai_table_entry_get, (void*)SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID,
       NULL, NULL },
     { SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE,
-      { true, false, false, false },
+      { true, false, false, true },
       { true, false, false, true },
       NULL, NULL,
       NULL, NULL },
@@ -1097,7 +1097,7 @@ sai_status_t mrvl_sai_host_interface_name_get(_In_ const sai_object_key_t   *key
         return status;
     }
 
-    strncpy(value->chardata, "name", HOSTIF_NAME_SIZE);
+    strncpy(value->chardata, "name", SAI_HOSTIF_NAME_SIZE);
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
@@ -2394,7 +2394,6 @@ sai_status_t mrvl_sai_create_hostif_table_entry(
     const sai_attribute_value_t *type, *obj_id, *channel, *fd;
     uint32_t                     type_index, obj_id_index, obj_id_data, channel_index, fd_index;
     uint32_t                     fd_data, fd_ext_data;
-    int32_t                      fd_val;
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
 
@@ -2479,7 +2478,6 @@ sai_status_t mrvl_sai_create_hostif_table_entry(
             MRVL_SAI_LOG_ERR("Can't set non FD host interface type %u\n", fd_data);
             MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + fd_index);
         }
-        fd_val = host_fd[fd_ext_data].fd;
     } else {
         if (SAI_STATUS_ITEM_NOT_FOUND !=
             (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF, &fd,

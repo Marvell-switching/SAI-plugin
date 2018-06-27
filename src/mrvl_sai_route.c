@@ -28,21 +28,16 @@ static void* mrvl_sai_route_hash_ptr;
 
 static const sai_attribute_entry_t mrvl_sai_route_attribs[] = {
     { SAI_ROUTE_ENTRY_ATTR_PACKET_ACTION, false, true, true, true,
-      "Route packet action", SAI_ATTR_VAL_TYPE_S32 },
-    { SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY, false, true, true, true,
-      "Route trap priority", SAI_ATTR_VAL_TYPE_U8 },
+      "Route packet action", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_ROUTE_ENTRY_ATTR_USER_TRAP_ID, false, true, true, true,
+      "Route user defined trap ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID, false, true, true, true,
-      "Route next hop ID", SAI_ATTR_VAL_TYPE_U32 },
+      "Route next hop ID", SAI_ATTR_VALUE_TYPE_UINT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static sai_status_t mrvl_sai_route_packet_action_get_prv(_In_ const sai_object_key_t   *key,
-                                          _Inout_ sai_attribute_value_t *value,
-                                          _In_ uint32_t                  attr_index,
-                                          _Inout_ vendor_cache_t        *cache,
-                                          void                          *arg);
-static sai_status_t mrvl_sai_route_trap_priority_get_prv(_In_ const sai_object_key_t   *key,
                                           _Inout_ sai_attribute_value_t *value,
                                           _In_ uint32_t                  attr_index,
                                           _Inout_ vendor_cache_t        *cache,
@@ -55,9 +50,7 @@ static sai_status_t mrvl_sai_route_next_hop_id_get_prv(_In_ const sai_object_key
 static sai_status_t mrvl_sai_route_packet_action_set_prv(_In_ const sai_object_key_t      *key,
                                           _In_ const sai_attribute_value_t *value,
                                           void                             *arg);
-static sai_status_t mrvl_sai_route_trap_priority_set_prv(_In_ const sai_object_key_t      *key,
-                                          _In_ const sai_attribute_value_t *value,
-                                          void                             *arg);
+
 static sai_status_t mrvl_sai_route_next_hop_id_set_prv(_In_ const sai_object_key_t      *key,
                                         _In_ const sai_attribute_value_t *value,
                                         void                             *arg);
@@ -68,11 +61,11 @@ static const sai_vendor_attribute_entry_t mrvl_sai_route_vendor_attribs[] = {
       { true, false, true, true },
       mrvl_sai_route_packet_action_get_prv, NULL,
       mrvl_sai_route_packet_action_set_prv, NULL },
-    { SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY,
+    { SAI_ROUTE_ENTRY_ATTR_USER_TRAP_ID,
       { true, false, true, true },
       { true, false, true, true },
-      mrvl_sai_route_trap_priority_get_prv, NULL,
-      mrvl_sai_route_trap_priority_set_prv, NULL },
+      NULL, NULL,
+      NULL, NULL },
     { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID,
       { true, false, true, true },
       { true, false, true, true },
@@ -266,8 +259,8 @@ sai_status_t mrvl_sai_create_route_entry(_In_ const sai_route_entry_t* route_ent
                                _In_ const sai_attribute_t           *attr_list)
 {
     sai_status_t                  status;
-    const sai_attribute_value_t *action, *priority, *next_hop;
-    uint32_t                     action_index, priority_index, next_hop_index;
+    const sai_attribute_value_t *action, *next_hop;
+    uint32_t                     action_index, next_hop_index;
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     char                         key_str[MAX_KEY_STR_LEN];
     mrvl_sai_route_hash_entry_t  entry, *used_entry_ptr;
@@ -279,6 +272,11 @@ sai_status_t mrvl_sai_create_route_entry(_In_ const sai_route_entry_t* route_ent
     if (NULL == route_entry) {
         MRVL_SAI_LOG_ERR("NULL unicast_route_entry param\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(route_entry->switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
     if (SAI_STATUS_SUCCESS !=
@@ -293,15 +291,6 @@ sai_status_t mrvl_sai_create_route_entry(_In_ const sai_route_entry_t* route_ent
     MRVL_SAI_LOG_NTC("Create %s\n", key_str);
     MRVL_SAI_LOG_NTC("Attribs %s\n", list_str);
 
-
-    if (SAI_STATUS_SUCCESS ==
-        (status =
-             mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTE_ENTRY_ATTR_TRAP_PRIORITY, &priority, &priority_index))) {
-        if (priority->u8 != 0) {
-            MRVL_SAI_LOG_ERR("priority %d is not supported\n", priority->u8);
-            MRVL_SAI_API_RETURN(SAI_STATUS_NOT_SUPPORTED);
-        }
-    }
     memset(&entry, 0, sizeof(entry));
 
     if (SAI_STATUS_SUCCESS ==
@@ -716,16 +705,6 @@ static sai_status_t mrvl_sai_route_packet_action_get_prv(_In_ const sai_object_k
     return SAI_STATUS_SUCCESS;
 }
 
-/* Packet priority for trap/log actions [uint8_t] */
-static sai_status_t mrvl_sai_route_trap_priority_get_prv(_In_ const sai_object_key_t   *key,
-                                          _Inout_ sai_attribute_value_t *value,
-                                          _In_ uint32_t                  attr_index,
-                                          _Inout_ vendor_cache_t        *cache,
-                                          void                          *arg)
-{
-    return SAI_STATUS_NOT_SUPPORTED;
-}
-
 /* Next hop id for the packet [sai_next_hop_id_t] */
 static sai_status_t mrvl_sai_route_next_hop_id_get_prv(_In_ const sai_object_key_t   *key,
                                         _Inout_ sai_attribute_value_t *value,
@@ -864,15 +843,6 @@ static sai_status_t mrvl_sai_route_packet_action_set_prv(_In_ const sai_object_k
 
     MRVL_SAI_LOG_EXIT();
     return SAI_STATUS_SUCCESS;
-}
-
-/* Packet priority for trap/log actions [uint8_t] */
-static sai_status_t mrvl_sai_route_trap_priority_set_prv(_In_ const sai_object_key_t      *key,
-                                          _In_ const sai_attribute_value_t *value,
-                                          void                             *arg)
-{
-    MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_NOT_SUPPORTED;
 }
 
 /* Next hop id for the packet [sai_next_hop_id_t] */

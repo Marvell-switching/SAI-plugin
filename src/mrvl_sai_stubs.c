@@ -26,7 +26,7 @@
 /**
  * @brief Create ingress priority group
  *
- * @param[out] ingress_pg_id Ingress priority group
+ * @param[out] ingress_priority_group_id Ingress priority group
  * @param[in] switch_id Switch id
  * @param[in] attr_count Number of attributes
  * @param[in] attr_list Array of attributes
@@ -34,7 +34,7 @@
  * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
 sai_status_t mrvl_create_ingress_priority_group(
-        _Out_ sai_object_id_t* ingress_pg_id,
+        _Out_ sai_object_id_t* ingress_priority_group_id,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
@@ -46,12 +46,12 @@ sai_status_t mrvl_create_ingress_priority_group(
 /**
  * @brief Remove ingress priority group
  *
- * @param[in] ingress_pg_id Ingress priority group
+ * @param[in] ingress_priority_group_id Ingress priority group
  *
  * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
 sai_status_t mrvl_remove_ingress_priority_group(
-        _In_ sai_object_id_t ingress_pg_id)
+        _In_ sai_object_id_t ingress_priority_group_id)
 {
     MRVL_SAI_LOG_ERR("STUB %s", __func__);
     MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
@@ -59,13 +59,13 @@ sai_status_t mrvl_remove_ingress_priority_group(
   
 /**
  * @brief Set ingress priority group attribute
- * @param[in] ingress_pg_id ingress priority group id
+ * @param[in] ingress_priority_group_id ingress priority group id
  * @param[in] attr attribute to set
  *
  * @return  MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
  *           Failure status code on error
  */
-sai_status_t mrvl_set_ingress_priority_group_attr(_In_ sai_object_id_t ingress_pg_id,_In_ const sai_attribute_t *attr)
+sai_status_t mrvl_set_ingress_priority_group_attr(_In_ sai_object_id_t ingress_priority_group_id,_In_ const sai_attribute_t *attr)
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
@@ -73,7 +73,7 @@ sai_status_t mrvl_set_ingress_priority_group_attr(_In_ sai_object_id_t ingress_p
 
 /**
  * @brief Get ingress priority group attributes
- * @param[in] ingress_pg_id ingress priority group id
+ * @param[in] ingress_priority_group_id ingress priority group id
  * @param[in] attr_count number of attributes
  * @param[inout] attr_list array of attributes
  *
@@ -81,7 +81,7 @@ sai_status_t mrvl_set_ingress_priority_group_attr(_In_ sai_object_id_t ingress_p
  *           Failure status code on error
  */
 sai_status_t mrvl_get_ingress_priority_group_attr(
-    _In_ sai_object_id_t ingress_pg_id,
+    _In_ sai_object_id_t ingress_priority_group_id,
     _In_ uint32_t attr_count,
     _Inout_ sai_attribute_t *attr_list
     )
@@ -92,7 +92,7 @@ sai_status_t mrvl_get_ingress_priority_group_attr(
 /**
 * @brief   Get ingress priority group statistics counters.
 *
-* @param[in] ingress_pg_id ingress priority group id
+* @param[in] ingress_priority_group_id ingress priority group id
 * @param[in] number_of_counters number of counters in the array
 * @param[in] counter_ids specifies the array of counter ids
 * @param[out] counters array of resulting counter values.
@@ -101,7 +101,7 @@ sai_status_t mrvl_get_ingress_priority_group_attr(
 *         Failure status code on error
 */
 sai_status_t mrvl_get_ingress_priority_group_stats(
-    _In_ sai_object_id_t ingress_pg_id,
+    _In_ sai_object_id_t ingress_priority_group_id,
     _In_ uint32_t number_of_counters,
     _In_ const sai_ingress_priority_group_stat_t *counter_ids,
     _Out_ uint64_t* counters
@@ -113,7 +113,7 @@ sai_status_t mrvl_get_ingress_priority_group_stats(
 /**
 * @brief   Clear ingress priority group statistics counters.
 *
-* @param[in] ingress_pg_id ingress priority group id
+* @param[in] ingress_priority_group_id ingress priority group id
 * @param[in] counter_ids specifies the array of counter ids
 * @param[in] number_of_counters number of counters in the array
 *
@@ -121,7 +121,7 @@ sai_status_t mrvl_get_ingress_priority_group_stats(
 *         Failure status code on error
 */
 sai_status_t mrvl_clear_ingress_priority_group_stats(
-    _In_ sai_object_id_t ingress_pg_id,
+    _In_ sai_object_id_t ingress_priority_group_id,
     _In_ uint32_t number_of_counters,
     _In_ const sai_ingress_priority_group_stat_t *counter_ids
     )
@@ -132,14 +132,14 @@ sai_status_t mrvl_clear_ingress_priority_group_stats(
 
 /**
  * @brief Create buffer pool
- * @param[out] pool_id buffer pool id
+ * @param[out] buffer_pool_id buffer pool id
  * @param[in] attr_count number of attributes
  * @param[in] attr_list array of attributes
  * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
  *           Failure status code on error
  */
 sai_status_t mrvl_create_buffer_pool(
-    _Out_ sai_object_id_t *pool_id,
+    _Out_ sai_object_id_t *buffer_pool_id,
     _In_ sai_object_id_t switch_id,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list
@@ -150,12 +150,12 @@ sai_status_t mrvl_create_buffer_pool(
 }
 /**
  * @brief Remove buffer pool
- * @param[in] pool_id buffer pool id
+ * @param[in] buffer_pool_id buffer pool id
  * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
  *           Failure status code on error
  */
 sai_status_t mrvl_remove_buffer_pool(
-    _In_ sai_object_id_t pool_id
+    _In_ sai_object_id_t buffer_pool_id
     )
 {
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
@@ -163,13 +163,13 @@ sai_status_t mrvl_remove_buffer_pool(
 }
 /**
  * @brief Set buffer pool attribute
- * @param[in] pool_id buffer pool id
+ * @param[in] buffer_pool_id buffer pool id
  * @param[in] attr attribute
  * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
  *           Failure status code on error
  */
 sai_status_t mrvl_set_buffer_pool_attr(
-    _In_ sai_object_id_t pool_id,
+    _In_ sai_object_id_t buffer_pool_id,
     _In_ const sai_attribute_t *attr
     )
 {
@@ -179,14 +179,14 @@ sai_status_t mrvl_set_buffer_pool_attr(
 
 /**
  * @brief Get buffer pool attributes
- * @param[in] pool_id buffer pool id
+ * @param[in] buffer_pool_id buffer pool id
  * @param[in] attr_count number of attributes
  * @param[inout] attr_list array of attributes
  * @MRVL_SAI_API_RETURN(SAI_STATUS_STUB) on success
  *           Failure status code on error
  */
 sai_status_t mrvl_get_buffer_pool_attr(
-    _In_ sai_object_id_t pool_id,
+    _In_ sai_object_id_t buffer_pool_id,
     _In_ uint32_t attr_count,
     _Inout_ sai_attribute_t *attr_list
     )
@@ -198,7 +198,7 @@ sai_status_t mrvl_get_buffer_pool_attr(
 /**
 * @brief   Get buffer pool statistics counters.
 *
-* @param[in] pool_id buffer pool id
+* @param[in] buffer_pool_id buffer pool id
 * @param[in] number_of_counters number of counters in the array
 * @param[in] counter_ids specifies the array of counter ids
 * @param[out] counters array of resulting counter values.
@@ -207,7 +207,7 @@ sai_status_t mrvl_get_buffer_pool_attr(
 *         Failure status code on error
 */
 sai_status_t mrvl_get_buffer_pool_stats(
-    _In_ sai_object_id_t pool_id,
+    _In_ sai_object_id_t buffer_pool_id,
     _In_ uint32_t number_of_counters,
     _In_ const sai_buffer_pool_stat_t *counter_ids,
     _Out_ uint64_t* counters
@@ -220,14 +220,14 @@ sai_status_t mrvl_get_buffer_pool_stats(
 /**
  * @brief Clear buffer pool statistics counters.
  *
- * @param[in] pool_id Buffer pool id
+ * @param[in] buffer_pool_id Buffer pool id
  * @param[in] number_of_counters Number of counters in the array
  * @param[in] counter_ids Specifies the array of counter ids
  *
  * @return #SAI_STATUS_SUCCESS on success Failure status code on error
  */
 sai_status_t mrvl_clear_buffer_pool_stats(
-        _In_ sai_object_id_t pool_id,
+        _In_ sai_object_id_t buffer_pool_id,
         _In_ uint32_t number_of_counters,
         _In_ const sai_buffer_pool_stat_t *counter_ids)
 {
@@ -949,6 +949,45 @@ sai_status_t mrvl_get_tunnel_attribute(
 }
 
 /**
+ * @brief Get tunnel statistics counters.
+ *
+ * @param[in] tunnel_id Tunnel id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ * @param[out] counters Array of resulting counter values.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_get_tunnel_stats(
+        _In_ sai_object_id_t tunnel_id,
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_tunnel_stat_t *counter_ids,
+        _Out_ uint64_t *counters)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Clear tunnel statistics counters.
+ *
+ * @param[in] tunnel_id Tunnel id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_clear_tunnel_stats(
+        _In_ sai_object_id_t tunnel_id,
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_tunnel_stat_t *counter_ids)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
  * Routine Description:
  *    @brief Create tunnel termination table entry
  *
@@ -1117,6 +1156,8 @@ const sai_tunnel_api_t tunnel_api=
     mrvl_remove_tunnel,
     mrvl_set_tunnel_attribute,
     mrvl_get_tunnel_attribute,
+    mrvl_get_tunnel_stats,
+    mrvl_clear_tunnel_stats,
     mrvl_create_tunnel_term_table_entry,
     mrvl_remove_tunnel_term_table_entry,
     mrvl_set_tunnel_term_table_entry_attribute,
@@ -1673,3 +1714,749 @@ const sai_mcast_fdb_api_t mcast_fdb_api=
     mrvl_set_mcast_fdb_entry_attribute,
     mrvl_get_mcast_fdb_entry_attribute
 };
+
+/**
+ * @brief Create and return a TAM stat id object
+ *
+ * @param[out] tam_stat_id TAM stat id object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_stat(
+        _Out_ sai_object_id_t *tam_stat_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Deletes a specified tam stat id object.
+ *
+ * @param[in] tam_stat_id TAM object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_stat(
+        _In_ sai_object_id_t tam_stat_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set TAM stat id object attribute value(s).
+ *
+ * @param[in] tam_stat_id TAM stat id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_stat_attribute(
+        _In_ sai_object_id_t tam_stat_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get values for specified TAM stat id attributes.
+ *
+ * @param[in] tam_stat_id TAM stat id object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_stat_attribute(
+        _In_ sai_object_id_t tam_stat_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create and return a TAM object
+ *
+ * This creates a TAM object in the driver for tracking the buffer usage.
+ * Via the attributes, caller may indicate a preference for tracking of a
+ * specific set of statistics/groups.
+ *
+ * @param[out] tam_id TAM object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam(
+        _Out_ sai_object_id_t *tam_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Deletes a specified tam object.
+ *
+ * Deleting a TAM object also deletes all associated snapshot and threshold objects.
+ *
+ * @param[in] tam_id TAM object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam(
+        _In_ sai_object_id_t tam_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set TAM attribute value(s).
+ *
+ * @param[in] tam_id TAM id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_attribute(
+        _In_ sai_object_id_t tam_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get values for specified TAM attributes.
+ *
+ * @param[in] tam_id TAM object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_attribute(
+        _In_ sai_object_id_t tam_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create and return a threshold object
+ *
+ * This creates a threshold in the hardware with the associated statistic
+ * passed via the attributes.
+ *
+ * @param[out] tam_threshold_id Threshold object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Preferences for creating a threshold
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_threshold(
+        _Out_ sai_object_id_t *tam_threshold_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Deletes a specified threshold object.
+ *
+ * @param[in] tam_threshold_id Threshold object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_threshold(
+        _In_ sai_object_id_t tam_threshold_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set threshold attribute value(s).
+ *
+ * @param[in] tam_threshold_id Threshold object id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_threshold_attribute(
+        _In_ sai_object_id_t tam_threshold_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get values for specified threshold attributes.
+ *
+ * @param[in] tam_threshold_id Threshold object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_threshold_attribute(
+        _In_ sai_object_id_t tam_threshold_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create and return a snapshot object
+ *
+ * This creates a snapshot in the hardware and copies the snapshot data
+ * into the driver. Via the attributes, caller may indicate a preference
+ * for snapshot of a specific set of statistics/groups.
+ *
+ * @param[out] tam_snapshot_id Snapshot object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_snapshot(
+        _Out_ sai_object_id_t *tam_snapshot_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Deletes a specified snapshot object and free driver memory.
+ *
+ * @param[in] tam_snapshot_id Snapshot object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_snapshot(
+        _In_ sai_object_id_t tam_snapshot_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set Snapshot attribute value(s).
+ *
+ * @param[in] tam_snapshot_id Snapshot object id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_snapshot_attribute(
+        _In_ sai_object_id_t tam_snapshot_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get values for specified Snapshot attributes.
+ *
+ * @param[in] tam_snapshot_id Snapshot object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_snapshot_attribute(
+        _In_ sai_object_id_t tam_snapshot_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Obtain the values for all statistics from a snapshot.
+ *
+ * Attribute list must supply sufficient memory for statistics
+ * as specified for the snapshot object, which may be all statistics
+ * supported by the associated tam object.
+ *
+ * @param[in] tam_snapshot_id Snapshot object id
+ * @param[inout] number_of_counters Number of statistics (required/provided)
+ * @param[inout] statistics Statistics (allocated/provided)
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_snapshot_stats(
+        _In_ sai_object_id_t tam_snapshot_id,
+        _Inout_ uint32_t *number_of_counters,
+        _Inout_ sai_tam_statistic_t *statistics)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Create and return a Transporter object
+ *
+ * This creates a transport object for copying the snapshot data
+ * to the desired location.
+ *
+ * @param[out] tam_transporter_id Transporter object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_transporter(
+        _Out_ sai_object_id_t *tam_transporter_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Deletes a specified Transporter object.
+ *
+ * @param[in] tam_transporter_id Transporter object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_transporter(
+        _In_ sai_object_id_t tam_transporter_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set TAM Transporter attribute value(s).
+ *
+ * @param[in] tam_transporter_id Transporter object id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_transporter_attribute(
+        _In_ sai_object_id_t tam_transporter_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get values for specified Transporter attributes.
+ *
+ * @param[in] tam_transporter_id Transporter object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_transporter_attribute(
+        _In_ sai_object_id_t tam_transporter_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+const sai_tam_api_t tam_api=
+{
+    mrvl_sai_create_tam,
+    mrvl_sai_remove_tam,
+    mrvl_sai_set_tam_attribute,
+    mrvl_sai_get_tam_attribute,
+    mrvl_sai_create_tam_stat,
+    mrvl_sai_remove_tam_stat,
+    mrvl_sai_set_tam_stat_attribute,
+    mrvl_sai_get_tam_stat_attribute,
+    mrvl_sai_create_tam_threshold,
+    mrvl_sai_remove_tam_threshold,
+    mrvl_sai_set_tam_threshold_attribute,
+    mrvl_sai_get_tam_threshold_attribute,
+    mrvl_sai_create_tam_snapshot,
+    mrvl_sai_remove_tam_snapshot,
+    mrvl_sai_set_tam_snapshot_attribute,
+    mrvl_sai_get_tam_snapshot_attribute,
+    mrvl_sai_get_tam_snapshot_stats,
+    mrvl_sai_create_tam_transporter,
+    mrvl_sai_remove_tam_transporter,
+    mrvl_sai_set_tam_transporter_attribute,
+    mrvl_sai_get_tam_transporter_attribute
+};
+
+/**
+ * @brief Create Segment ID List
+ *
+ * @param[out] segmentroute_sidlist_id Segment ID List ID
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_create_segmentroute_sidlist(
+        _Out_ sai_object_id_t *segmentroute_sidlist_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove Segment ID List
+ *
+ * @param[in] segmentroute_sidlist_id Segment ID List ID
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_remove_segmentroute_sidlist(
+        _In_ sai_object_id_t segmentroute_sidlist_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set Segment ID List attribute value
+ *
+ * @param[in] segmentroute_sidlist_id Segment ID List ID
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_set_segmentroute_sidlist_attribute(
+        _In_ sai_object_id_t segmentroute_sidlist_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Get Segment ID List attribute value
+ *
+ * @param[in] segmentroute_sidlist_id Segment ID List ID
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error
+ */
+sai_status_t mrvl_sai_get_segmentroute_sidlist_attribute(
+        _In_ sai_object_id_t segmentroute_sidlist_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Segment Route methods table retrieved with sai_api_query()
+ */
+const sai_segmentroute_api_t segmentroute_api=
+{
+    mrvl_sai_create_segmentroute_sidlist,
+    mrvl_sai_remove_segmentroute_sidlist,
+    mrvl_sai_set_segmentroute_sidlist_attribute,
+    mrvl_sai_get_segmentroute_sidlist_attribute
+};
+
+/**
+ * @brief Create In Segment entry
+ *
+ * @param[in] inseg_entry InSegment entry
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_inseg_entry(
+        _In_ const sai_inseg_entry_t *inseg_entry,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Remove In Segment entry
+ *
+ * @param[in] inseg_entry InSegment entry
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_inseg_entry(
+        _In_ const sai_inseg_entry_t *inseg_entry)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Set In Segment attribute value
+ *
+ * @param[in] inseg_entry InSegment entry
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_inseg_entry_attribute(
+        _In_ const sai_inseg_entry_t *inseg_entry,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Get In Segment attribute value
+ *
+ * @param[in] inseg_entry InSegment entry
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_inseg_entry_attribute(
+        _In_ const sai_inseg_entry_t *inseg_entry,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief MPLS methods table retrieved with sai_api_query()
+ */
+const sai_mpls_api_t mpls_api=
+{
+    mrvl_sai_create_inseg_entry,
+    mrvl_sai_remove_inseg_entry,
+    mrvl_sai_set_inseg_entry_attribute,
+    mrvl_sai_get_inseg_entry_attribute
+
+};
+
+/**
+ * @brief Create and return a microburst object
+ *
+ * @param[out] tam_microburst_id Microburst object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of sai_tam_microburst_attr_t attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_microburst(
+        _Out_ sai_object_id_t *tam_microburst_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Delete a specified microburst object
+ *
+ * @param[in] tam_microburst_id Microburst object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_microburst(
+        _In_ sai_object_id_t tam_microburst_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Get values for specified microburst attributes.
+ *
+ * @param[in] tam_microburst_id Microburst object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_microburst_attribute(
+        _In_ sai_object_id_t tam_microburst_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Set microburst attribute
+ *
+ * @param[in] tam_microburst_id Microburst object id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_microburst_attribute(
+        _In_ sai_object_id_t tam_microburst_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Create and return a histogram object
+ *
+ * This creates a histogram in the driver. Via the attributes,
+ * caller may indicate a preference for histogram of a specific
+ * set of bins.
+ *
+ * @param[out] tam_histogram_id Histogram object
+ * @param[in] switch_id Switch object id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_create_tam_histogram(
+        _Out_ sai_object_id_t *tam_histogram_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Delete a specified histogram object and free driver memory
+ *
+ * @param[in] tam_histogram_id Histogram object to be removed.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_remove_tam_histogram(
+        _In_ sai_object_id_t tam_histogram_id)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Set histogram attribute value(s)
+ *
+ * @param[in] tam_histogram_id Histogram object id
+ * @param[in] attr Attribute to set
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_set_tam_histogram_attribute(
+        _In_ sai_object_id_t tam_histogram_id,
+        _In_ const sai_attribute_t *attr)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Get values for specified histogram attributes.
+ *
+ * @param[in] tam_histogram_id Histogram object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_histogram_attribute(
+        _In_ sai_object_id_t tam_histogram_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Obtain the values for all bins from a histogram.
+ *
+ * Values array must supply sufficient memory for values of all
+ * bins as specified for the histogram object.
+ *
+ * @param[in] tam_histogram_id Histogram object id
+ * @param[inout] number_of_counters Number of bins (required/provided)
+ * @param[out] counters Statistics values (allocated/provided)
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_sai_get_tam_histogram_stats(
+        _In_ sai_object_id_t tam_histogram_id,
+        _Inout_ uint32_t *number_of_counters,
+        _Out_ uint64_t *counters)
+{
+	MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+const sai_uburst_api_t uburst_api=
+{
+    mrvl_sai_create_tam_microburst,
+    mrvl_sai_remove_tam_microburst,
+    mrvl_sai_set_tam_microburst_attribute,
+    mrvl_sai_get_tam_microburst_attribute,
+    mrvl_sai_create_tam_histogram,
+    mrvl_sai_remove_tam_histogram,
+    mrvl_sai_set_tam_histogram_attribute,
+    mrvl_sai_get_tam_histogram_attribute,
+    mrvl_sai_get_tam_histogram_stats
+};
+

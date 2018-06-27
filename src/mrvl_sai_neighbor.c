@@ -28,11 +28,11 @@ static mrvl_sai_nbr_table_t mrvl_sai_nbr_table[SAI_NEIGHBOR_TABLE_SIZE_CNS] = {}
 
 static const sai_attribute_entry_t mrvl_sai_neighbor_attribs[] = {
     { SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS, true, true, true, true,
-      "Neighbor destination MAC", SAI_ATTR_VAL_TYPE_MAC },
+      "Neighbor destination MAC", SAI_ATTR_VALUE_TYPE_MAC },
     { SAI_NEIGHBOR_ENTRY_ATTR_PACKET_ACTION, false, true, true, true,
-      "Neighbor L3 forwarding action", SAI_ATTR_VAL_TYPE_S32 },
+      "Neighbor L3 forwarding action", SAI_ATTR_VALUE_TYPE_INT32 },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static sai_status_t mrvl_sai_neighbor_mac_get_prv(_In_ const sai_object_key_t   *key,
@@ -475,7 +475,7 @@ sai_status_t mrvl_sai_remove_neighbor_entry(_In_ const sai_neighbor_entry_t *nei
 sai_status_t mrvl_sai_set_neighbor_entry_attribute(_In_ const sai_neighbor_entry_t *neighbor_entry,
                                                    _In_ const sai_attribute_t      *attr)
 {
-    const sai_object_key_t key = { .key.neighbor_entry = neighbor_entry };
+    const sai_object_key_t key = { .key.neighbor_entry = *neighbor_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
     
@@ -505,7 +505,7 @@ sai_status_t mrvl_sai_get_neighbor_entry_attribute(_In_ const sai_neighbor_entry
                                                    _In_ uint32_t                    attr_count,
                                                    _Inout_ sai_attribute_t         *attr_list)
 {
-    const sai_object_key_t key = { .key.neighbor_entry = neighbor_entry };
+    const sai_object_key_t key = { .key.neighbor_entry = *neighbor_entry };
     char                   key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
 
@@ -702,7 +702,29 @@ static sai_status_t mrvl_sai_neighbor_action_set_prv(_In_ const sai_object_key_t
     return SAI_STATUS_SUCCESS;
 }
 
+sai_status_t mrvl_sai_neighbor_db_free_entries_get(_In_ sai_switch_attr_t  resource_type,
+                                                   _Out_ uint32_t         *free_entries)
+{
+    uint32_t ii, count = 0;
+    bool is_ipv4;
 
+    assert(resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV4_NEIGHBOR_ENTRY || resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV6_NEIGHBOR_ENTRY);
+
+    is_ipv4 = (resource_type == SAI_SWITCH_ATTR_AVAILABLE_IPV4_NEIGHBOR_ENTRY) ? true : false;
+    for (ii = 0; ii < SAI_NEIGHBOR_TABLE_SIZE_CNS; ii++) 
+    {
+        if (false == mrvl_sai_nbr_table[ii].used) {
+            if (true == is_ipv4 && mrvl_sai_nbr_table[ii].inet_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
+                count++;
+            else if (false == is_ipv4 && mrvl_sai_nbr_table[ii].inet_address.addr_family == SAI_IP_ADDR_FAMILY_IPV6)
+                count++;
+        }
+    }
+
+    *free_entries = count;
+
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
 /*
  * Routine Description:
  *    Remove all neighbor entries
@@ -714,7 +736,7 @@ static sai_status_t mrvl_sai_neighbor_action_set_prv(_In_ const sai_object_key_t
  *    SAI_STATUS_SUCCESS on success
  *    Failure status code on error
  */
-sai_status_t mrvl_sai_remove_all_neighbor_entries(void)
+sai_status_t mrvl_sai_remove_all_neighbor_entries(_In_ sai_object_id_t switch_id)
 {
     sai_status_t        status;
     uint32_t            rif_idx, nbr_idx, delete_idx, nh_idx;

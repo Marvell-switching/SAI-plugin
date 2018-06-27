@@ -20,49 +20,67 @@
 
 #include	"fpaLibApis.h"
 #include    "sai.h"
-#include "utils/mrvl_sai_dlist.h"
+#include    "utils/mrvl_sai_dlist.h"
+#include    "inttypes.h"
+#include    "assert.h"
+#include    <stdlib.h>
+#include    <limits.h>
 
+#ifndef MAX
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#endif
 
-extern service_method_table_t g_services;
+extern sai_service_method_table_t g_services;
 
-extern const sai_switch_api_t       switch_api;
-extern const sai_port_api_t         port_api;
-extern const sai_fdb_api_t          fdb_api;
-extern const sai_vlan_api_t         vlan_api;
-extern const sai_hostif_api_t       host_interface_api;
+extern const sai_switch_api_t           switch_api;
+extern const sai_port_api_t             port_api;
+extern const sai_fdb_api_t              fdb_api;
+extern const sai_vlan_api_t             vlan_api;
+extern const sai_hostif_api_t           host_interface_api;
 extern const sai_router_interface_api_t router_interface_api;
-extern const sai_acl_api_t          acl_api;
-extern const sai_neighbor_api_t     neighbor_api;
-extern const sai_next_hop_api_t     nexthop_api;
-extern const sai_next_hop_group_api_t next_hop_group_api;
-extern const sai_route_api_t        route_api;
-extern const sai_virtual_router_api_t virtual_router_api;
-extern const sai_lag_api_t		    lag_api;
+extern const sai_acl_api_t              acl_api;
+extern const sai_neighbor_api_t         neighbor_api;
+extern const sai_next_hop_api_t         nexthop_api;
+extern const sai_next_hop_group_api_t   next_hop_group_api;
+extern const sai_route_api_t            route_api;
+extern const sai_virtual_router_api_t   virtual_router_api;
+extern const sai_lag_api_t		        lag_api;
 extern const sai_scheduler_group_api_t	scheduler_group_api;
-extern const sai_hash_api_t		hash_api;
-extern const sai_stp_api_t		stp_api;
-extern const sai_l2mc_api_t		l2mc_api;
+extern const sai_hash_api_t		        hash_api;
+extern const sai_stp_api_t		        stp_api;
+extern const sai_l2mc_api_t		        l2mc_api;
 extern const sai_l2mc_group_api_t		l2mc_group_api;
-extern const sai_bridge_api_t		bridge_api;
+extern const sai_bridge_api_t		    bridge_api;
 /* stubs */
-extern const sai_buffer_api_t		buffer_api;
-extern const sai_mirror_api_t		mirror_api;
-extern const sai_policer_api_t		policer_api;
-extern const sai_qos_map_api_t		qos_map_api;
-extern const sai_queue_api_t		queue_api;
-extern const sai_samplepacket_api_t	samplepacket_api;
-extern const sai_scheduler_api_t	scheduler_api;
-extern const sai_tunnel_api_t		tunnel_api;
-extern const sai_udf_api_t		udf_api;
-extern const sai_wred_api_t		wred_api;
-extern const sai_ipmc_api_t		ipmc_api;
+extern const sai_buffer_api_t		    buffer_api;
+extern const sai_mirror_api_t		    mirror_api;
+extern const sai_policer_api_t		    policer_api;
+extern const sai_qos_map_api_t		    qos_map_api;
+extern const sai_queue_api_t		    queue_api;
+extern const sai_samplepacket_api_t	    samplepacket_api;
+extern const sai_scheduler_api_t	    scheduler_api;
+extern const sai_tunnel_api_t		    tunnel_api;
+extern const sai_udf_api_t		        udf_api;
+extern const sai_wred_api_t		        wred_api;
+extern const sai_ipmc_api_t		        ipmc_api;
 extern const sai_rpf_group_api_t		rpf_api;
 extern const sai_ipmc_group_api_t		ipmc_group_api;
 extern const sai_mcast_fdb_api_t		mcast_fdb_api;
+extern const sai_tam_api_t		        tam_api;
+extern const sai_segmentroute_api_t		segmentroute_api;
+extern const sai_mpls_api_t		        mpls_api;
+extern const sai_uburst_api_t		    uburst_api;
+
 extern sai_status_t mrvl_sai_utl_fill_objlist(sai_object_id_t *data, uint32_t count, sai_object_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_u8list(uint8_t *data, uint32_t count, sai_u8_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_u16list(uint16_t *data, uint32_t count, sai_u16_list_t *list);
 extern sai_status_t mrvl_sai_utl_fill_u32list(uint32_t *data, uint32_t count, sai_u32_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_s8list(int8_t *data, uint32_t count, sai_s8_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_s16list(int16_t *data, uint32_t count, sai_s16_list_t *list);
 extern sai_status_t mrvl_sai_utl_fill_s32list(int32_t *data, uint32_t count, sai_s32_list_t *list);
 extern sai_status_t mrvl_sai_utl_fill_vlanlist(sai_vlan_id_t *data, uint32_t count, sai_vlan_list_t *list);
+extern sai_status_t mrvl_sai_utl_fill_aclresourcelist(sai_acl_resource_t *data, uint32_t count, sai_acl_resource_list_t *list);
 
 #ifdef _LP64
 typedef uint64_t PTR_TO_INT;
@@ -72,29 +90,33 @@ typedef uint32_t PTR_TO_INT;
 #define ALIGNMENT_SIZE      4
 #endif
 
-#define SAI_DEFAULT_ETH_SWID_CNS        0
-#define SAI_DEFAULT_VRID_CNS            0
-#define SAI_DEFAULT_RIF_MTU_CNS         1514
-#define SAI_DEFAULT_RIF_NBR_MISS_ACTION_CNS SAI_PACKET_ACTION_TRAP
-#define SAI_RIF_MTU_PROFILES_CNS        8
-#define SAI_FIRST_PORT_CNS              (0x10000 | (1 << 8))
-#define SAI_SWITCH_MAX_VR_CNS           128
-#define SAI_CPU_PORT_CNS                63
-#define SAI_MAX_MTU_CNS                 10240
-#define SAI_QUEUES_PER_PORT_CNS         8
-#define SAI_TOTAL_BUFFER_SIZE_KB_CNS    16
-#define SAI_DEFAULT_FDB_AGING_TIME_CNS  0
-#define SAI_SWITCH_DEFAULT_MAC_MODE_CNS 0 /*Unique MAC address per port(1) or same for all ports(0)*/
-#define SAI_MAX_NUM_OF_PORTS	54
-#define SAI_MAX_NUM_OF_LANES    4
-#define SAI_MAX_NUM_OF_VLANS	4094
-#define MAX_QUEUES 8
+#define SAI_DEFAULT_ETH_SWID_CNS                0
+#define SAI_DEFAULT_VRID_CNS                    0
+#define SAI_DEFAULT_VLAN_CNS                    1
+#define SAI_DEFAULT_RIF_MTU_CNS                 1514
+#define SAI_DEFAULT_RIF_NBR_MISS_ACTION_CNS     SAI_PACKET_ACTION_TRAP
+#define SAI_RIF_MTU_PROFILES_CNS                8
+#define SAI_FIRST_PORT_CNS                      (0x10000 | (1 << 8))
+#define SAI_SWITCH_MAX_VR_CNS                   128
+#define SAI_CPU_PORT_CNS                        63
+#define SAI_MAX_MTU_CNS                         10240
+#define SAI_QUEUES_PER_PORT_CNS                 8
+#define SAI_TOTAL_BUFFER_SIZE_KB_CNS            16
+#define SAI_DEFAULT_FDB_AGING_TIME_CNS          0
+#define SAI_SWITCH_DEFAULT_MAC_MODE_CNS         0 /*Unique MAC address per port(1) or same for all ports(0)*/
+#define SAI_MAX_NUM_OF_PORTS	                54
+#define SAI_MAX_NUM_OF_LANES                    4
+#define SAI_MAX_NUM_OF_VLANS	                4095
+#define MAX_QUEUES                              8
+#define SAI_MAX_NUM_OF_BRIDGE_PORTS             512 
 
 #define SAI_OUTPUT_CONTROLLER               FPA_OUTPUT_CONTROLLER
 #define SAI_ROUTER_INTERFACE_TABLE_SIZE_CNS 128
 #define SAI_NEIGHBOR_TABLE_SIZE_CNS         (8*1024)
 #define SAI_NEXTHOP_TABLE_SIZE_CNS          1024
 #define SAI_ROUTE_TABLE_SIZE_CNS            (8*1024)
+#define SAI_ARP_TABLE_SIZE_CNS              (16*1024)
+#define SAI_FDB_TABLE_SIZE_CNS              (32*1024)
 #define SAI_ECMP_MAX_MEMBERS_IN_GROUP_CNS   64
 #define SAI_ECMP_MAX_GROUPS_CNS             1024
 #define SAI_ECMP_DEFAULT_HASH_ALGORITHM_CNS SAI_HASH_ALGORITHM_CRC
@@ -111,6 +133,7 @@ typedef uint32_t PTR_TO_INT;
 
 
 extern uint32_t SAI_SYS_PORT_MAPPING[SAI_MAX_NUM_OF_PORTS];
+
 /*
 *  SAI operation type
 *  Values must start with 0 base and be without gaps
@@ -124,52 +147,71 @@ typedef enum sai_operation_t
     SAI_OPERATION_MAX
 } sai_operation_t;
 
-/*
-*  Attribute value types
-*/
-typedef enum _sai_attribute_value_type_t
+/**
+ * @brief Defines attribute value type.
+ * Can be used when serializing attributes.
+ */
+typedef enum _sai_attr_value_type_t
 {
-    SAI_ATTR_VAL_TYPE_UNDETERMINED,
-    SAI_ATTR_VAL_TYPE_BOOL,
-    SAI_ATTR_VAL_TYPE_CHARDATA,
-    SAI_ATTR_VAL_TYPE_U8, 
-    SAI_ATTR_VAL_TYPE_S8,
-    SAI_ATTR_VAL_TYPE_U16,
-    SAI_ATTR_VAL_TYPE_S16,
-    SAI_ATTR_VAL_TYPE_U32,
-    SAI_ATTR_VAL_TYPE_S32,
-    SAI_ATTR_VAL_TYPE_U64,
-    SAI_ATTR_VAL_TYPE_S64,
-    SAI_ATTR_VAL_TYPE_MAC,
-    SAI_ATTR_VAL_TYPE_IPV4,
-    SAI_ATTR_VAL_TYPE_IPV6,
-    SAI_ATTR_VAL_TYPE_IPADDR,
-    SAI_ATTR_VAL_TYPE_OID,
-    SAI_ATTR_VAL_TYPE_U8LIST,/* todo add support */
-    SAI_ATTR_VAL_TYPE_S8LIST,/* todo add support */
-    SAI_ATTR_VAL_TYPE_OBJLIST,
-    SAI_ATTR_VAL_TYPE_U32LIST,
-    SAI_ATTR_VAL_TYPE_S32LIST,
-    SAI_ATTR_VAL_TYPE_VLANLIST,
-    SAI_ATTR_VAL_TYPE_ACLFIELD,
-    SAI_ATTR_VAL_TYPE_ACLACTION,
-    SAI_ATTR_VAL_TYPE_PTR,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_MAC,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV4,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_IPV6,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U8,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S8,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U16,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S16,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U32,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S32,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_U64,
-    SAI_ATTR_VAL_TYPE_ACL_FIELD_DATA_S64,
-    SAI_ATTR_VAL_TYPE_ACLACTION_U8,
-    SAI_ATTR_VAL_TYPE_ACLACTION_U32,
-    SAI_ATTR_VAL_TYPE_U32RANGE,
-} sai_attribute_value_type_t;
-
+    SAI_ATTR_VALUE_TYPE_BOOL,
+    SAI_ATTR_VALUE_TYPE_CHARDATA,
+    SAI_ATTR_VALUE_TYPE_UINT8,
+    SAI_ATTR_VALUE_TYPE_INT8,
+    SAI_ATTR_VALUE_TYPE_UINT16,
+    SAI_ATTR_VALUE_TYPE_INT16,
+    SAI_ATTR_VALUE_TYPE_UINT32,
+    SAI_ATTR_VALUE_TYPE_INT32,
+    SAI_ATTR_VALUE_TYPE_UINT64,
+    SAI_ATTR_VALUE_TYPE_INT64,
+    SAI_ATTR_VALUE_TYPE_POINTER,
+    SAI_ATTR_VALUE_TYPE_MAC,
+    SAI_ATTR_VALUE_TYPE_IPV4,
+    SAI_ATTR_VALUE_TYPE_IPV6,
+    SAI_ATTR_VALUE_TYPE_IP_ADDRESS,
+    SAI_ATTR_VALUE_TYPE_IP_PREFIX,
+    SAI_ATTR_VALUE_TYPE_OBJECT_ID,
+    SAI_ATTR_VALUE_TYPE_OBJECT_LIST,
+    SAI_ATTR_VALUE_TYPE_UINT8_LIST,
+    SAI_ATTR_VALUE_TYPE_INT8_LIST,
+    SAI_ATTR_VALUE_TYPE_UINT16_LIST,
+    SAI_ATTR_VALUE_TYPE_INT16_LIST,
+    SAI_ATTR_VALUE_TYPE_UINT32_LIST,
+    SAI_ATTR_VALUE_TYPE_INT32_LIST,
+    SAI_ATTR_VALUE_TYPE_UINT32_RANGE,
+    SAI_ATTR_VALUE_TYPE_INT32_RANGE,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_BOOL,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT8,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT16,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT32,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_MAC,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV6,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST,
+    SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8_LIST,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT8,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT16,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT16,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT32,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT32,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_MAC,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_IPV4,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_IPV6,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID,
+    SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST,
+    SAI_ATTR_VALUE_TYPE_ACL_CAPABILITY,
+    SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST,
+    SAI_ATTR_VALUE_TYPE_MAP_LIST,
+    SAI_ATTR_VALUE_TYPE_VLAN_LIST,
+    SAI_ATTR_VALUE_TYPE_QOS_MAP_LIST,
+    SAI_ATTR_VALUE_TYPE_TLV_LIST,
+    SAI_ATTR_VALUE_TYPE_SEGMENT_LIST,
+    SAI_ATTR_VALUE_TYPE_UNDETERMINED
+} sai_attr_value_type_t;
 
 typedef struct _sai_attribute_entry_t {
     sai_attr_id_t              id;
@@ -178,7 +220,7 @@ typedef struct _sai_attribute_entry_t {
     bool                       valid_for_set;
     bool                       valid_for_get;
     const char                *attrib_name;
-    sai_attribute_value_type_t type;
+    sai_attr_value_type_t type;
 } sai_attribute_entry_t;
 
 typedef struct _mrvl_object_id_t {
@@ -217,9 +259,29 @@ typedef struct _sai_vendor_attribute_entry_t {
 } sai_vendor_attribute_entry_t;
 
 typedef struct _sai_port_info_t {
-    uint32_t    port;
-    uint32_t    tag;
+    bool            is_present;
+    uint32_t        port_index;
+    bool            admin_state;
+    sai_u32_list_t  lanes;
+    uint32_t        speed;
+    uint32_t        tag;
+    uint32_t        ingress_acl_idx;
+    uint32_t        egress_acl_idx;
+    uint32_t        lag_idx;
+    sai_vlan_id_t   vlan_idx;
 }sai_port_info_t;
+
+typedef struct _sai_bridge_port_info_t {
+    uint32_t                index;
+    bool                    is_used;
+    bool                    admin_state;
+    uint32_t                tunnel_id;
+    uint32_t                bridge_id;
+    uint32_t                rif_id;
+    uint32_t                port_lag_id;
+    sai_vlan_id_t           vlan_id;
+    sai_bridge_port_type_t  port_type;
+}mrvl_sai_bridge_port_info_t;
 
 #define END_FUNCTIONALITY_ATTRIBS_ID 0xFFFFFFFF
 #define MAX_ATTRIBS_NUMBUR 100
@@ -260,7 +322,7 @@ sai_status_t mrvl_sai_utl_get_attributes(_In_ const sai_object_key_t *key,
 #define MRVL_SAI_UTL_MODIFY 2
 
 sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t value,
-                            _In_ sai_attribute_value_type_t type,
+                            _In_ sai_attr_value_type_t type,
                             _In_ uint32_t max_length,
                             _Out_ char *value_str);
 sai_status_t mrvl_sai_utl_attr_list_to_str(_In_ uint32_t attr_count,
@@ -281,6 +343,8 @@ sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_t
 sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint32_t *data_ext);
 sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint32_t data_ext, sai_object_id_t *object_id);
 sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, sai_object_id_t *object_id);
+sai_status_t mrvl_sai_utl_oid_to_lag_port(sai_object_id_t object_id, uint32_t *lag_port_idx);
+
 sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port,
                                      _In_ uint32_t vlan,
                                      _In_ sai_vlan_tagging_mode_t tagged,
@@ -337,7 +401,7 @@ sai_status_t mrvl_sai_utl_fpa_to_sai_status(int32_t fpa_status);
  *    SAI_STATUS_SUCCESS - on success
  *
  */
-extern unsigned mrvl_sai_fdb_wait_for_au_event(void *args);
+extern unsigned int mrvl_sai_fdb_wait_for_au_event(void *args);
 
 typedef struct _sai_switch_notification_t {
     sai_switch_state_change_notification_fn     on_switch_state_change;
@@ -532,8 +596,27 @@ static __attribute__((__used__)) const char *mrvl_sai_type2str_arr[] = {
 
     /* SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY         = 59*/
     "tunnel map entry",
-
-    /* SAI_OBJECT_TYPE_MAX              = 60 */
+    /* SAI_OBJECT_TYPE_TAM                      = 60*/
+    "tam",
+    /* SAI_OBJECT_TYPE_TAM_STAT                 = 61*/
+    "tam stat",
+    /* SAI_OBJECT_TYPE_TAM_SNAPSHOT             = 62*/
+    "tam snapshot",
+    /* SAI_OBJECT_TYPE_TAM_TRANSPORTER          = 63*/
+    "tam transporter",
+    /* SAI_OBJECT_TYPE_TAM_THRESHOLD            = 64*/
+    "tam threshold",
+    /* SAI_OBJECT_TYPE_SEGMENTROUTE_SIDLIST     = 65*/
+    "segmentroute sidlist",
+    /* SAI_OBJECT_TYPE_PORT_POOL                = 66*/
+    "port pool",
+    /* SAI_OBJECT_TYPE_INSEG_ENTRY              = 67*/
+    "inseg entry",
+    /* SAI_OBJECT_TYPE_TAM_HISTOGRAM            = 68*/
+    "tam histogram",
+    /* SAI_OBJECT_TYPE_TAM_MICROBURST           = 69*/
+    "tam microburst",
+    /* SAI_OBJECT_TYPE_MAX                      = 70*/
     "MAX"
 };
 
@@ -561,7 +644,7 @@ typedef enum {
 #define	SEVERITY_LEVEL_DBG2		0x8		/* debug specific message */
 #define	SEVERITY_LEVEL_DBG3		0x9		/* maximum verbosity dbg specific msg */
 
-#define	SEVERITY_LEVEL_LOWEST	SEVERITY_LEVEL_DBG3
+#define	SEVERITY_LEVEL_LOWEST	SEVERITY_LEVEL_DBG1
 #define	SEVERITY_LEVEL_DEFAULT	SEVERITY_LEVEL_DBG1 //SEVERITY_LEVEL_INFO
 
 #define COLOR_NRM  "\x1B[0m"
@@ -672,6 +755,8 @@ typedef struct _mrvl_sai_rif_table_t {
     sai_packet_action_t     nbr_miss_act;   /* what to do if neighbor don't exist (can be only trap or drop) */
     bool                    nh_valid;       /* next hop is valid on this rif */
     uint32_t                first_nh_idx;   /* the first valid next hop id (in the next hop table) */
+    bool                    ipv4_enable;    /* admin state v4 is valid on this rif */
+    bool                    ipv6_enable;    /* admin state v6 is valid on this rif */
     mrvl_sai_utl_dlist_elem_STC route_list_elem;
 } mrvl_sai_rif_table_t;
 
@@ -736,6 +821,23 @@ typedef struct _mrvl_sai_route_hash_entry_t
     mrvl_sai_route_hash_key_t        key;
     mrvl_sai_route_hash_data_t       data;
 } mrvl_sai_route_hash_entry_t;
+
+typedef enum mrvl_sai_fdb_bv_type_t
+{
+    mrvl_sai_fdb_bv_type_vlan_E,
+    mrvl_sai_fdb_bv_type_bridge_E,
+    mrvl_sai_fdb_bv_type_max_E
+} mrvl_sai_fdb_bv_type_t;
+
+typedef struct _mrvl_sai_fdb_table_t {
+    bool                    used;          /* entry is valid*/
+    uint32_t                port_idx;
+    uint32_t                bv_idx;
+    mrvl_sai_fdb_bv_type_t  bv_type;
+    sai_mac_t               mac_address;
+    uint64_t                cookie;
+} mrvl_sai_fdb_table_t;
+
 sai_status_t mrvl_sai_rif_is_exist(_In_ uint32_t   rif_idx,
                                    _In_ bool        *is_exist);
 sai_status_t mrvl_sai_rif_get_first_nbr_id(_In_ uint32_t   rif_idx,
@@ -784,9 +886,10 @@ sai_status_t mrvl_sai_route_update_nbr_id(mrvl_sai_route_hash_data_t *route_entr
 sai_status_t mrvl_sai_route_update_nbr_id_if_match(mrvl_sai_route_hash_data_t *route_entry_data, sai_ip_address_t *inet_address, uint32_t nbr_idx);
 
 sai_status_t mrvl_sai_virtual_router_is_valid(_In_ uint32_t   vr_idx, _Out_ bool *is_valid);
-sai_status_t mrvl_sai_virtual_router_update_referance_cntr(_In_ uint32_t   vr_idx, _In_ bool add);
+sai_status_t mrvl_sai_virtual_router_update_reference_cntr(_In_ uint32_t   vr_idx, _In_ bool add);
 sai_status_t mrvl_sai_virtual_router_get_mac(_In_ uint32_t   vr_idx, _Out_ sai_mac_t mac_address);
 
+sai_status_t mrvl_sai_l3_dump(void);
 sai_status_t mrvl_sai_rif_dump(void);
 sai_status_t mrvl_sai_neighbor_dump(void);
 sai_status_t mrvl_sai_next_hop_dump(void);
@@ -816,9 +919,21 @@ sai_status_t mrvl_sai_acl_get_table_id_per_switch(_In_ void *arg, _In_ uint32_t 
 sai_status_t mrvl_sai_acl_table_bind_to_vlan(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t vlan_idx);
 sai_status_t mrvl_sai_acl_table_unbind_from_vlan(_In_ void *arg, _In_ uint32_t port);
 sai_status_t mrvl_sai_acl_get_table_id_per_vlan(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
-sai_status_t mrvl_sai_get_lag_port_list(
-    _In_ const uint32_t          lag_id,
-    _Out_ sai_object_list_t     *portbjlist);
+sai_status_t mrvl_sai_get_lag_port_list(_In_ const uint32_t  lag_id, _Out_ sai_object_list_t     *portbjlist);
+
+sai_status_t mrvl_sai_ports_init();
+sai_port_info_t* mrvl_sai_port_get_port_from_db(_In_ uint8_t index);
+sai_status_t mrvl_sai_port_add_port_to_lag(_In_ uint32_t port_idx, _In_ uint32_t lag_idx);
+sai_status_t mrvl_sai_port_to_bridge_port(_In_ uint32_t port, _Out_ sai_object_id_t *oid);
+sai_status_t mrvl_sai_bridge_init(void);
+
+sai_status_t mrvl_sai_vlan_port_add(_In_ uint32_t port_idx, _In_ sai_vlan_id_t vlan_idx, sai_vlan_tagging_mode_t tagging_mode);
+
+sai_status_t mrvl_acl_db_free_entries_get(_In_ sai_object_type_t  object_type, _Out_ uint32_t  *free_entries);
+sai_status_t mrvl_sai_fdb_db_free_entries_get(_In_ sai_switch_attr_t  resource_type, _Out_ uint32_t         *free_entries);
+sai_status_t mrvl_sai_next_hop_db_free_entries_get(_In_ sai_switch_attr_t  resource_type, _Out_ uint32_t *free_entries);
+sai_status_t mrvl_sai_next_hop_group_db_free_entries_get(_In_ sai_switch_attr_t  resource_type, _Out_ uint32_t *free_entries);
+sai_status_t mrvl_sai_neighbor_db_free_entries_get(_In_ sai_switch_attr_t  resource_type, _Out_ uint32_t *free_entries);
 
 #define SAI_STATUS_STUB SAI_STATUS_NOT_SUPPORTED
 sai_status_t  mrvl_sai_return(const char *func_name, int line, sai_status_t status);

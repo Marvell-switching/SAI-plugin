@@ -33,6 +33,7 @@
 #define SAI_PORT_SPEED_100G   100000
 #define SAI_PORT_SPEED_1T    1000000
 
+static sai_port_info_t ports_db[SAI_MAX_NUM_OF_PORTS];
 sai_status_t mrvl_port_state_get(_In_ const sai_object_key_t   *key,
                                  _Inout_ sai_attribute_value_t *value,
                                  _In_ uint32_t                  attr_index,
@@ -272,11 +273,6 @@ sai_status_t mrvl_port_pfc_control_set(_In_ const sai_object_key_t      *key,
                                        _In_ const sai_attribute_value_t *value,
                                        void                             *arg);
 
-sai_status_t mrvl_port_qos_wred_profile_id_get(_In_ const sai_object_key_t   *key,
-                                 _Inout_ sai_attribute_value_t *value,
-                                 _In_ uint32_t                  attr_index,
-                                 _Inout_ vendor_cache_t        *cache,
-                                 void                          *arg);
 sai_status_t mrvl_port_sched_get(_In_ const sai_object_key_t   *key,
                                  _Inout_ sai_attribute_value_t *value,
                                  _In_ uint32_t                  attr_index,
@@ -326,6 +322,12 @@ sai_status_t mrvl_port_egress_block_get(_In_ const sai_object_key_t   *key,
                                         _Inout_ vendor_cache_t        *cache,
                                         _In_ void                     *arg);
 
+sai_status_t mrvl_port_pool_list_get(_In_ const sai_object_key_t   *key,
+                                     _Inout_ sai_attribute_value_t *value,
+                                     _In_ uint32_t                  attr_index,
+                                     _Inout_ vendor_cache_t        *cache,
+                                     _In_ void                     *arg);
+
 sai_status_t mrvl_port_drop_tags_get(_In_ const sai_object_key_t   *key,
                                      _Inout_ sai_attribute_value_t *value,
                                      _In_ uint32_t                  attr_index,
@@ -346,142 +348,118 @@ sai_status_t mrvl_port_media_type_set(_In_ const sai_object_key_t      *key,
                                       _In_ const sai_attribute_value_t *value,
                                       void                             *arg);
 
-sai_status_t mrvl_port_ingress_filter_get(_In_ const sai_object_key_t   *key,
-                                          _Inout_ sai_attribute_value_t *value,
-                                          _In_ uint32_t                  attr_index,
-                                          _Inout_ vendor_cache_t        *cache,
-                                          void                          *arg);
-
-sai_status_t mrvl_port_ingress_filter_set(_In_ const sai_object_key_t      *key,
-                                          _In_ const sai_attribute_value_t *value,
-                                          void                             *arg);
-
-sai_status_t mrvl_port_bind_mode_get(_In_ const sai_object_key_t   *key,
-                                     _Inout_ sai_attribute_value_t *value,
-                                     _In_ uint32_t                  attr_index,
-                                     _Inout_ vendor_cache_t        *cache,
-                                     _In_ void                     *arg);
-
-sai_status_t mrvl_port_bind_mode_set(_In_ const sai_object_key_t      *key,
-                                     _In_ const sai_attribute_value_t *value,
-                                     _In_ void                        *arg);
-
 static const sai_attribute_entry_t        port_attribs[] = {
     { SAI_PORT_ATTR_TYPE, false, false, false, true,
-        "Port type", SAI_ATTR_VAL_TYPE_S32 },
+        "Port type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_OPER_STATUS, false, false, false, true,
-        "Port operational status", SAI_ATTR_VAL_TYPE_S32 },
+        "Port operational status", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_SUPPORTED_BREAKOUT_MODE_TYPE, false, false, false, true,
-        "Port breakout mode(s) supported", SAI_ATTR_VAL_TYPE_S32 },
+        "Port breakout mode(s) supported", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_CURRENT_BREAKOUT_MODE_TYPE, false, false, false, true,
-        "Port current breakout mode", SAI_ATTR_VAL_TYPE_S32 },
+        "Port current breakout mode", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES, false, false, false, true,
-        "Port qos number of queues", SAI_ATTR_VAL_TYPE_U32 },
+        "Port qos number of queues", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_PORT_ATTR_QOS_QUEUE_LIST, false, false, false, true,
-        "Port qos queue list", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port qos queue list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_QOS_NUMBER_OF_SCHEDULER_GROUPS, false, false, false, true,
-        "Port qos number of scheduled groups ", SAI_ATTR_VAL_TYPE_U32},
+        "Port qos number of scheduled groups ", SAI_ATTR_VALUE_TYPE_UINT32},
     { SAI_PORT_ATTR_QOS_SCHEDULER_GROUP_LIST, false, false, false, true,
-        "Port scheduler group list", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port scheduler group list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_HW_LANE_LIST, false, false, false, true,
-        "Port hw lane", SAI_ATTR_VAL_TYPE_U32LIST },
+        "Port hw lane", SAI_ATTR_VALUE_TYPE_UINT32_LIST },
     { SAI_PORT_ATTR_SUPPORTED_SPEED, false, false, false, true,
-        "Port supported speed", SAI_ATTR_VAL_TYPE_U32LIST },
+        "Port supported speed", SAI_ATTR_VALUE_TYPE_UINT32_LIST },
     { SAI_PORT_ATTR_SUPPORTED_FEC_MODE, false, false, false, true,
-        "Port support FEC mode", SAI_ATTR_VAL_TYPE_S32 },
+        "Port support FEC mode", SAI_ATTR_VALUE_TYPE_INT32_LIST},
     { SAI_PORT_ATTR_NUMBER_OF_INGRESS_PRIORITY_GROUPS, false, false, false, true,
-        "Port number of ingress priority groups", SAI_ATTR_VAL_TYPE_U32},
+        "Port number of ingress priority groups", SAI_ATTR_VALUE_TYPE_UINT32},
     { SAI_PORT_ATTR_INGRESS_PRIORITY_GROUP_LIST, false, false, false, true,
-        "Port ingress priority groups list", SAI_ATTR_VAL_TYPE_OBJLIST},
+        "Port ingress priority groups list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST},
     { SAI_PORT_ATTR_SPEED, false, false, true, true,
-        "Port speed", SAI_ATTR_VAL_TYPE_U32},
+        "Port speed", SAI_ATTR_VALUE_TYPE_UINT32},
     { SAI_PORT_ATTR_FULL_DUPLEX_MODE, false, false, false, true,
-        "Port full duplex settings", SAI_ATTR_VAL_TYPE_BOOL},
+        "Port full duplex settings", SAI_ATTR_VALUE_TYPE_BOOL},
     { SAI_PORT_ATTR_AUTO_NEG_MODE, false, false, false, true,
-        "Port auto negotiation configuration", SAI_ATTR_VAL_TYPE_BOOL},
+        "Port auto negotiation configuration", SAI_ATTR_VALUE_TYPE_BOOL},
     { SAI_PORT_ATTR_ADMIN_STATE, false, false, true, true,
-        "Port admin state", SAI_ATTR_VAL_TYPE_BOOL },
+        "Port admin state", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_PORT_ATTR_MEDIA_TYPE, false, false, false, true,
-        "Port media type", SAI_ATTR_VAL_TYPE_S32 },
+        "Port media type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_PORT_VLAN_ID, false, false, true, true,
-        "Port default vlan", SAI_ATTR_VAL_TYPE_U16 },
+        "Port default vlan", SAI_ATTR_VALUE_TYPE_UINT16 },
     { SAI_PORT_ATTR_DEFAULT_VLAN_PRIORITY, false, false, true, true,
-        "Port default vlan priority", SAI_ATTR_VAL_TYPE_U8 },
-    { SAI_PORT_ATTR_INGRESS_FILTERING, false, false, false, true,
-	  "Port ingress filtering", SAI_ATTR_VAL_TYPE_BOOL },
+        "Port default vlan priority", SAI_ATTR_VALUE_TYPE_UINT8 },
     { SAI_PORT_ATTR_DROP_UNTAGGED, false, false, false, true,
-        "Port dropping of untagged frames (ingress)", SAI_ATTR_VAL_TYPE_BOOL },
+        "Port dropping of untagged frames (ingress)", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_PORT_ATTR_DROP_TAGGED, false, false, false, true,
-        "Port dropping of tagged frames (ingress)", SAI_ATTR_VAL_TYPE_BOOL },
+        "Port dropping of tagged frames (ingress)", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_PORT_ATTR_INTERNAL_LOOPBACK_MODE, false, false, false, true,
-        "Port internal loopback mode", SAI_ATTR_VAL_TYPE_S32 },
+        "Port internal loopback mode", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_FEC_MODE, false, false, false, true,
-        "Port FEC mode", SAI_ATTR_VAL_TYPE_S32 },
+        "Port FEC mode", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_UPDATE_DSCP, false, false, false, true,
-        "Port update DSCP", SAI_ATTR_VAL_TYPE_BOOL },
+        "Port update DSCP", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_PORT_ATTR_MTU, false, true, true, true,
-        "Port MTU", SAI_ATTR_VAL_TYPE_U32 },
+        "Port MTU", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_PORT_ATTR_FLOOD_STORM_CONTROL_POLICER_ID, false, false, false, true,
-        "Port flood storm control policer ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port flood storm control policer ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_BROADCAST_STORM_CONTROL_POLICER_ID, false, false, false, true,
-        "Port broadcast storm control policer ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port broadcast storm control policer ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_MULTICAST_STORM_CONTROL_POLICER_ID, false, false, false, true,
-        "Port multicast storm control policer ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port multicast storm control policer ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE, false, false, true, true,
-        "Port global flow control", SAI_ATTR_VAL_TYPE_S32 },
+        "Port global flow control", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_PORT_ATTR_INGRESS_ACL, false, true, true, true,
-        "Port bind point for ingress ACL objects", SAI_ATTR_VAL_TYPE_OID },
+        "Port bind point for ingress ACL objects", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_EGRESS_ACL, false, true, true, true,
-        "Port bind point for egress ACL objects", SAI_ATTR_VAL_TYPE_OID },
+        "Port bind point for egress ACL objects", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_INGRESS_MIRROR_SESSION, false, false, false, true,
-        "Port ingress mirror session", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port ingress mirror session", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_EGRESS_MIRROR_SESSION, false, false, false, true,
-        "Port egress mirror session", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port egress mirror session", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE, false, false, false, true,
-        "Port ingress samplepacket enable", SAI_ATTR_VAL_TYPE_OID },
+        "Port ingress samplepacket enable", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE, false, false, false, true,
-        "Port egress samplepacket enable", SAI_ATTR_VAL_TYPE_OID },
+        "Port egress samplepacket enable", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_POLICER_ID, false, false, false, true,
-        "Port policer ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port policer ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_DEFAULT_TC, false, false, false, true,
-        "Port QOS default TC", SAI_ATTR_VAL_TYPE_U8 },
+        "Port QOS default TC", SAI_ATTR_VALUE_TYPE_UINT8 },
     { SAI_PORT_ATTR_QOS_DOT1P_TO_TC_MAP, false, false, false, true,
-        "Port DOT1P->TC map", SAI_ATTR_VAL_TYPE_OID },
+        "Port DOT1P->TC map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_DOT1P_TO_COLOR_MAP, false, false, false, true,
-        "Port DOT1P->COLOR map", SAI_ATTR_VAL_TYPE_OID },
+        "Port DOT1P->COLOR map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_DSCP_TO_TC_MAP, false, false, false, true,
-        "Port DSCP->TC map", SAI_ATTR_VAL_TYPE_OID },
+        "Port DSCP->TC map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_DSCP_TO_COLOR_MAP, false, false, false, true,
-        "Port DSCP->COLOR map", SAI_ATTR_VAL_TYPE_OID },
+        "Port DSCP->COLOR map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_TC_TO_QUEUE_MAP, false, false, false, true,
-        "Port TC->QUEUE map", SAI_ATTR_VAL_TYPE_OID },
+        "Port TC->QUEUE map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_TC_AND_COLOR_TO_DOT1P_MAP, false, false, false, true,
-        "Port TC+COLOR->DOT1P map", SAI_ATTR_VAL_TYPE_OID },
+        "Port TC+COLOR->DOT1P map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_TC_AND_COLOR_TO_DSCP_MAP, false, false, false, true,
-        "Port TC+COLOR->DSCP map", SAI_ATTR_VAL_TYPE_OID },
+        "Port TC+COLOR->DSCP map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_TC_TO_PRIORITY_GROUP_MAP, false, false, false, true,
-        "Port TC->Priority Group map", SAI_ATTR_VAL_TYPE_OID },
+        "Port TC->Priority Group map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_PFC_PRIORITY_TO_PRIORITY_GROUP_MAP, false, false, false, true,
-        "Port QOS PFC Priority->Priority Group map", SAI_ATTR_VAL_TYPE_OID },
+        "Port QOS PFC Priority->Priority Group map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_PFC_PRIORITY_TO_QUEUE_MAP, false, false, false, true,
-        "Port QOS PFC Priority->QUEUE map", SAI_ATTR_VAL_TYPE_OID },
-    { SAI_PORT_ATTR_QOS_WRED_PROFILE_ID, false, false, false, true,
-        "Port QOS WRED profile ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port QOS PFC Priority->QUEUE map", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID, false, false, false, true,
-        "Port scheduler profile ID", SAI_ATTR_VAL_TYPE_OID },
+        "Port scheduler profile ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_PORT_ATTR_QOS_INGRESS_BUFFER_PROFILE_LIST, false, false, false, true,
-        "Port ingress buffer profile list", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port ingress buffer profile list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_QOS_EGRESS_BUFFER_PROFILE_LIST, false, false, false, true,
-        "Port egress buffer profile list", SAI_ATTR_VAL_TYPE_OBJLIST },
+        "Port egress buffer profile list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_PORT_ATTR_PRIORITY_FLOW_CONTROL, false, false, false, true,
-        "Port priority flow control", SAI_ATTR_VAL_TYPE_U8 },
+        "Port priority flow control", SAI_ATTR_VALUE_TYPE_UINT8 },
     { SAI_PORT_ATTR_EGRESS_BLOCK_PORT_LIST, false, false, false, true,
-        "Port egress block port list", SAI_ATTR_VAL_TYPE_OBJLIST },
-    { SAI_PORT_ATTR_BIND_MODE, false, false, false, true,
-	  "Port bind mode", SAI_ATTR_VAL_TYPE_S32 },
+        "Port egress block port list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
+    { SAI_PORT_ATTR_PORT_POOL_LIST, false, false, false, true,
+        "List of port pools for the port", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t port_vendor_attribs[] = {
@@ -585,11 +563,6 @@ static const sai_vendor_attribute_entry_t port_vendor_attribs[] = {
         { false, false, true, true },
         mrvl_port_default_vlan_prio_get, NULL,
         mrvl_port_default_vlan_prio_set, NULL },
-    { SAI_PORT_ATTR_INGRESS_FILTERING,
-      { false, false, true, true },
-      { false, false, true, true },
-      mrvl_port_ingress_filter_get, NULL,
-      mrvl_port_ingress_filter_set, NULL },
     { SAI_PORT_ATTR_DROP_UNTAGGED,
         { false, false, true, true },
         { false, false, true, true },
@@ -653,12 +626,12 @@ static const sai_vendor_attribute_entry_t port_vendor_attribs[] = {
     { SAI_PORT_ATTR_INGRESS_MIRROR_SESSION,
         { false, false, true, true },
         { false, false, true, true },
-      mrvl_port_mirror_session_get, NULL,
+      mrvl_port_mirror_session_get, (void*)SAI_PORT_ATTR_INGRESS_MIRROR_SESSION,
       mrvl_port_mirror_session_set, NULL },
     { SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
         { false, false, true, true },
         { false, false, true, true },
-      mrvl_port_mirror_session_get, NULL,
+      mrvl_port_mirror_session_get, (void*)SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
       mrvl_port_mirror_session_set, NULL },
     { SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE,
         { false, false, true, true },
@@ -730,11 +703,6 @@ static const sai_vendor_attribute_entry_t port_vendor_attribs[] = {
         { false, false, true, true },
         mrvl_port_qos_map_id_get, (void*)SAI_QOS_MAP_TYPE_PFC_PRIORITY_TO_QUEUE,
         mrvl_port_qos_map_id_set, (void*)SAI_QOS_MAP_TYPE_PFC_PRIORITY_TO_QUEUE },
-    { SAI_PORT_ATTR_QOS_WRED_PROFILE_ID,
-        { false, false, true, true },
-        { false, false, true, true },
-        mrvl_port_qos_wred_profile_id_get, NULL,
-        NULL, NULL },
     { SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID,
         { false, false, true, true },
         { false, false, true, true },
@@ -760,11 +728,11 @@ static const sai_vendor_attribute_entry_t port_vendor_attribs[] = {
         { true, false, true, true },
         mrvl_port_egress_block_get, NULL,
         mrvl_port_egress_block_set, NULL },
-    { SAI_PORT_ATTR_BIND_MODE,
-      { true, false, true, true },
-      { true, false, true, true },
-      mrvl_port_bind_mode_get, NULL,
-      mrvl_port_bind_mode_set, NULL },
+    { SAI_PORT_ATTR_PORT_POOL_LIST,
+        { false, false, false, true },
+        { false, false, false, true },
+        mrvl_port_pool_list_get, NULL,
+        NULL, NULL },
 
     { END_FUNCTIONALITY_ATTRIBS_ID,
         { false, false, false, false },
@@ -894,14 +862,14 @@ sai_status_t mrvl_port_hw_lane_get(_In_ const sai_object_key_t   *key,
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_PORT, &port_id))) {
-        return status;
+        MRVL_SAI_API_RETURN(status);
     }
 
 
-    mrvl_sai_utl_fill_u32list(&port_id, 1, &value->u32list);
+    status = mrvl_sai_utl_fill_u32list(&port_id, 1, &value->u32list);
 
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_API_RETURN(status);
 }
 
 /* number of qos queues [sai_u32_list_t] */
@@ -1373,10 +1341,7 @@ sai_status_t mrvl_port_speed_set(_In_ const sai_object_key_t      *key,
 sai_status_t mrvl_port_speed_set_prv(_In_ uint32_t port_idx, 
                                      _In_ uint32_t speed)
 {
-    sai_status_t status;
-    uint32_t     port_id;
     bool         is_half_duplex;
-
 
     FPA_STATUS                  fpa_status;
     FPA_PORT_PROPERTIES_STC     portProperties;
@@ -1954,21 +1919,10 @@ sai_status_t mrvl_port_mirror_session_get(_In_ const sai_object_key_t   *key,
                                           _Inout_ vendor_cache_t        *cache,
                                           void                          *arg)
 {
-    sai_object_id_t mirror_obj_id;
-    sai_status_t    status;
-
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_MIRROR_SESSION, 1, &mirror_obj_id))) {
-            MRVL_SAI_LOG_ERR("Error creating mirror session object\n");
-            MRVL_SAI_API_RETURN(status);
-    }
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_fill_objlist(&mirror_obj_id, 1, &value->objlist))) {
-            MRVL_SAI_LOG_ERR("Error filling object list using mirror object\n");
-            MRVL_SAI_API_RETURN(status);
-    }
+    value->objlist.count = 0;
+    memset(&(value->objlist.list), 0, sizeof(sai_object_id_t));
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -1990,19 +1944,9 @@ sai_status_t mrvl_port_samplepacket_session_get(_In_ const sai_object_key_t   *k
                                                 _Inout_ vendor_cache_t        *cache,
                                                 void                          *arg)
 {
-    sai_status_t    status;
-    uint32_t        port_idx;
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_PORT, &port_idx))) {
-        MRVL_SAI_LOG_ERR("Error converting PORT object to type\n");
-        MRVL_SAI_API_RETURN(status);
-    }
-
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_SAMPLEPACKET, 1, &value->oid))) {
-        MRVL_SAI_LOG_ERR("Error creating sample packet object\n");
-        MRVL_SAI_API_RETURN(status);
-    }
+    value->oid = SAI_NULL_OBJECT_ID;
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -2038,26 +1982,6 @@ sai_status_t mrvl_port_pfc_control_set(_In_ const sai_object_key_t      *key,
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-}
-sai_status_t mrvl_port_qos_wred_profile_id_get(_In_ const sai_object_key_t   *key,
-                                 _Inout_ sai_attribute_value_t *value,
-                                 _In_ uint32_t                  attr_index,
-                                 _Inout_ vendor_cache_t        *cache,
-                                 void                          *arg)
-{
-    sai_status_t    status;
-    uint32_t        port_idx;
-    MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_PORT, &port_idx))) {
-        MRVL_SAI_LOG_ERR("Error converting PORT object to type\n");
-        MRVL_SAI_API_RETURN(status);
-    }
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_WRED, 1, &value->oid))) {
-        MRVL_SAI_LOG_ERR("Error creating WRED object\n");
-        MRVL_SAI_API_RETURN(status);
-    }
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 sai_status_t mrvl_port_sched_get(_In_ const sai_object_key_t   *key,
@@ -2100,21 +2024,10 @@ sai_status_t mrvl_port_ingress_buffer_profile_list_get(_In_ const sai_object_key
                                                        _Inout_ vendor_cache_t        *cache,
                                                        void                          *arg)
 {
-    sai_object_id_t ing_buffer_profile_obj_id;
-    sai_status_t    status;
-
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BUFFER_PROFILE, 1, &ing_buffer_profile_obj_id))) {
-            MRVL_SAI_LOG_ERR("Error creating buffer profile object\n");
-            MRVL_SAI_API_RETURN(status);
-    }
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_fill_objlist(&ing_buffer_profile_obj_id, 1, &value->objlist))) {
-            MRVL_SAI_LOG_ERR("Error filling object list using buffer profile object\n", ing_buffer_profile_obj_id);
-            MRVL_SAI_API_RETURN(status);
-    }
+    value->objlist.count = 0;
+    memset(&(value->objlist.list), 0, sizeof(sai_object_id_t));
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -2136,21 +2049,10 @@ sai_status_t mrvl_port_egress_buffer_profile_list_get(_In_ const sai_object_key_
                                                       _Inout_ vendor_cache_t        *cache,
                                                       void                          *arg)
 {
-    sai_object_id_t egress_buffer_profile_obj_id;
-    sai_status_t    status;
-
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BUFFER_PROFILE, 1, &egress_buffer_profile_obj_id))) {
-            MRVL_SAI_LOG_ERR("Error creating buffer profile object\n");
-            MRVL_SAI_API_RETURN(status);
-    }
-    if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_fill_objlist(&egress_buffer_profile_obj_id, 1, &value->objlist))) {
-            MRVL_SAI_LOG_ERR("Error filling object list using buffer profile object id\n", egress_buffer_profile_obj_id);
-            MRVL_SAI_API_RETURN(status);
-    }
+    value->objlist.count = 0;
+    memset(&(value->objlist.list), 0, sizeof(sai_object_id_t));
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -2182,13 +2084,10 @@ sai_status_t mrvl_port_storm_control_policer_get(_In_ const sai_object_key_t   *
                                                       _Inout_ vendor_cache_t        *cache,
                                                       _In_ void                     *arg)
 {
-    sai_status_t    status;
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_POLICER, 1, &value->oid))) {
-        MRVL_SAI_LOG_ERR("Error creating policer object\n");
-        MRVL_SAI_API_RETURN(status);
-    }
+
+    value->oid = SAI_NULL_OBJECT_ID;
+
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -2223,6 +2122,32 @@ sai_status_t mrvl_port_egress_block_get(_In_ const sai_object_key_t   *key,
     if (SAI_STATUS_SUCCESS !=
             (status = mrvl_sai_utl_fill_objlist(&port_oid, 1, &value->objlist))) {
             MRVL_SAI_LOG_ERR("Error filling object list using port object\n", port_oid);
+            MRVL_SAI_API_RETURN(status);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+sai_status_t mrvl_port_pool_list_get(_In_ const sai_object_key_t   *key,
+                                     _Inout_ sai_attribute_value_t *value,
+                                     _In_ uint32_t                  attr_index,
+                                     _Inout_ vendor_cache_t        *cache,
+                                     _In_ void                     *arg)
+{
+    sai_object_id_t port_pool_oid;
+    sai_status_t    status;
+
+    MRVL_SAI_LOG_ENTER();
+
+    if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT_POOL, 1, &port_pool_oid))) {
+            MRVL_SAI_LOG_ERR("Error creating port object\n");
+            MRVL_SAI_API_RETURN(status);
+    }
+    if (SAI_STATUS_SUCCESS !=
+            (status = mrvl_sai_utl_fill_objlist(&port_pool_oid, 1, &value->objlist))) {
+            MRVL_SAI_LOG_ERR("Error filling object list using port pool object\n", port_pool_oid);
             MRVL_SAI_API_RETURN(status);
     }
 
@@ -2317,52 +2242,6 @@ sai_status_t mrvl_port_media_type_set(_In_ const sai_object_key_t      *key,
     MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 }
 
-sai_status_t mrvl_port_ingress_filter_get(_In_ const sai_object_key_t   *key,
-                                                 _Inout_ sai_attribute_value_t *value,
-                                                 _In_ uint32_t                  attr_index,
-                                                 _Inout_ vendor_cache_t        *cache,
-                                                 void                          *arg)
-{
-    MRVL_SAI_LOG_ENTER();
-
-    value->booldata = false;
-
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-}
-
-sai_status_t mrvl_port_ingress_filter_set(_In_ const sai_object_key_t      *key,
-                                                 _In_ const sai_attribute_value_t *value,
-                                                 void                             *arg)
-{
-    MRVL_SAI_LOG_ENTER();
-    
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-}
-
-sai_status_t mrvl_port_bind_mode_get(_In_ const sai_object_key_t   *key,
-                                            _Inout_ sai_attribute_value_t *value,
-                                            _In_ uint32_t                  attr_index,
-                                            _Inout_ vendor_cache_t        *cache,
-                                            _In_ void                     *arg)
-{
-    MRVL_SAI_LOG_ENTER();
-    value->s32 = SAI_PORT_BIND_MODE_PORT;
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
-}
-
-sai_status_t mrvl_port_bind_mode_set(_In_ const sai_object_key_t      *key,
-                                            _In_ const sai_attribute_value_t *value,
-                                            _In_ void                        *arg)
-{
-    MRVL_SAI_LOG_ENTER();
-
-    MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
-}
-
 static void port_key_to_str(_In_ sai_object_id_t port_id, _Out_ char *key_str)
 {
     uint32_t port;
@@ -2375,6 +2254,20 @@ static void port_key_to_str(_In_ sai_object_id_t port_id, _Out_ char *key_str)
         snprintf(key_str, MAX_KEY_STR_LEN, "port %u", port);
     }
 }
+
+static void port_pool_key_to_str(_In_ sai_object_id_t port_pool_id, _Out_ char *key_str)
+{
+    uint32_t port_pool;
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_pool_id, SAI_OBJECT_TYPE_PORT_POOL, &port_pool))
+    {
+        snprintf(key_str, MAX_KEY_STR_LEN, "invalid port pool");
+    } 
+    else {
+        snprintf(key_str, MAX_KEY_STR_LEN, "port pool %u", port_pool);
+    }
+}
+
 
 /**
  * @brief Set port attribute value.
@@ -2666,14 +2559,14 @@ sai_status_t mrvl_get_port_stats(_In_ sai_object_id_t                port_id,
         case SAI_PORT_STAT_IPV6_OUT_NON_UCAST_PKTS:
         case SAI_PORT_STAT_IPV6_OUT_MCAST_PKTS:
         case SAI_PORT_STAT_IPV6_OUT_DISCARDS:
-        case SAI_PORT_STAT_GREEN_DISCARD_DROPPED_PACKETS:
-        case SAI_PORT_STAT_GREEN_DISCARD_DROPPED_BYTES:
-        case SAI_PORT_STAT_YELLOW_DISCARD_DROPPED_PACKETS:
-        case SAI_PORT_STAT_YELLOW_DISCARD_DROPPED_BYTES:
-        case SAI_PORT_STAT_RED_DISCARD_DROPPED_PACKETS:
-        case SAI_PORT_STAT_RED_DISCARD_DROPPED_BYTES:
-        case SAI_PORT_STAT_DISCARD_DROPPED_PACKETS:
-        case SAI_PORT_STAT_DISCARD_DROPPED_BYTES:
+        case SAI_PORT_STAT_GREEN_WRED_DROPPED_PACKETS:
+        case SAI_PORT_STAT_GREEN_WRED_DROPPED_BYTES:
+        case SAI_PORT_STAT_YELLOW_WRED_DROPPED_PACKETS:
+        case SAI_PORT_STAT_YELLOW_WRED_DROPPED_BYTES:
+        case SAI_PORT_STAT_RED_WRED_DROPPED_PACKETS:
+        case SAI_PORT_STAT_RED_WRED_DROPPED_BYTES:
+        case SAI_PORT_STAT_WRED_DROPPED_PACKETS:
+        case SAI_PORT_STAT_WRED_DROPPED_BYTES:
         case SAI_PORT_STAT_ECN_MARKED_PACKETS:
         case SAI_PORT_STAT_ETHER_IN_PKTS_1519_TO_2047_OCTETS:
         case SAI_PORT_STAT_ETHER_IN_PKTS_2048_TO_4095_OCTETS:
@@ -2788,7 +2681,6 @@ sai_status_t mrvl_clear_port_all_stats(_In_ sai_object_id_t port_id)
 
     if (FPA_OK != fpa_status) {
         MRVL_SAI_LOG_ERR("Failed to clear port %d counters\n", port);
-/*        return SAI_STATUS_FAILURE;*/
         status = mrvl_sai_utl_fpa_to_sai_status(fpa_status);
         MRVL_SAI_API_RETURN(status);
     }
@@ -2818,7 +2710,7 @@ sai_status_t mrvl_port_default_vlan_get(_In_ const sai_object_key_t   *key,
         return status;
     }
 
-    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(0, port_id);
+    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(SAI_DEFAULT_VLAN_CNS, port_id);
     fpa_flow_entry.cookie = cookie;
     fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, 
                                             FPA_FLOW_TABLE_TYPE_VLAN_E, 
@@ -2860,7 +2752,7 @@ sai_status_t mrvl_port_default_vlan_prio_get(_In_ const sai_object_key_t   *key,
         return status;
     }
 
-    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(0, port_id);
+    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(SAI_DEFAULT_VLAN_CNS, port_id);
     fpa_flow_entry.cookie = cookie;
     fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, 
                                             FPA_FLOW_TABLE_TYPE_VLAN_E, 
@@ -2901,15 +2793,16 @@ sai_status_t mrvl_port_default_vlan_set(_In_ const sai_object_key_t      *key,
         return status;
     }
 
-    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(0, port_id);
+    memset(&fpa_flow_entry, 0, sizeof(fpa_flow_entry));
+    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(SAI_DEFAULT_VLAN_CNS, port_id);
     fpa_flow_entry.cookie = cookie;
     fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, 
                                             FPA_FLOW_TABLE_TYPE_VLAN_E, 
                                             &fpa_flow_entry);
 
     if (FPA_NOT_FOUND == fpa_status) {
-        MRVL_SAI_LOG_NTC("No default VLAN entry %llx in fpa flow table status = %d\n",
-                          cookie, fpa_status);
+        MRVL_SAI_LOG_NTC("No default VLAN entry %llx in fpa flow table for port %d, status = %d\n",
+                          cookie, port_id, fpa_status);
         fpa_status = fpaLibFlowEntryInit(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_VLAN_E, &fpa_flow_entry);
         if (fpa_status != FPA_OK) {
             MRVL_SAI_LOG_ERR("Failed to init VLAN entry status = %d\n", fpa_status);
@@ -2926,7 +2819,7 @@ sai_status_t mrvl_port_default_vlan_set(_In_ const sai_object_key_t      *key,
         fpa_status = fpaLibFlowEntryAdd(SAI_DEFAULT_ETH_SWID_CNS,
                                         FPA_FLOW_TABLE_TYPE_VLAN_E, 
                                         &fpa_flow_entry);
-        if (status != FPA_OK) {
+        if (fpa_status != FPA_OK) {
             MRVL_SAI_LOG_ERR("Failed to add VLAN entry %llx to fpa flow table status = %d\n",
                              cookie, fpa_status);
             
@@ -2970,7 +2863,7 @@ sai_status_t mrvl_port_default_vlan_prio_set(_In_ const sai_object_key_t      *k
         return status;
     }
 
-    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(0, port_id);
+    cookie = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(SAI_DEFAULT_VLAN_CNS, port_id);
     fpa_flow_entry.cookie = cookie;
     fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, 
                                             FPA_FLOW_TABLE_TYPE_VLAN_E, 
@@ -3055,20 +2948,95 @@ sai_status_t mrvl_port_acl_binding_get(_In_ const sai_object_key_t   *key,
         return SAI_STATUS_SUCCESS;
     }
 
-    /*if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_port(arg, port, value))){
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_port(arg, port, value))){
         MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per port %d\n", port);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-    }*/
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_TABLE, 1, &value->oid))) {
-        MRVL_SAI_LOG_ERR("Failed to create object SAI_OBJECT_TYPE_ACL_TABLE\n");
-        MRVL_SAI_API_RETURN(status);
     }
-
+    
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
 
 }
 
+static sai_status_t mrvl_sai_port_get_port_by_index(_In_ uint32_t port_index, _Out_ uint32_t *db_index)
+{
+    sai_status_t status;
+    uint32_t     i;
+
+    MRVL_SAI_LOG_ENTER();
+    assert(db_index != NULL);
+
+    for (i = 0; i < SAI_MAX_NUM_OF_PORTS; i++) {
+        if ((port_index) == ports_db[i].port_index) {
+            *db_index              = i;
+            status                   = SAI_STATUS_SUCCESS;
+            break;
+        }
+    }
+
+    if (i == SAI_MAX_NUM_OF_PORTS) {
+        status = SAI_STATUS_INVALID_PORT_NUMBER;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return status;
+}
+static sai_status_t mrvl_port_find_free_index_in_db(_Out_ uint32_t *free_index)
+{
+    sai_status_t status;
+    uint32_t     i;
+
+    MRVL_SAI_LOG_ENTER();
+    assert(free_index != NULL);
+
+    for (i = 0; i < SAI_MAX_NUM_OF_PORTS; i++) {
+        if (false == ports_db[i].is_present) {
+            *free_index              = i;
+            ports_db[i].is_present = true;
+            status                   = SAI_STATUS_SUCCESS;
+            break;
+        }
+    }
+
+    if (i == SAI_MAX_NUM_OF_PORTS) {
+    	MRVL_SAI_LOG_ERR("NO free indexes\n");
+        status = SAI_STATUS_TABLE_FULL;
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    return status;
+}
+
+sai_port_info_t* mrvl_sai_port_get_port_from_db(_In_ uint8_t index)
+{
+    return &ports_db[index];
+}
+sai_status_t mrvl_sai_port_add_port_to_lag(_In_ uint32_t port_idx, _In_ uint32_t lag_idx)
+{
+    sai_status_t status;
+    uint32_t     db_index;
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_port_get_port_by_index(port_idx, &db_index))) {
+    	MRVL_SAI_LOG_ERR("Port %d was not found in DB\n", port_idx);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    return status;
+}
+
+sai_status_t mrvl_sai_ports_init()
+{
+    uint32_t                    i;
+
+    MRVL_SAI_LOG_ENTER();
+
+    for (i = 0; i < SAI_MAX_NUM_OF_PORTS; i++) {
+        ports_db[i].is_present = true;
+        ports_db[i].port_index = i; 
+    }
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
 /**
  * @brief Create port
  *
@@ -3086,7 +3054,7 @@ sai_status_t mrvl_create_port(
         _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;  
-    uint32_t                     lane_count, index;
+    uint32_t                     lane_count, index, db_index, ingress_acl_idx = 0, egress_acl_idx = 0;
     static uint32_t              port_idx = 0; /* TO DO: dynamic port idx allocation */
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     char                         key_str[MAX_KEY_STR_LEN];
@@ -3107,7 +3075,7 @@ sai_status_t mrvl_create_port(
     }
 
     if (port_idx >= SAI_MAX_NUM_OF_PORTS) 
-{
+    {
         MRVL_SAI_LOG_ERR("Reached max number of ports possible: %d\n", SAI_MAX_NUM_OF_PORTS);
         MRVL_SAI_API_RETURN(SAI_STATUS_TABLE_FULL);
     }
@@ -3120,12 +3088,13 @@ sai_status_t mrvl_create_port(
 
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, port_attribs, MAX_LIST_VALUE_STR_LEN, list_str);    
     MRVL_SAI_LOG_NTC("Create port, %s\n", list_str);
+
     /* find port mandatory attributes: */
     if (SAI_STATUS_SUCCESS == 
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_PORT_ATTR_HW_LANE_LIST, &hw_lane_list, &index))) {
         lane_count = hw_lane_list->u32list.count;
-        if (0 == lane_count || 3 == lane_count) {
-            MRVL_SAI_LOG_ERR("Port HW lanes count %u is invalid (supported only 1,2,4)\n", lane_count);
+        if (1 != lane_count && 4 != lane_count) {
+            MRVL_SAI_LOG_ERR("Port HW lanes count %u is invalid (supported only 1, 4)\n", lane_count);
             MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
         }
         if (lane_count > SAI_MAX_NUM_OF_LANES) {
@@ -3143,14 +3112,28 @@ sai_status_t mrvl_create_port(
     /* check SAI_PORT_ATTR_INGRESS_ACL & SAI_PORT_ATTR_EGRESS_ACL */
     if (SAI_STATUS_SUCCESS == 
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_PORT_ATTR_INGRESS_ACL, &ingress_acl, &index)))
-    {
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(ingress_acl->oid, SAI_OBJECT_TYPE_ACL_TABLE, &ingress_acl_idx))) {
+            MRVL_SAI_API_RETURN(status);
     }
+
     if (SAI_STATUS_SUCCESS == 
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_PORT_ATTR_EGRESS_ACL, &egress_acl, &index)))
-    {
-
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(egress_acl->oid, SAI_OBJECT_TYPE_ACL_TABLE, &egress_acl_idx))) {
+            MRVL_SAI_API_RETURN(status);
     }
 
+    /* get free index */
+    if (SAI_STATUS_SUCCESS != (status = mrvl_port_find_free_index_in_db(&db_index))){
+        MRVL_SAI_LOG_ERR("No free index in ports DB\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    ports_db[db_index].port_index = SAI_SYS_PORT_MAPPING[port_idx];
+    ports_db[db_index].speed = speed->u32;
+    ports_db[db_index].ingress_acl_idx = ingress_acl_idx;
+    ports_db[db_index].egress_acl_idx = egress_acl_idx;
+    ports_db[db_index].lanes.list = hw_lane_list->u32list.list;
+    ports_db[db_index].lanes.count = hw_lane_list->u32list.count;
 
     /* create SAI port object */    
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, SAI_SYS_PORT_MAPPING[port_idx], port_id))) {
@@ -3196,29 +3179,244 @@ sai_status_t mrvl_remove_port(
 }
 
 /**
-
  * @brief Clear port statistics counters.
  *
  * @param[in] port_id Port id
  * @param[in] number_of_counters Number of counters in the array
  * @param[in] counter_ids Specifies the array of counter ids
  *
- * @return #SAI_STATUS_SUCCESS on success Failure status code on error
-
-
-
- */
+ * @return #SAI_STATUS_SUCCESS on success Failure status code on error 
+*/
 
 sai_status_t mrvl_clear_port_stats(
     _In_ sai_object_id_t port_id,
     _In_ uint32_t number_of_counters,    
     _In_ const sai_port_stat_t *counter_ids
-    ){
+    )
+{
 	MRVL_SAI_LOG_ERR("STUB %s", __func__);
 	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
-
 }
 
+sai_status_t mrvl_port_pool_port_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg);
+
+sai_status_t mrvl_port_pool_buffer_pool_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg);
+
+sai_status_t mrvl_port_pool_wred_profile_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg);
+
+static const sai_attribute_entry_t  port_pool_attribs[] = {
+    { SAI_PORT_POOL_ATTR_PORT_ID, true, true, false, true,
+        "Port ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_PORT_POOL_ATTR_BUFFER_POOL_ID, true, true, false, true,
+        "Port pool buffer pool ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_PORT_POOL_ATTR_QOS_WRED_PROFILE_ID, false, true, false, true,
+        "Port pool WRED profile ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    
+    { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
+};
+
+static const sai_vendor_attribute_entry_t port_pool_vendor_attribs[] = {
+    { SAI_PORT_POOL_ATTR_PORT_ID,
+        { false, false, false, true },
+        { false, false, false, true },
+        NULL, NULL,
+        NULL, NULL },
+    { SAI_PORT_POOL_ATTR_BUFFER_POOL_ID,
+        { false, false, false, true },
+        { false, false, false, true },
+        NULL, NULL,
+        NULL, NULL },
+    { SAI_PORT_POOL_ATTR_QOS_WRED_PROFILE_ID,
+        { false, false, false, true },
+        { false, false, false, true },
+        NULL, NULL,
+        NULL, NULL },
+
+    { END_FUNCTIONALITY_ATTRIBS_ID,
+        { false, false, false, false },
+        { false, false, false, false },
+        NULL, NULL,
+        NULL, NULL }
+};
+
+sai_status_t mrvl_port_pool_port_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+sai_status_t mrvl_port_pool_buffer_pool_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+sai_status_t mrvl_port_pool_wred_profile_id_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    _In_ void                     *arg)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+
+/**
+ * @brief Create port pool
+ *
+ * @param[out] port_pool_id Port pool id
+ * @param[in] switch_id Switch id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_create_port_pool(
+        _Out_ sai_object_id_t *port_pool_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Remove port pool
+ *
+ * @param[in] port_pool_id Port pool id
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_remove_port_pool(
+        _In_ sai_object_id_t port_pool_id)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Set port pool attribute value.
+ *
+ * @param[in] port_pool_id Port pool id
+ * @param[in] attr Attribute
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_set_port_pool_attribute(
+        _In_ sai_object_id_t port_pool_id,
+        _In_ const sai_attribute_t *attr)
+{
+    const sai_object_key_t key = { .key.object_id = port_pool_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+
+    /*port_pool_key_to_str(port_pool_id, key_str);
+    status = mrvl_sai_utl_set_attribute(&key, key_str, port_pool_attribs, port_pool_vendor_attribs, attr);
+    MRVL_SAI_API_RETURN(status);*/
+}
+
+/**
+ * @brief Get port pool attribute value.
+ *
+ * @param[in] port_pool_id Port pool id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_get_port_pool_attribute(
+        _In_ sai_object_id_t port_pool_id,
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    const sai_object_key_t key = { .key.object_id = port_pool_id };
+    char                   key_str[MAX_KEY_STR_LEN];
+    sai_status_t status;
+
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_NULL_OBJECT_ID == port_pool_id) {
+        MRVL_SAI_LOG_ERR("NULL port pool id\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+
+    /*port_pool_key_to_str(port_pool_id, key_str);
+    status = mrvl_sai_utl_get_attributes(&key, key_str, port_pool_attribs, port_pool_vendor_attribs, attr_count, attr_list);
+    MRVL_SAI_API_RETURN(status);*/
+}
+
+/**
+ * @brief Get port pool statistics counters.
+ *
+ * @param[in] port_pool_id Port pool id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ * @param[out] counters Array of resulting counter values.
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_get_port_pool_stats(
+        _In_ sai_object_id_t port_pool_id,
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_port_pool_stat_t *counter_ids,
+        _Out_ uint64_t *counters)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
+
+/**
+ * @brief Clear port pool statistics counters.
+ *
+ * @param[in] port_pool_id Port pool id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t mrvl_clear_port_pool_stats(
+        _In_ sai_object_id_t port_pool_id,
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_port_pool_stat_t *counter_ids)
+{
+    MRVL_SAI_LOG_ERR("STUB %s", __func__);
+	MRVL_SAI_API_RETURN(SAI_STATUS_STUB);
+}
 
 const sai_port_api_t port_api = {
     mrvl_create_port,
@@ -3227,5 +3425,11 @@ const sai_port_api_t port_api = {
     mrvl_get_port_attribute,
     mrvl_get_port_stats,
     mrvl_clear_port_stats,
-    mrvl_clear_port_all_stats
+    mrvl_clear_port_all_stats,
+    mrvl_create_port_pool,
+    mrvl_remove_port_pool,
+    mrvl_set_port_pool_attribute,
+    mrvl_get_port_pool_attribute,
+    mrvl_get_port_pool_stats,
+    mrvl_clear_port_pool_stats
 };

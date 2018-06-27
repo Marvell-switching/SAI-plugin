@@ -23,7 +23,7 @@ if [ ! -d "$LIB_NAME/DEBIAN" ]; then
 	echo "Priority: optional" >> $LIB_NAME/DEBIAN/control
 	echo "Architecture: amd64" >> $LIB_NAME/DEBIAN/control
 	echo "Depends:" >> $LIB_NAME/DEBIAN/control
-	echo "Maintainer: Vladimir Kuk <vkuk@marvell.com>" >> $LIB_NAME/DEBIAN/control
+	echo "Maintainer: Ziv Erlichson <zive@marvell.com" >> $LIB_NAME/DEBIAN/control
 	echo "Description: SAI for marvell asic" >> $LIB_NAME/DEBIAN/control
 	echo " based on sai v$4" >> $LIB_NAME/DEBIAN/control
 fi

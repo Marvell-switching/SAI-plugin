@@ -38,19 +38,19 @@ static sai_status_t mrvl_sai_udf_group_list_set(_In_ const sai_object_key_t     
 
 static const sai_attribute_entry_t mrvl_sai_udf_attribs[] = {
     { SAI_UDF_ATTR_MATCH_ID, false, false, true, true,
-      "UDF match ID", SAI_ATTR_VAL_TYPE_OID },
+      "UDF match ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_UDF_ATTR_GROUP_ID, false, false, true, true,
-      "UDF group ID", SAI_ATTR_VAL_TYPE_OID },
+      "UDF group ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_UDF_ATTR_BASE, false, false, true, true,
-      "UDF base", SAI_ATTR_VAL_TYPE_S32 },
+      "UDF base", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_UDF_ATTR_OFFSET, false, false, true, true,
-      "UDF byte offset", SAI_ATTR_VAL_TYPE_U16 },
+      "UDF byte offset", SAI_ATTR_VALUE_TYPE_UINT16 },
     { SAI_UDF_ATTR_HASH_MASK, false, false, true, true,
-      "UDF hash mask", SAI_ATTR_VAL_TYPE_U8LIST },
+      "UDF hash mask", SAI_ATTR_VALUE_TYPE_UINT8_LIST },
     
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_udf_vendor_attribs[] = {
@@ -88,16 +88,16 @@ static const sai_vendor_attribute_entry_t mrvl_sai_udf_vendor_attribs[] = {
 
 static const sai_attribute_entry_t mrvl_sai_udf_match_attribs[] = {
     { SAI_UDF_MATCH_ATTR_L2_TYPE, false, false, true, true,
-      "UDF L2 match rule", SAI_ATTR_VAL_TYPE_U16 },
+      "UDF L2 match rule", SAI_ATTR_VALUE_TYPE_UINT16 },
     { SAI_UDF_MATCH_ATTR_L3_TYPE, false, false, true, true,
-      "UDF L3 match rule", SAI_ATTR_VAL_TYPE_U8 },
+      "UDF L3 match rule", SAI_ATTR_VALUE_TYPE_UINT8 },
     { SAI_UDF_MATCH_ATTR_GRE_TYPE, false, false, true, true,
-      "UDF GRE match rule", SAI_ATTR_VAL_TYPE_U16 },
+      "UDF GRE match rule", SAI_ATTR_VALUE_TYPE_UINT16 },
     { SAI_UDF_MATCH_ATTR_PRIORITY, false, false, true, true,
-      "UDF match priority", SAI_ATTR_VAL_TYPE_U8 },
+      "UDF match priority", SAI_ATTR_VALUE_TYPE_UINT8 },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_udf_match_vendor_attribs[] = {
@@ -131,14 +131,14 @@ static const sai_vendor_attribute_entry_t mrvl_sai_udf_match_vendor_attribs[] = 
 
 static const sai_attribute_entry_t mrvl_sai_udf_group_attribs[] = {
     { SAI_UDF_GROUP_ATTR_UDF_LIST, false, false, true, true,
-      "UDF list", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "UDF list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_UDF_GROUP_ATTR_TYPE, false, false, true, true,
-      "UDF group type", SAI_ATTR_VAL_TYPE_S32 },
+      "UDF group type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_UDF_GROUP_ATTR_LENGTH, false, false, true, true,
-      "UDF byte length", SAI_ATTR_VAL_TYPE_U16 },
+      "UDF byte length", SAI_ATTR_VALUE_TYPE_UINT16 },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_udf_group_vendor_attribs[] = {

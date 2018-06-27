@@ -45,14 +45,14 @@ static sai_status_t mrvl_stp_bridge_id_get(_In_ const sai_object_key_t   *key,
 
 static const sai_attribute_entry_t stp_attribs[] = {
     { SAI_STP_ATTR_VLAN_LIST, false, false, false, true,
-      "VLANs attached to STP", SAI_ATTR_VAL_TYPE_S32 },
+      "VLANs attached to STP", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_STP_ATTR_PORT_LIST, false, false, false, true,
-      "Port member list", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "Port member list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     { SAI_STP_ATTR_BRIDGE_ID, false, false, false, true,
-      "Bridge attached to STP", SAI_ATTR_VAL_TYPE_OID },
+      "Bridge attached to STP", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, true,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t stp_vendor_attribs[] = {
@@ -99,14 +99,14 @@ static sai_status_t mrvl_stp_port_state_set(_In_ const sai_object_key_t      *ke
 
 static const sai_attribute_entry_t stp_port_attribs[] = {
     { SAI_STP_PORT_ATTR_STP, true, false, false, true,
-      "STP id", SAI_ATTR_VAL_TYPE_OID },
+      "STP id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_STP_PORT_ATTR_BRIDGE_PORT, true, false, false, true,
-      "Bridge port id", SAI_ATTR_VAL_TYPE_OID },
+      "Bridge port id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_STP_PORT_ATTR_STATE, true, false, true, true,
-      "STP port state", SAI_ATTR_VAL_TYPE_S32 },
+      "STP port state", SAI_ATTR_VALUE_TYPE_INT32 },
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, true,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t stp_port_vendor_attribs[] = {
@@ -168,9 +168,8 @@ static sai_status_t mrvl_stp_ports_get(_In_ const sai_object_key_t   *key,
                                        _Inout_ vendor_cache_t        *cache,
                                        _In_ void                     *arg)
 {
-    const sai_object_id_t sai_stp_id  = key->key.object_id;
+    /*const sai_object_id_t sai_stp_id  = key->key.object_id;*/
     sai_object_id_t stp_port_id;
-    uint32_t        stp_data;
     sai_status_t     status;
 
     MRVL_SAI_LOG_ENTER();
@@ -204,8 +203,8 @@ static sai_status_t mrvl_stp_bridge_id_get(_In_ const sai_object_key_t   *key,
                                            _Inout_ vendor_cache_t        *cache,
                                            _In_ void                     *arg)
 {
-    const sai_object_id_t sai_stp_id  = key->key.object_id;
-    uint32_t        stp_idx;
+    /*const sai_object_id_t sai_stp_id  = key->key.object_id;
+    uint32_t        stp_idx;*/
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
 
@@ -250,8 +249,8 @@ static sai_status_t mrvl_stp_port_port_id_get(_In_ const sai_object_key_t   *key
                                               _Inout_ vendor_cache_t        *cache,
                                               _In_ void                     *arg)
 {
-    const sai_object_id_t sai_stp_port_id = key->key.object_id;
-    uint32_t    stp_port_idx;
+    /*const sai_object_id_t sai_stp_port_id = key->key.object_id;
+    uint32_t    stp_port_idx;*/
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
 
@@ -540,7 +539,7 @@ static sai_status_t mrvl_sai_create_stp_ports(_In_ sai_object_id_t switch_id,
                                           _In_ uint32_t object_count,
                                           _In_ const uint32_t *attr_count,
                                           _In_ const sai_attribute_t **attr_list,
-                                          _In_ sai_bulk_op_type_t type,
+                                          _In_ sai_bulk_op_error_mode_t mode,
                                           _Out_ sai_object_id_t *object_id,
                                           _Out_ sai_status_t *object_statuses)
 {
@@ -564,7 +563,7 @@ static sai_status_t mrvl_sai_create_stp_ports(_In_ sai_object_id_t switch_id,
  */
 static sai_status_t mrvl_sai_remove_stp_ports(_In_ uint32_t object_count,
                                           _In_ const sai_object_id_t *object_id,
-                                          _In_ sai_bulk_op_type_t type,
+                                          _In_ sai_bulk_op_error_mode_t mode,
                                           _Out_ sai_status_t *object_statuses)
 {
     MRVL_SAI_LOG_ENTER();

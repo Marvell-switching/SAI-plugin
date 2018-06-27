@@ -42,12 +42,12 @@ static sai_status_t mrvl_sai_l2mc_entry_output_group_set(_In_ const sai_object_k
 
 static const sai_attribute_entry_t mrvl_sai_l2mc_attribs[] = {
     { SAI_L2MC_ENTRY_ATTR_PACKET_ACTION, false, false, false, true,
-      "L2MC entry type", SAI_ATTR_VAL_TYPE_S32 },
+      "L2MC entry type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_L2MC_ENTRY_ATTR_OUTPUT_GROUP_ID, false, false, false, true,
-      "L2MC entry output group id", SAI_ATTR_VAL_TYPE_OID },
+      "L2MC entry output group id", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_l2mc_vendor_attribs[] = {
@@ -137,8 +137,16 @@ static sai_status_t mrvl_sai_l2mc_entry_output_group_set(_In_ const sai_object_k
 
 static void l2mc_id_key_to_str(_In_ const sai_l2mc_entry_t *sai_l2mc_entry, _Out_ char *key_str)
 {
-    snprintf(key_str, MAX_KEY_STR_LEN, "l2mc entry vlan_id %u",
-             sai_l2mc_entry->vlan_id);
+    uint32_t vlan_id;
+    sai_status_t status;
+
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(sai_l2mc_entry->bv_id, SAI_OBJECT_TYPE_VLAN, &vlan_id)))
+    {
+        snprintf(key_str, MAX_KEY_STR_LEN, "Invalid l2mc entry");
+    }
+
+    snprintf(key_str, MAX_KEY_STR_LEN, "l2mc entry vlan_id %u", vlan_id);
              
 }
 

@@ -44,12 +44,12 @@ static sai_status_t mrvl_hash_udf_group_list_set(_In_ const sai_object_key_t    
 
 static const sai_attribute_entry_t mrvl_sai_hash_attribs[] = {
     { SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST, false, false, true, true,
-      "Hash native fields", SAI_ATTR_VAL_TYPE_S32LIST },
+      "Hash native fields", SAI_ATTR_VALUE_TYPE_INT32_LIST},
     { SAI_HASH_ATTR_UDF_GROUP_LIST, false, false, true, true,
-      "Hash UDF group", SAI_ATTR_VAL_TYPE_OBJLIST },
+      "Hash UDF group", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t mrvl_sai_hash_vendor_attribs[] = {
@@ -180,7 +180,6 @@ static sai_status_t mrvl_sai_create_hash(
         _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
-    char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
 
     MRVL_SAI_LOG_ENTER();

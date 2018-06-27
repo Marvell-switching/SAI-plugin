@@ -78,22 +78,22 @@ static sai_status_t mrvl_sched_group_parent_set(_In_ const sai_object_key_t     
 
 static const sai_attribute_entry_t        sched_group_attribs[] = {
     { SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT, false, false, false, true,
-      "Number of scheduler groups/queues childs added to", SAI_ATTR_VAL_TYPE_U32 },
+      "Number of scheduler groups/queues childs added to", SAI_ATTR_VALUE_TYPE_UINT32 },
 	{ SAI_SCHEDULER_GROUP_ATTR_CHILD_LIST, false, false, false, true,
-	  "Scheduler group child list", SAI_ATTR_VAL_TYPE_OBJLIST },
+	  "Scheduler group child list", SAI_ATTR_VALUE_TYPE_OBJECT_LIST },
 	{ SAI_SCHEDULER_GROUP_ATTR_PORT_ID, true, false, false, true,
-	  "Scheduler group on port", SAI_ATTR_VAL_TYPE_OID },
+	  "Scheduler group on port", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
 	{ SAI_SCHEDULER_GROUP_ATTR_LEVEL, false, false, false, true,
-	  "Scheduler group level", SAI_ATTR_VAL_TYPE_U8 },
+	  "Scheduler group level", SAI_ATTR_VALUE_TYPE_UINT8 },
 	{ SAI_SCHEDULER_GROUP_ATTR_MAX_CHILDS, true, false, false, true,
-	  "Max number of childs on scheduler group", SAI_ATTR_VAL_TYPE_U8},
+	  "Max number of childs on scheduler group", SAI_ATTR_VALUE_TYPE_UINT8},
 	{ SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID, false, false, false, true,
-	  "Scheduler profile id", SAI_ATTR_VAL_TYPE_OID},
+	  "Scheduler profile id", SAI_ATTR_VALUE_TYPE_OBJECT_ID},
 	{ SAI_SCHEDULER_GROUP_ATTR_PARENT_NODE, true, false, false, true,
-      "Scheduler group parent node", SAI_ATTR_VAL_TYPE_OID},
+      "Scheduler group parent node", SAI_ATTR_VALUE_TYPE_OBJECT_ID},
 
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
-      "", SAI_ATTR_VAL_TYPE_UNDETERMINED }
+      "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
 
 static const sai_vendor_attribute_entry_t sched_group_vendor_attribs[] = {
@@ -341,8 +341,8 @@ static sai_status_t mrvl_create_scheduler_group(_Out_ sai_object_id_t      *sche
     uint8_t                     level;
     uint8_t                      max_child_count;
     uint8_t ext_data[2] = {0};
-    sai_object_id_t              parent_group_id = SAI_NULL_OBJECT_ID;
-    /*sai_object_id_t              scheduler_id    = SAI_NULL_OBJECT_ID;*/
+    /*sai_object_id_t              parent_group_id = SAI_NULL_OBJECT_ID;
+    sai_object_id_t              scheduler_id    = SAI_NULL_OBJECT_ID;*/
     sai_object_id_t              port_oid;
 
     MRVL_SAI_LOG_ENTER();
@@ -369,7 +369,7 @@ static sai_status_t mrvl_create_scheduler_group(_Out_ sai_object_id_t      *sche
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SCHEDULER_GROUP_ATTR_PORT_ID, &attr_val, &attr_idx));
     status = mrvl_sai_utl_object_to_type(attr_val->oid, SAI_OBJECT_TYPE_PORT, &port_id);
 
-    parent_group_id = attr_val->oid;
+    /*parent_group_id = attr_val->oid;*/
 
     /* Handle SAI_SCHEDULER_GROUP_ATTR_LEVEL */
     assert(SAI_STATUS_SUCCESS ==
@@ -389,7 +389,7 @@ static sai_status_t mrvl_create_scheduler_group(_Out_ sai_object_id_t      *sche
         assert(SAI_STATUS_SUCCESS ==
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_SCHEDULER_GROUP_ATTR_PARENT_NODE, &attr_val, &attr_idx));
         
-        parent_group_id = attr_val->oid;
+        /*parent_group_id = attr_val->oid;*/
     }
 
     if (SAI_STATUS_SUCCESS !=
