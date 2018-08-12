@@ -17,7 +17,7 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
+#include "mrvl_versions.h"
 
 #include <stdarg.h>
 #include <time.h>
@@ -747,7 +747,7 @@ sai_status_t mrvl_sai_utl_value_to_str(_In_ sai_attribute_value_t      value,
 
     case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
         mrvl_object_id = (mrvl_object_id_t*)&value.oid;
-        snprintf(value_str, max_length, "%s %x",
+        snprintf(value_str, max_length, "%s #%x",
                  SAI_TYPE_STR(sai_object_type_query(value.oid)), mrvl_object_id->data);
         break;
 
@@ -970,7 +970,7 @@ sai_status_t mrvl_sai_utl_attr_list_to_str(_In_ uint32_t                     att
         mrvl_sai_utl_value_to_str(attr_list[ii].value, functionality_attr[index].type, MAX_VALUE_STR_LEN, value_str);
         pos += snprintf(list_str + pos,
                         max_length - pos,
-                        " #%u %s val:%s,",
+                        " %u) %s: %s,",
                         ii,
                         functionality_attr[index].attrib_name,
                         value_str);
@@ -1017,11 +1017,11 @@ sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_t
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint32_t *data_ext)
+sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint8_t data_ext[])
 {
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)&object_id;
 
-    if ((NULL == data) || (NULL == data_ext)) {
+    if (NULL == data) {
         MRVL_SAI_LOG_ERR("NULL value\n");
         return SAI_STATUS_INVALID_PARAMETER;
     }
@@ -1032,7 +1032,10 @@ sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_obje
     }
 
     *data = mrvl_object_id->data;
-    *data_ext = (mrvl_object_id->reserved[1] << 8) | (mrvl_object_id->reserved[0]);
+    if (data_ext) {
+        memcpy(data_ext, mrvl_object_id->reserved, RESERVED_DATA_LENGTH_CNS);
+    }
+    
     return SAI_STATUS_SUCCESS;
 }
 
@@ -1059,7 +1062,7 @@ sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, s
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint32_t data_ext, sai_object_id_t *object_id)
+sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint8_t data_ext[], sai_object_id_t *object_id)
 {
     mrvl_object_id_t *mrvl_object_id = (mrvl_object_id_t*)object_id;
 
@@ -1075,9 +1078,10 @@ sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t dat
 
     memset(mrvl_object_id, 0, sizeof(*mrvl_object_id));
     mrvl_object_id->data        = data;
-    mrvl_object_id->reserved[0] = (uint8_t)(data_ext & 0xFF);
-    mrvl_object_id->reserved[1] = (uint8_t)((data_ext >> 8) & 0xFF);
     mrvl_object_id->object_type = type;
+    if (data_ext)
+        memcpy(mrvl_object_id->reserved, data_ext, RESERVED_DATA_LENGTH_CNS);
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -1169,50 +1173,55 @@ sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t 
     fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, group);
     if (fpa_status != FPA_OK){
         MRVL_SAI_LOG_ERR("Failed to create group identifier vlan %d port %d \n", vlan, port);
-        return SAI_STATUS_FAILURE;
+        MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
     }
     group_entry.groupIdentifier = *group;
     group_entry.groupTypeSemantics = FPA_GROUP_INDIRECT;
     group_entry.selectionAlgorithm = 0;
     fpa_status = fpaLibGroupTableEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, &group_entry);
     if (fpa_status == FPA_OK) {
-        /* new group crated - create with default values */
+        /* new group created - create with default values */
         bucket.groupIdentifier = *group;
         bucket.index = 0;
         bucket.type = FPA_GROUP_BUCKET_L2_INTERFACE_E;
         bucket.data.l2Interface.outputPort = port;
-        bucket.data.l2Interface.popVlanTagAction = (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true ; 
+        bucket.data.l2Interface.popVlanTagAction = (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true; 
         fpa_status = fpaLibGroupEntryBucketAdd(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
+        if (fpa_status != FPA_OK){
+            MRVL_SAI_LOG_ERR("Failed to add entry bucket: vlan %d, port %d, %s\n", vlan, port, (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? "tagged" : "untagged");
+            MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
+        }
     }
-    if (fpa_status != FPA_OK){
+    else /* if (fpa_status != FPA_OK) */
+    {
         if (fpa_status != FPA_ALREADY_EXIST) {
             MRVL_SAI_LOG_ERR("Failed to add group %d entry status = %d\n", *group, fpa_status); 
-            return SAI_STATUS_FAILURE;
+            MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
         } else {
             if (tag_overwrite == false) { 
                 /* when group is created from fdb */
-                return SAI_STATUS_SUCCESS;
+                MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
             } else { 
-                /* group eas created from fdb and now it is updated with the real tagging mode */
+                /* group was created from fdb and now it is updated with the real tagging mode */
                 fpa_status = fpaLibGroupEntryBucketGet(SAI_DEFAULT_ETH_SWID_CNS, *group, 0, &bucket);
                 if (fpa_status != FPA_OK){
                     MRVL_SAI_LOG_ERR("Failed to add group %d entry status = %d\n", *group, fpa_status); 
-                    return SAI_STATUS_FAILURE;
+                    MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
                 } 
                 if (bucket.data.l2Interface.popVlanTagAction != ((tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true)) {
                     bucket.data.l2Interface.popVlanTagAction = (tagged == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true; 
                     fpa_status = fpaLibGroupEntryBucketModify(SAI_DEFAULT_ETH_SWID_CNS, &bucket);
                 }
                 if (fpa_status != FPA_OK){
-                    return SAI_STATUS_FAILURE;
+                    MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
                 } else {
-                    return SAI_STATUS_SUCCESS; 
+                    MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
                 }
             }
         }
-    } else {
-        return SAI_STATUS_SUCCESS; 
     }
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /*
@@ -1366,11 +1375,11 @@ sai_status_t mrvl_sai_utl_l2_int_group_set_tagging_mode(_In_ uint32_t port, _In_
     /* read group id to get tagging mode */
     fpa_status = fpaLibGroupEntryBucketGet(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier, 0, &bucket);
     if (fpa_status != FPA_OK){
-        MRVL_SAI_LOG_ERR("Failed to found group vlan %d port %d \n", vlan, port);
+        MRVL_SAI_LOG_ERR("Failed to find group vlan %d port %d \n", vlan, port);
         return SAI_STATUS_FAILURE;
     }
     if (tag_mode >= SAI_VLAN_TAGGING_MODE_PRIORITY_TAGGED) {
-        MRVL_SAI_LOG_ERR("Failed to invalid tagging mode %d \n", tag_mode);
+        MRVL_SAI_LOG_ERR("Failed due to invalid tagging mode %d \n", tag_mode);
         return SAI_STATUS_FAILURE;
     }
     bucket.data.l2Interface.popVlanTagAction = (tag_mode == SAI_VLAN_TAGGING_MODE_TAGGED)? false: true; 
@@ -1438,7 +1447,7 @@ sai_status_t mrvl_sai_utl_create_l3_unicast_group(_In_ uint32_t     index,
         fpa_status = fpaLibFlowTableGetByCookie(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E, &flow_entry);
         if ((fpa_status != FPA_OK) || (flow_entry.data.l2_bridging.groupId == 0xFFFFFFFF)) {
             MRVL_SAI_LOG_ERR("Can't find mac and vlan in FDB table\n");
-            return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
         }
         ref_group = flow_entry.data.l2_bridging.groupId;
     }
@@ -2012,10 +2021,10 @@ sai_status_t mrvl_sai_utl_create_l2_lag_group(_In_ uint32_t    lag_id,
     fpa_status = fpaLibGroupTableEntryAdd(SAI_DEFAULT_ETH_SWID_CNS, &group_entry);
     if (fpa_status != FPA_OK){
         if (fpa_status != FPA_ALREADY_EXIST) {
-            MRVL_SAI_LOG_ERR("Failed to add group 0x%x entry status = %d\n", *group, fpa_status); 
+            MRVL_SAI_LOG_ERR("Failed to add group table entry 0x%x, status = 0x%x\n", *group, fpa_status); 
             return SAI_STATUS_FAILURE;
         } else {
-            MRVL_SAI_LOG_ERR("group 0x%x already exists entry status = %d\n", *group, fpa_status); 
+            MRVL_SAI_LOG_ERR("Group table entry 0x%x already exists, status = 0x%x\n", *group, fpa_status); 
             return SAI_STATUS_ITEM_ALREADY_EXISTS;
         }
     } else {
@@ -2163,8 +2172,10 @@ sai_status_t mrvl_sai_utl_get_l2_lag_group_bucket_list(_In_ uint32_t            
         if (fpa_status != FPA_OK) {
             break;
         }
-        fpaLibGroupIdentifierParse(bucket.data.l2Reference.referenceGroupId, &parsed_group_identifier);        
-        
+        fpa_status = fpaLibGroupIdentifierParse(bucket.data.l2Reference.referenceGroupId, &parsed_group_identifier);        
+        if (fpa_status != FPA_OK) {
+            break;
+        }
         if (counter < lag_size) {
             mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, parsed_group_identifier.portNum, &port_objlist->list[counter]);
         }
@@ -2252,7 +2263,7 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_del_bucket(_In_ uint32_t        gr
         fpa_status = fpaLibGroupEntryBucketDelete(SAI_DEFAULT_ETH_SWID_CNS, group_identifier, bucket_index);
         if (fpa_status != FPA_OK){
             MRVL_SAI_LOG_ERR("Failed to delete bucket %d, status = %d\n", bucket_index, fpa_status); 
-            return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+            MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
         }
         if (mrvl_sai_utl_is_object_type(port_oid, SAI_OBJECT_TYPE_PORT) == SAI_STATUS_SUCCESS)
         {
@@ -2264,12 +2275,12 @@ static sai_status_t mrvl_sai_utl_l2_lag_group_del_bucket(_In_ uint32_t        gr
             fpa_status = fpaLibGroupIdentifierBuild(&parsed_group_identifier, &groupIdentifier);
             if (fpa_status != FPA_OK){
                 MRVL_SAI_LOG_ERR("Failed to create group identifier port_idx %d \n", port_idx);
-                return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
             }
             fpa_status = fpaLibGroupTableEntryDelete(SAI_DEFAULT_ETH_SWID_CNS, groupIdentifier);
             if (fpa_status != FPA_OK){
                 MRVL_SAI_LOG_ERR("Failed to delete entry 0x%x, status = %d\n", groupIdentifier, fpa_status); 
-                return mrvl_sai_utl_fpa_to_sai_status(fpa_status);
+                MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
             }
         }
     }
@@ -2764,6 +2775,7 @@ void * mrvl_sai_simple_server(void)
 	 char address_str[] = "/tmp/console_socket";
 	 int nbytes;
 	 char buffer[257];
+     char value_str[MAX_VALUE_STR_LEN];
 	 unsigned int cmd;
 
 	 socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
@@ -2795,11 +2807,14 @@ void * mrvl_sai_simple_server(void)
 			 nbytes = read(connection_fd, buffer, 256);
 			 buffer[nbytes] = 0;
 			 if ( strcmp(buffer,"help")==0 || strcmp(buffer,"?")==0) {
-				 dprintf(connection_fd, "Commands: help | exit | Ethernet<0..53> | lpm<4,6> | fdb | mac2me | vlan_list | vlan<N> | LAG<N>\n");
+				 dprintf(connection_fd, "Commands: help | exit | version | Ethernet<0..53> | lpm<4,6> | fdb | mac2me | vlan_list | vlan<N> | LAG<N>\n");
 			 } else if ( strcmp(buffer,"exit")==0 || strcmp(buffer,"q")==0) {
 				 dprintf(connection_fd, "Closed\n");
 				 close(connection_fd);
 				 break;
+             } else if ( strcmp(buffer, "version")==0 ) {
+                 dprintf(connection_fd, "Date: %s\n", Date);
+                 dprintf(connection_fd, "SAI v%s; FPA v%s\n", sai_ver, fpa_ver);
 			 } else if ( sscanf(buffer, "Ethernet%d", &cmd)==1 ) {
 				 if (cmd < SAI_MAX_NUM_OF_PORTS) {
 					 fpautilsPortDump(SAI_DEFAULT_ETH_SWID_CNS, cmd, connection_fd);

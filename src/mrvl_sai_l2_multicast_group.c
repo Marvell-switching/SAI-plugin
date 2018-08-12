@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_L2_MC_GROUP

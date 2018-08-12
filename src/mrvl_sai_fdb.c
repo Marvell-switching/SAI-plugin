@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_FDB
@@ -373,7 +372,7 @@ static const sai_attribute_entry_t        mrvl_sai_fdb_attribs[] = {
       "FDB entry user trap ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID, true, true, true, true,
       "FDB entry port id", SAI_ATTR_VALUE_TYPE_UINT32},
-    { SAI_FDB_ENTRY_ATTR_ENDPOINT_IP, true, true, false, true,
+    { SAI_FDB_ENTRY_ATTR_ENDPOINT_IP, false, true, false, true,
       "FDB tunnel endpoint IP", SAI_ATTR_VALUE_TYPE_INT32},
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
@@ -431,7 +430,6 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
     uint64_t                     cookie;
     uint32_t                     groupId = 0, table_index;
     mrvl_sai_fdb_bv_type_t       bv_type;
-    char           value_str[MAX_VALUE_STR_LEN];
     
     MRVL_SAI_LOG_ENTER();
     
@@ -440,17 +438,15 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_fdb_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
+    MRVL_SAI_LOG_DBG("Create FDB entry, Attribs: %s\n", list_str);
+
     if (SAI_STATUS_SUCCESS !=
         (status =
              mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_fdb_attribs, mrvl_sai_fdb_vendor_attribs, SAI_OPERATION_CREATE))) {
         MRVL_SAI_LOG_ERR("Failed attribs check\n");
         MRVL_SAI_API_RETURN(status);
     }
-
-    mrvl_sai_fdb_key_to_str_prv(fdb_entry, key_str);
-    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_fdb_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
-    MRVL_SAI_LOG_NTC("Create FDB entry %s\n", key_str);
-    MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
 
     assert(SAI_STATUS_SUCCESS == 
            mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_ENTRY_ATTR_TYPE, &type, &type_index));
@@ -555,6 +551,8 @@ sai_status_t mrvl_sai_create_fdb_entry(_In_ const sai_fdb_entry_t *fdb_entry,
     mrvl_sai_fdb_table[table_index].port_idx = port_id;
     memcpy(mrvl_sai_fdb_table[table_index].mac_address, fdb_entry->mac_address, FPA_MAC_ADDRESS_SIZE);
 
+    mrvl_sai_fdb_key_to_str_prv(fdb_entry, key_str);
+    MRVL_SAI_LOG_NTC("Created FDB entry %s\n", key_str);
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -685,13 +683,16 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ sai_object_id_t switch_id,
                                         _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t                 status;
-    const sai_attribute_value_t *port, *bv_attr, *type;
-    uint32_t                     port_index, bv_index, type_index, type_exist;
+    const sai_attribute_value_t *bport_attr, *bv_attr, *type;
+    uint32_t                     attr_index, bv_idx;
     uint32_t                     port_id;
-    bool                         port_exist, bv_exist;
+    mrvl_bridge_port_info_t      *bport;
+    bool                         port_exist, bv_exist, type_exist;
     uint32_t       				 count = 0;
     FPA_FLOW_TABLE_ENTRY_STC	 fpa_flow_entry;
     FPA_GROUP_ENTRY_IDENTIFIER_STC parsed_group_identifier;
+    FPA_STATUS fpa_status;
+
     
     MRVL_SAI_LOG_ENTER();
     
@@ -702,8 +703,8 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ sai_object_id_t switch_id,
     
     if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_FLUSH_ATTR_BRIDGE_PORT_ID,
-                                 &port, &port_index))) {
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(port->oid, SAI_OBJECT_TYPE_PORT, &port_id))) {
+                                 &bport_attr, &attr_index))) {
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bport_attr->oid, &bport))) {
         	MRVL_SAI_API_RETURN(status);
         }
         port_exist = true;
@@ -711,13 +712,27 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ sai_object_id_t switch_id,
 
     if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_FLUSH_ATTR_BV_ID,
-                                 &bv_attr, &bv_index))) {
+                                 &bv_attr, &attr_index))) 
+    {
+        if (mrvl_sai_utl_is_object_type(bv_attr->oid, SAI_OBJECT_TYPE_BRIDGE) == SAI_STATUS_SUCCESS)
+        {
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(bv_attr->oid, SAI_OBJECT_TYPE_BRIDGE, &bv_idx))) {
+                MRVL_SAI_API_RETURN(status);
+            }
+            bv_exist = false;
+        }
+        else /* SAI_OBJECT_TYPE_VLAN */
+        {
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(bv_attr->oid, SAI_OBJECT_TYPE_VLAN, &bv_idx))) {
+                MRVL_SAI_API_RETURN(status);
+            }
+        }
         bv_exist = true;
     }
 
     if (SAI_STATUS_SUCCESS ==
         (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_FDB_FLUSH_ATTR_ENTRY_TYPE,
-                                 &type, &type_index))) {
+                                 &type, &attr_index))) {
         type_exist = true;
     }
 
@@ -731,22 +746,23 @@ sai_status_t mrvl_sai_flush_fdb_entries(_In_ sai_object_id_t switch_id,
         fpa_flow_entry.timeoutIdleTime = 1; 
     }
     if (bv_exist) {
-		fpa_flow_entry.data.l2_bridging.match.vlanId = bv_attr->u16;
+		fpa_flow_entry.data.l2_bridging.match.vlanId = bv_idx;
 		fpa_flow_entry.data.l2_bridging.match.vlanIdMask = 0xFFFF;		
     }
 	if (port_exist) {
 		parsed_group_identifier.groupType = FPA_GROUP_L2_INTERFACE_E;
-        parsed_group_identifier.portNum = port_id;
+        parsed_group_identifier.portNum = bport->logical_port;
 		fpaLibGroupIdentifierBuild(&parsed_group_identifier, &fpa_flow_entry.data.l2_bridging.groupId);
 	}else {
 		fpa_flow_entry.data.l2_bridging.groupId = FPA_FLOW_INVALID_VAL;	
 	}
-    status = fpaLibFlowEntryDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E, &fpa_flow_entry, 1); 
-	if (status != FPA_OK) {
-		printf("fpaLibFlowEntryDelete: delete FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E failed %d\n", (int)status);
+    fpa_status = fpaLibFlowEntryDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E, &fpa_flow_entry, 1); 
+	if (fpa_status != FPA_OK) {
+		MRVL_SAI_LOG_ERR("fpaLibFlowEntryDelete: delete FPA_FLOW_TABLE_TYPE_L2_BRIDGING_E failed %d\n", (int)fpa_status);
+        MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
 	}
 
-    MRVL_SAI_LOG_INF("Deleted %d flows from FDB table\n",count);
+    MRVL_SAI_LOG_NTC("Deleted %d flows from FDB table\n",count);
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -768,6 +784,7 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
 	sai_object_type_t type;
 	sai_object_id_t switch_id;
     sai_object_id_t bport;
+    mrvl_bridge_port_info_t *bridge_port;
     sai_status_t status;
 
     memcpy(fdb_event->fdb_entry.mac_address,fpa_au_event->address.addr, sizeof(sai_mac_t));
@@ -778,7 +795,7 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
     }
 	fdb_event->fdb_entry.switch_id = switch_id;
 
-    MRVL_SAI_LOG_NTC("FDB event received: vlan: %4u ; mac: %x:%x:%x:%x:%x:%x ; port: (%d) ; type: %s(%d)\n",
+    MRVL_SAI_LOG_NTC("FDB event received: vlan: %4u; mac: %x:%x:%x:%x:%x:%x; port: (%d); interface type: (%d); event type: %s(%d)\n",
                    fpa_au_event->vid,
                    fpa_au_event->address.addr[0],
                    fpa_au_event->address.addr[1],
@@ -787,6 +804,7 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
                    fpa_au_event->address.addr[4],
                    fpa_au_event->address.addr[5],
                    fpa_au_event->interfaceNum,
+                   fpa_au_event->interfaceType,
                    fpa_au_event->type == FPA_EVENT_ADDRESS_UPDATE_NEW_E ? "New" : "Aged",
                    fpa_au_event->type);
 
@@ -805,31 +823,25 @@ sai_status_t mrvl_sai_fdb_event_convert_fpa_to_sai(FPA_EVENT_ADDRESS_MSG_STC *fp
 		break;
 	case FPA_INTERFACE_DEVICE_E:
 		type = SAI_OBJECT_TYPE_SWITCH;
+        break;
 	case FPA_INTERFACE_FABRIC_VIDX_E:
 	case FPA_INTERFACE_INDEX_E:
 		return SAI_STATUS_NOT_SUPPORTED;
 		break;
 	}
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_port_to_bridge_port(fpa_au_event->interfaceNum, &bport))
-    {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_port_to_bport(fpa_au_event->interfaceNum, &bridge_port))) {
         MRVL_SAI_LOG_ERR("Failed to convert port %d to bridge port\n", fpa_au_event->interfaceNum);
+        MRVL_SAI_API_RETURN(status);
+    }
+    if (SAI_STATUS_SUCCESS != mrvl_sai_bridge_port_object_create(bridge_port->index, &bport))
+    {
+        MRVL_SAI_LOG_ERR("Failed to create bridge port %d\n", bridge_port->index);
         return SAI_STATUS_FAILURE;
     }
 
-    if (SAI_OBJECT_TYPE_VLAN == type || fpa_au_event->vid >= SAI_MAX_NUM_OF_VLANS)
-    {
-        MRVL_SAI_LOG_ERR("Creating VLAN %d\n", fpa_au_event->vid);
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, fpa_au_event->vid, &(fdb_event->fdb_entry.bv_id)))) {
-            MRVL_SAI_API_RETURN(status);
-        }
-    }
-    else /* SAI_OBJECT_TYPE_BRIDGE */
-    {
-        MRVL_SAI_LOG_ERR("Creating BRIDGE %d\n", fpa_au_event->vid);
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, fpa_au_event->vid, &(fdb_event->fdb_entry.bv_id)))) {
-            MRVL_SAI_API_RETURN(status);
-        }
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_VLAN, fpa_au_event->vid, &(fdb_event->fdb_entry.bv_id)))) {
+        MRVL_SAI_API_RETURN(status);
     }
 
     /* Attributes */
@@ -872,18 +884,20 @@ extern unsigned int mrvl_sai_fdb_wait_for_au_event(void *args)
         fpa_status = fpaLibBridgingAuMsgGet(SAI_DEFAULT_ETH_SWID_CNS, false, &fpa_au_event);
         if (fpa_status == FPA_OK) {
             /* Call SAI callback */
-            if (mrvl_sai_notification_callbacks.on_fdb_event) {
+            if (mrvl_sai_notification_callbacks.on_fdb_event)
+            {
                 /* Convert FPA event to fdb_entry */
                 if (SAI_STATUS_SUCCESS != mrvl_sai_fdb_event_convert_fpa_to_sai(&fpa_au_event, &sai_fdb_event)){
                     MRVL_SAI_LOG_ERR("Could not convert FPA message to SAI format\n");
-                }
-            	mrvl_sai_notification_callbacks.on_fdb_event(1,&sai_fdb_event);
+	            }
+                mrvl_sai_notification_callbacks.on_fdb_event(1,&sai_fdb_event);
             }
         } else if (fpa_status == FPA_NO_MORE) {
             MRVL_SAI_LOG_INF("No More AU messages pending\n");
         } else 
             MRVL_SAI_LOG_ERR("Got error from FPA AU Message Get\n");
     }
+    return 0;
 }
 
 

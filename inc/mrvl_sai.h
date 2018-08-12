@@ -26,11 +26,6 @@
 #include    <stdlib.h>
 #include    <limits.h>
 
-#ifndef MAX
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#endif
-
 extern sai_service_method_table_t g_services;
 
 extern const sai_switch_api_t           switch_api;
@@ -90,16 +85,26 @@ typedef uint32_t PTR_TO_INT;
 #define ALIGNMENT_SIZE      4
 #endif
 
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+
 #define SAI_DEFAULT_ETH_SWID_CNS                0
 #define SAI_DEFAULT_VRID_CNS                    0
 #define SAI_DEFAULT_VLAN_CNS                    1
+#define SAI_DEFAULT_MSTP_GROUP_CNS              0 
 #define SAI_DEFAULT_RIF_MTU_CNS                 1514
+#define SAI_MAX_MTU_CNS                         10240
 #define SAI_DEFAULT_RIF_NBR_MISS_ACTION_CNS     SAI_PACKET_ACTION_TRAP
 #define SAI_RIF_MTU_PROFILES_CNS                8
-#define SAI_FIRST_PORT_CNS                      (0x10000 | (1 << 8))
+#define SAI_FIRST_LAG_INDEX_CNS                 SAI_MAX_NUM_OF_PORTS /* since LAG indices start from 1, first lag index can be set to SAI_MAX_NUM_OF_PORTS,
+                                                                         which in fact turns to SAI_MAX_NUM_OF_PORTS + 1 */
+#define SAI_MAX_PORTS_BMP_NUM_CNS               (SAI_MAX_NUM_OF_BRIDGE_PORTS * 2 + 31) / 32
 #define SAI_SWITCH_MAX_VR_CNS                   128
 #define SAI_CPU_PORT_CNS                        63
-#define SAI_MAX_MTU_CNS                         10240
 #define SAI_QUEUES_PER_PORT_CNS                 8
 #define SAI_TOTAL_BUFFER_SIZE_KB_CNS            16
 #define SAI_DEFAULT_FDB_AGING_TIME_CNS          0
@@ -107,7 +112,6 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_MAX_NUM_OF_PORTS	                54
 #define SAI_MAX_NUM_OF_LANES                    4
 #define SAI_MAX_NUM_OF_VLANS	                4095
-#define MAX_QUEUES                              8
 #define SAI_MAX_NUM_OF_BRIDGE_PORTS             512 
 
 #define SAI_OUTPUT_CONTROLLER               FPA_OUTPUT_CONTROLLER
@@ -131,6 +135,7 @@ typedef uint32_t PTR_TO_INT;
 #define SAI_QOS_DSCP_MIN                    0
 #define SAI_QOS_DSCP_MAX                    63
 
+#define RESERVED_DATA_LENGTH_CNS 2
 
 extern uint32_t SAI_SYS_PORT_MAPPING[SAI_MAX_NUM_OF_PORTS];
 
@@ -225,7 +230,7 @@ typedef struct _sai_attribute_entry_t {
 
 typedef struct _mrvl_object_id_t {
     sai_uint8_t  object_type;
-    sai_uint8_t  reserved[3];
+    sai_uint8_t  reserved[RESERVED_DATA_LENGTH_CNS];
     sai_uint32_t data;
 } mrvl_object_id_t;
 
@@ -258,30 +263,68 @@ typedef struct _sai_vendor_attribute_entry_t {
     void *setter_arg;
 } sai_vendor_attribute_entry_t;
 
-typedef struct _sai_port_info_t {
-    bool            is_present;
-    uint32_t        port_index;
-    bool            admin_state;
-    sai_u32_list_t  lanes;
-    uint32_t        speed;
-    uint32_t        tag;
-    uint32_t        ingress_acl_idx;
-    uint32_t        egress_acl_idx;
-    uint32_t        lag_idx;
-    sai_vlan_id_t   vlan_idx;
-}sai_port_info_t;
+/**
+* @struct _mrvl_ports_bitmap_t
+ *
+ * @brief Defines the bmp of ports (up to 1024 ports)
+*/
+typedef struct _mrvl_ports_bitmap_t{
 
-typedef struct _sai_bridge_port_info_t {
+    uint32_t ports[SAI_MAX_PORTS_BMP_NUM_CNS];
+
+} mrvl_ports_bitmap_t;
+#define mrvl_bmp_set_bit_MAC(bitmap, port)   (bitmap.ports[port >> 5] |= (1 << (port & 0x1f)))
+#define mrvl_bmp_clear_bit_MAC(bitmap, port)   (bitmap.ports[port >> 5] &= ~(1 << (port & 0x1f)))
+#define mrvl_bmp_is_bit_set_MAC(bitmap, port) (bitmap.ports[port >> 5] & (1 << (port & 0x1f)))
+#define mrvl_bmp_set_all_MAC(bitmap) memset(&bitmap.ports, 0xFF, sizeof(mrvl_ports_bitmap_t))
+#define mrvl_bmp_clear_all_MAC(bitmap) memset(&bitmap.ports, 0, sizeof(mrvl_ports_bitmap_t))
+
+typedef struct mrvl_stp_info_t {
+    bool              is_used;
+    uint32_t          vlans_count;
+} mrvl_stp_info_t;
+typedef struct _mrvl_vlan_info_t {
+    bool                is_created;
+    mrvl_ports_bitmap_t ports_bitmap;
+    uint32_t            ingress_acl;
+    uint32_t            egress_acl;
+} mrvl_vlan_info_t;
+typedef struct _mrvl_port_info_t {
+    bool                    is_present;
+    uint32_t                index;
+    bool                    admin_state;
+    sai_u32_list_t          lanes;
+    uint32_t                speed;
+    uint32_t                ingress_acl_idx;
+    uint32_t                egress_acl_idx;
+    uint32_t                lag_idx;
+    sai_vlan_id_t           vlan_id;
+    sai_vlan_tagging_mode_t tagging_mode;
+    uint8_t                 default_tc;
+    uint32_t                qos_maps[SAI_QOS_MAP_TYPES_MAX];
+    sai_object_id_t         port_id;
+    sai_object_id_t         scheduler_id;
+    sai_object_id_t         wred_id;
+    /* The following parameters are relevant for LAGs only */
+    uint32_t                group_member_counter; /* Number of members in LAG */
+}mrvl_port_info_t;
+
+typedef struct _mrvl_bridge_port_info_t {
     uint32_t                index;
     bool                    is_used;
     bool                    admin_state;
     uint32_t                tunnel_id;
     uint32_t                bridge_id;
     uint32_t                rif_id;
-    uint32_t                port_lag_id;
+    uint32_t                logical_port;
+    uint32_t                parent;
     sai_vlan_id_t           vlan_id;
+    uint32_t                vlan_ref_count;
     sai_bridge_port_type_t  port_type;
-}mrvl_sai_bridge_port_info_t;
+    bool                    ingress_filter;
+    sai_bridge_port_tagging_mode_t tag_mode;
+
+}mrvl_bridge_port_info_t;
 
 #define END_FUNCTIONALITY_ATTRIBS_ID 0xFFFFFFFF
 #define MAX_ATTRIBS_NUMBUR 100
@@ -340,18 +383,12 @@ sai_status_t mrvl_sai_utl_ipaddr_to_str(_In_ sai_ip_address_t value,
 
 sai_status_t mrvl_sai_utl_is_object_type(sai_object_id_t object_id, sai_object_type_t type);
 sai_status_t mrvl_sai_utl_object_to_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data);
-sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint32_t *data_ext);
-sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint32_t data_ext, sai_object_id_t *object_id);
+sai_status_t mrvl_sai_utl_object_to_ext_type(sai_object_id_t object_id, sai_object_type_t type, uint32_t *data, uint8_t data_ext[]);
+sai_status_t mrvl_sai_utl_create_ext_object(sai_object_type_t type, uint32_t data, uint8_t data_ext[], sai_object_id_t *object_id);
 sai_status_t mrvl_sai_utl_create_object(sai_object_type_t type, uint32_t data, sai_object_id_t *object_id);
-sai_status_t mrvl_sai_utl_oid_to_lag_port(sai_object_id_t object_id, uint32_t *lag_port_idx);
 
-sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port,
-                                     _In_ uint32_t vlan,
-                                     _In_ sai_vlan_tagging_mode_t tagged,
-                                     _In_ bool tag_overwrite,
-                                      _Inout_ uint32_t *group);
-sai_status_t mrvl_sai_utl_delete_l2_int_group(_In_ uint32_t port,
-                                              _In_ uint32_t vlan);
+sai_status_t mrvl_sai_utl_create_l2_int_group(_In_ uint32_t port, _In_ uint32_t vlan, _In_ sai_vlan_tagging_mode_t tagged, _In_ bool tag_overwrite, _Inout_ uint32_t *group);
+sai_status_t mrvl_sai_utl_delete_l2_int_group(_In_ uint32_t port, _In_ uint32_t vlan);
 sai_status_t mrvl_sai_utl_create_l2_int_group_wo_vlan(_In_ uint32_t port);
 sai_status_t mrvl_sai_utl_l2_int_group_get_tagging_mode(_In_ uint32_t port, _In_ uint32_t vlan, _Out_ sai_vlan_tagging_mode_t *tag_mode);
 sai_status_t mrvl_sai_utl_l2_int_group_set_tagging_mode(_In_ uint32_t port, _In_ uint32_t vlan, _In_ sai_vlan_tagging_mode_t tag_mode);
@@ -417,205 +454,216 @@ extern sai_switch_notification_t     mrvl_sai_notification_callbacks;
 #define SAI_TYPE_STR(type) SAI_TYPE_CHECK_RANGE(type) ? mrvl_sai_type2str_arr[type] : "Unknown object type"
 
 static __attribute__((__used__)) const char *mrvl_sai_type2str_arr[] = {
-    /* SAI_OBJECT_TYPE_NULL = 0 */
+    /* SAI_OBJECT_TYPE_NULL                     = 0 */
     "NULL type",
 
-    /*SAI_OBJECT_TYPE_PORT = 1 */
-    "Port type",
+    /*SAI_OBJECT_TYPE_PORT                      = 1 */
+    "Port",
 
-    /*SAI_OBJECT_TYPE_LAG = 2 */
-    "LAG type",
+    /*SAI_OBJECT_TYPE_LAG                       = 2 */
+    "LAG",
 
-    /*SAI_OBJECT_TYPE_VIRTUAL_ROUTER = 3 */
-    "Virtual router type",
+    /*SAI_OBJECT_TYPE_VIRTUAL_ROUTER            = 3 */
+    "Virtual Router",
 
-    /* SAI_OBJECT_TYPE_NEXT_HOP = 4 */
-    "Next hop type",
+    /* SAI_OBJECT_TYPE_NEXT_HOP                 = 4 */
+    "Next Hop",
 
-    /* SAI_OBJECT_TYPE_NEXT_HOP_GROUP = 5 */
-    "Next hop group type",
+    /* SAI_OBJECT_TYPE_NEXT_HOP_GROUP           = 5 */
+    "Next Hop Group",
 
-    /* SAI_OBJECT_TYPE_ROUTER_INTERFACE = 6 */
-    "Router interface type",
+    /* SAI_OBJECT_TYPE_ROUTER_INTERFACE         = 6 */
+    "Router Interface",
 
-    /* SAI_OBJECT_TYPE_ACL_TABLE = 7 */
-    "ACL table type",
+    /* SAI_OBJECT_TYPE_ACL_TABLE                = 7 */
+    "ACL Table",
 
-    /* SAI_OBJECT_TYPE_ACL_ENTRY = 8 */
-    "ACL entry type",
+    /* SAI_OBJECT_TYPE_ACL_ENTRY                = 8 */
+    "ACL Entry",
 
-    /* SAI_OBJECT_TYPE_ACL_COUNTER = 9 */
-    "ACL counter type",
+    /* SAI_OBJECT_TYPE_ACL_COUNTER              = 9 */
+    "ACL Counter",
 
-    /* SAI_OBJECT_TYPE_ACL_RANGE = 10 */
-    "ACL range type",
+    /* SAI_OBJECT_TYPE_ACL_RANGE                = 10 */
+    "ACL Range",
 
-    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP = 11 */
-    "ACL table group",
+    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP          = 11 */
+    "ACL Table Group",
 
-    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER = 12 */
-    "ACL table group member",
+    /* SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER   = 12 */
+    "ACL Table Group Member",
 
-    /* SAI_OBJECT_TYPE_HOST_INTERFACE = 13 */
-    "Host interface type",
+    /* SAI_OBJECT_TYPE_HOST_INTERFACE           = 13 */
+    "Host Interface",
 
-    /* SAI_OBJECT_TYPE_MIRROR_SESSION = 14 */
-    "Mirror type",
+    /* SAI_OBJECT_TYPE_MIRROR_SESSION           = 14 */
+    "Mirror Session",
 
-    /* SAI_OBJECT_TYPE_SAMPLEPACKET = 15 */
-    "Sample packet type",
+    /* SAI_OBJECT_TYPE_SAMPLEPACKET             = 15 */
+    "Sample Packet",
 
-    /* SAI_OBJECT_TYPE_STP = 16 */
-    "Stp instance type",
+    /* SAI_OBJECT_TYPE_STP                      = 16 */
+    "STP",
 
-    /* SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP = 17 */
-    "Trap group type",
+    /* SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP        = 17 */
+    "Trap Group",
 
-    /* SAI_OBJECT_TYPE_POLICER = 18 */
-    "Policer type",
+    /* SAI_OBJECT_TYPE_POLICER                  = 18 */
+    "Policer",
 
-    /* SAI_OBJECT_TYPE_WRED = 19 */
-    "Wred type",
+    /* SAI_OBJECT_TYPE_WRED                     = 19 */
+    "WRED",
 
-    /* SAI_OBJECT_TYPE_QOS_MAPS = 20 */
-    "Qos map type",
+    /* SAI_OBJECT_TYPE_QOS_MAPS                 = 20 */
+    "QOS Map",
 
-    /* SAI_OBJECT_TYPE_QUEUE = 21 */
-    "Queue type",
+    /* SAI_OBJECT_TYPE_QUEUE                    = 21 */
+    "Queue",
 
-    /* SAI_OBJECT_TYPE_SCHEDULER = 22 */
-    "scheduler type",
+    /* SAI_OBJECT_TYPE_SCHEDULER                = 22 */
+    "Scheduler",
 
-    /* SAI_OBJECT_TYPE_SCHEDULER_GROUP = 23 */
-    "scheduler group type",
+    /* SAI_OBJECT_TYPE_SCHEDULER_GROUP          = 23 */
+    "Scheduler Group",
 
-    /* SAI_OBJECT_TYPE_BUFFER_POOL      = 24*/
-    "buffer pool",
+    /* SAI_OBJECT_TYPE_BUFFER_POOL              = 24*/
+    "Buffer Pool",
 
-    /* SAI_OBJECT_TYPE_BUFFER_PROFILE   = 25*/
-    "buffer profile",
+    /* SAI_OBJECT_TYPE_BUFFER_PROFILE           = 25*/
+    "Buffer Profile",
 
-     /* SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP   = 26*/
-    "ingress priority group",
+     /* SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP  = 26*/
+    "Ingress Priority Group",
 
-    /* SAI_OBJECT_TYPE_LAG_MEMBER       = 27*/
-    "lag number",
+    /* SAI_OBJECT_TYPE_LAG_MEMBER               = 27*/
+    "LAG Member",
 
-    /* SAI_OBJECT_TYPE_HASH             = 28*/
-    "hash",
+    /* SAI_OBJECT_TYPE_HASH                     = 28*/
+    "Hash",
 
-    /* SAI_OBJECT_TYPE_UDF              = 29*/
+    /* SAI_OBJECT_TYPE_UDF                      = 29*/
     "UDF",
 
-    /* SAI_OBJECT_TYPE_UDF_MATCH        = 30*/
-    "UDF match",
+    /* SAI_OBJECT_TYPE_UDF_MATCH                = 30*/
+    "UDF Match",
 
-    /* SAI_OBJECT_TYPE_UDF_GROUP        = 31*/
-    "UDF group",
+    /* SAI_OBJECT_TYPE_UDF_GROUP                = 31*/
+    "UDF Group",
 
-    /* SAI_OBJECT_TYPE_FDB_ENTRY              = 32*/
-    "FDB entry",
+    /* SAI_OBJECT_TYPE_FDB_ENTRY                = 32*/
+    "FDB Entry",
 
-    /* SAI_OBJECT_TYPE_SWITCH           = 33*/
-    "switch",
+    /* SAI_OBJECT_TYPE_SWITCH                   = 33*/
+    "Switch",
 
-    /* SAI_OBJECT_TYPE_HOSTIF_TRAP             = 34*/
-    "trap",
+    /* SAI_OBJECT_TYPE_HOSTIF_TRAP              = 34*/
+    "Host Interface Trap",
 
-    /* SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY    = 35*/
-    "trap table entry",
+    /* SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY       = 35*/
+    "Host Interface Table Entry",
 
-    /* SAI_OBJECT_TYPE_NEIGHBOR_ENTRY         = 36*/
-    "neighbor",
+    /* SAI_OBJECT_TYPE_NEIGHBOR_ENTRY           = 36*/
+    "Neighbor Entry",
 
-    /* SAI_OBJECT_TYPE_ROUTE_ENTRY            = 37*/
-    "route",
+    /* SAI_OBJECT_TYPE_ROUTE_ENTRY              = 37*/
+    "Route Entry",
 
-    /* SAI_OBJECT_TYPE_VLAN             = 38*/
-    "vlan",
+    /* SAI_OBJECT_TYPE_VLAN                     = 38*/
+    "VLAN",
 
-    /* SAI_OBJECT_TYPE_VLAN_MEMBER      = 39*/
-    "vlan member",
+    /* SAI_OBJECT_TYPE_VLAN_MEMBER              = 39*/
+    "VLAN Member",
 
     /* SAI_OBJECT_TYPE_HOSTIF_PACKET            = 40*/
-    "packet",
+    "Host Interface Packet",
 
     /* SAI_OBJECT_TYPE_TUNNEL_MAP               = 41*/
-    "tunnel map",
+    "Tunnel Map",
 
     /* SAI_OBJECT_TYPE_TUNNEL                   = 42*/
-    "tunnel",
+    "Tunnel",
 
     /* SAI_OBJECT_TYPE_TUNNEL_TERM_TABLE_ENTRY  = 43*/
-    "tunnel able entry",
+    "Tunnel Termination Table Entry",
 
     /* SAI_OBJECT_TYPE_FDB_FLUSH                = 44*/
-    "fdb flush",
+    "FDB Flush",
 
     /* SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER    = 45*/
-    "fdb flush",
+    "Nexthop Group Member",
 
     /* SAI_OBJECT_TYPE_STP_PORT                 = 46*/
-    "stp port",
+    "STP Port",
 
     /* SAI_OBJECT_TYPE_RPF_GROUP                = 47*/
-    "rpf group",
+    "RPF Group",
 
     /* SAI_OBJECT_TYPE_RPF_GROUP_MEMBER         = 48*/
-    "rpf group member",
+    "RPF Group Member",
 
     /* SAI_OBJECT_TYPE_L2MC_GROUP               = 49*/
-    "l2 mc group",
+    "L2MC group",
 
     /* SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER        = 50*/
-    "l2 mc group member",
+    "L2MC Group Member",
 
     /* SAI_OBJECT_TYPE_IPMC_GROUP               = 51*/
-    "ipmc group",
+    "IPMC Group",
 
     /* SAI_OBJECT_TYPE_IPMC_GROUP_MEMBER        = 52*/
-    "ipmc group member",
+    "IPMC Group Member",
 
     /* SAI_OBJECT_TYPE_L2MC_ENTRY               = 53*/
-    "l2mc entry",
+    "L2MC Entry",
 
     /* SAI_OBJECT_TYPE_IPMC_ENTRY               = 54*/
-    "ipmc entry",
+    "IPMC Entry",
 
     /* SAI_OBJECT_TYPE_MCAST_FDB_ENTRY          = 55*/
-    "mcast fdb entry",
+    "Multicast FDB Entry",
 
     /* SAI_OBJECT_TYPE_HOSTIF_USER_DEFINED_TRAP = 56*/
-    "hostinf user defined trap",
+    "Host interface User Defined Trap",
 
     /* SAI_OBJECT_TYPE_BRIDGE                   = 57*/
-    "bridge",
+    "Bridge",
 
     /* SAI_OBJECT_TYPE_BRIDGE_PORT              = 58*/
-    "bridge port",
+    "Bridge Port",
 
     /* SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY         = 59*/
-    "tunnel map entry",
+    "Tunnel Map Entry",
+
     /* SAI_OBJECT_TYPE_TAM                      = 60*/
-    "tam",
+    "TAM",
+
     /* SAI_OBJECT_TYPE_TAM_STAT                 = 61*/
-    "tam stat",
+    "TAM Stat",
+
     /* SAI_OBJECT_TYPE_TAM_SNAPSHOT             = 62*/
-    "tam snapshot",
+    "TAM Snapshot",
+
     /* SAI_OBJECT_TYPE_TAM_TRANSPORTER          = 63*/
-    "tam transporter",
+    "TAM Transporter",
+
     /* SAI_OBJECT_TYPE_TAM_THRESHOLD            = 64*/
-    "tam threshold",
+    "TAM Threshold",
+
     /* SAI_OBJECT_TYPE_SEGMENTROUTE_SIDLIST     = 65*/
-    "segmentroute sidlist",
+    "Segmentroute Sidlist",
+
     /* SAI_OBJECT_TYPE_PORT_POOL                = 66*/
-    "port pool",
+    "Port Pool",
+
     /* SAI_OBJECT_TYPE_INSEG_ENTRY              = 67*/
-    "inseg entry",
+    "Inseg Entry",
+
     /* SAI_OBJECT_TYPE_TAM_HISTOGRAM            = 68*/
-    "tam histogram",
+    "TAM Histogram",
+
     /* SAI_OBJECT_TYPE_TAM_MICROBURST           = 69*/
-    "tam microburst",
+    "TAM Microburst",
+
     /* SAI_OBJECT_TYPE_MAX                      = 70*/
     "MAX"
 };
@@ -793,8 +841,11 @@ typedef struct _mrvl_sai_next_hop_group_table_t {
 } mrvl_sai_next_hop_group_table_t;
 
 typedef struct _mrvl_sai_lag_group_table_t {
-    bool                    used;          /* entry is valid*/
-    uint32_t                group_member_counter;
+    bool                    used;          /* Entry is in use */
+    uint32_t                logic_index;    /* Internal logical LAG index */
+    sai_vlan_id_t           vlan_id;        /* LAG's VLAN ID */
+    sai_vlan_tagging_mode_t tagging_mode;   /* LAG's VLAN tagging mode */
+    uint32_t                group_member_counter; /* Number of members in LAG */
 } mrvl_sai_lag_group_table_t;
 
 typedef struct _mrvl_sai_route_hash_key_t
@@ -837,6 +888,19 @@ typedef struct _mrvl_sai_fdb_table_t {
     sai_mac_t               mac_address;
     uint64_t                cookie;
 } mrvl_sai_fdb_table_t;
+
+typedef struct _mrvl_sai_mac_entry_t
+{
+    sai_mac_t               macAddr;
+    uint32_t                dev;
+    uint32_t                port_or_lag;
+    bool                    is_trunk;
+    bool                    is_assigned; /* dev/port valid */
+    sai_vlan_id_t           vlanId;
+    uint32_t                vr_id;
+    uint32_t                rif_id;
+    sai_router_interface_type_t type;
+} mrvl_sai_mac_entry_t;
 
 sai_status_t mrvl_sai_rif_is_exist(_In_ uint32_t   rif_idx,
                                    _In_ bool        *is_exist);
@@ -917,17 +981,43 @@ sai_status_t mrvl_sai_acl_table_bind_to_switch(_In_ void *arg, _In_ const sai_ob
 sai_status_t mrvl_sai_acl_table_unbind_from_switch(_In_ void *arg, _In_ uint32_t port);
 sai_status_t mrvl_sai_acl_get_table_id_per_switch(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
 sai_status_t mrvl_sai_acl_table_bind_to_vlan(_In_ void *arg, _In_ const sai_object_id_t object_id, _In_ uint32_t vlan_idx);
-sai_status_t mrvl_sai_acl_table_unbind_from_vlan(_In_ void *arg, _In_ uint32_t port);
-sai_status_t mrvl_sai_acl_get_table_id_per_vlan(_In_ void *arg, _In_ uint32_t port, _Inout_ sai_attribute_value_t *value);
-sai_status_t mrvl_sai_get_lag_port_list(_In_ const uint32_t  lag_id, _Out_ sai_object_list_t     *portbjlist);
+sai_status_t mrvl_sai_acl_table_unbind_from_vlan(_In_ void *arg, _In_ uint32_t vlan_idx);
+sai_status_t mrvl_sai_acl_get_table_id_per_vlan(_In_ void *arg, _In_ uint32_t vlan_idx, _Inout_ sai_attribute_value_t *value);
 
 sai_status_t mrvl_sai_ports_init();
-sai_port_info_t* mrvl_sai_port_get_port_from_db(_In_ uint8_t index);
-sai_status_t mrvl_sai_port_add_port_to_lag(_In_ uint32_t port_idx, _In_ uint32_t lag_idx);
-sai_status_t mrvl_sai_port_to_bridge_port(_In_ uint32_t port, _Out_ sai_object_id_t *oid);
-sai_status_t mrvl_sai_bridge_init(void);
+mrvl_port_info_t* mrvl_sai_port_get_port_from_db(_In_ uint32_t index);
 
-sai_status_t mrvl_sai_vlan_port_add(_In_ uint32_t port_idx, _In_ sai_vlan_id_t vlan_idx, sai_vlan_tagging_mode_t tagging_mode);
+#define mrvl_lag_logical_to_real_index_MAC(lag) (lag - SAI_FIRST_LAG_INDEX_CNS)
+#define mrvl_lag_real_to_logical_index_MAC(lag) (lag + SAI_FIRST_LAG_INDEX_CNS)
+bool is_lag_interface(_In_ uint32_t  lag_idx);
+bool is_lag_empty(_In_ uint32_t  lag_idx);
+bool is_lag_used(_In_ uint32_t  lag_idx);
+uint32_t lag_members_count(_In_ uint32_t  lag_idx);
+void lag_vlan_info_set(_In_ uint32_t lag_idx, _In_ sai_vlan_id_t vlan_id, _In_ sai_vlan_tagging_mode_t tagging_mode);
+sai_vlan_id_t lag_vlan_info_get(_In_ uint32_t lag_idx, _Out_ sai_vlan_tagging_mode_t *tagging_mode);
+sai_status_t mrvl_sai_utl_oid_to_lag_port(sai_object_id_t object_id, uint32_t *lag_port_idx);
+sai_status_t mrvl_sai_get_lag_port_list(_In_ const uint32_t  lag_id, _Out_ sai_object_list_t     *portbjlist);
+sai_status_t mrvl_sai_port_set_port_in_lag(_In_ uint32_t port_idx, _In_ uint32_t lag_idx, _In_ bool add);
+bool mrvl_sai_is_port_lag_member(_In_ uint32_t port_idx);
+
+sai_status_t mrvl_port_lag_pvid_get (_In_ const sai_object_key_t *key, _Inout_ sai_attribute_value_t *value, _In_ uint32_t attr_index, _Inout_ vendor_cache_t *cache, void *arg);
+sai_status_t mrvl_port_lag_pvid_set(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg);
+sai_status_t mrvl_port_lag_default_vlan_prio_get(_In_ const sai_object_key_t *key, _Inout_ sai_attribute_value_t *value, _In_ uint32_t attr_index, _Inout_ vendor_cache_t *cache, void *arg);
+sai_status_t mrvl_port_lag_default_vlan_prio_set(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg);
+sai_status_t mrvl_port_lag_drop_tags_get(_In_ const sai_object_key_t *key, _Inout_ sai_attribute_value_t *value, _In_ uint32_t attr_index, _Inout_ vendor_cache_t *cache, void *arg);
+sai_status_t mrvl_port_lag_drop_tags_set(_In_ const sai_object_key_t *key, _In_ const sai_attribute_value_t *value, void *arg);
+
+sai_status_t mrvl_sai_bridge_init(void);
+sai_status_t mrvl_sai_bridge_port_by_index(uint32_t index, mrvl_bridge_port_info_t **bport);
+uint32_t mrvl_sai_bridge_port_to_port(_In_ sai_object_id_t bridge_port_oid);
+
+sai_status_t mrvl_sai_port_to_bport(_In_ uint32_t port, _Out_ mrvl_bridge_port_info_t **bport);
+sai_status_t mrvl_sai_bridge_port_object_create(_In_ uint32_t index, _Out_ sai_object_id_t *oid);
+sai_status_t mrvl_sai_add_bridge_port(_In_ uint32_t bridge_idx, _In_ sai_bridge_port_type_t port_type, _Out_ mrvl_bridge_port_info_t **bridge_port);
+
+sai_status_t mrvl_sai_vlan_port_add(_In_ mrvl_bridge_port_info_t *bport, _In_ sai_vlan_id_t vlan_idx, sai_vlan_tagging_mode_t tagging_mode);
+sai_status_t mrvl_sai_vlan_port_remove(_In_ mrvl_bridge_port_info_t *bport, _In_ uint32_t vlan_idx);
+sai_status_t mrvl_sai_vlan_member_object_to_vlan_bport(_In_ sai_object_id_t vlan_member_id, _Out_ sai_vlan_id_t *vlan_id, _Out_ mrvl_bridge_port_info_t **bport);
 
 sai_status_t mrvl_acl_db_free_entries_get(_In_ sai_object_type_t  object_type, _Out_ uint32_t  *free_entries);
 sai_status_t mrvl_sai_fdb_db_free_entries_get(_In_ sai_switch_attr_t  resource_type, _Out_ uint32_t         *free_entries);

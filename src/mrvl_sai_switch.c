@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 #include <pthread.h>
 
 #undef  __MODULE__
@@ -31,6 +30,7 @@ bool                                mrvl_switch_is_created = false;
 static sai_switch_profile_id_t      mrvl_profile_id = 0;
 uint32_t                            mrvl_sai_switch_aging_time = SAI_DEFAULT_FDB_AGING_TIME_CNS;
 uint32_t                            mrvl_sai_switch_ecmp_hash_algorithm = SAI_ECMP_DEFAULT_HASH_ALGORITHM_CNS;
+sai_object_id_t mrvl_sai_default_bridge_id;
 
 pthread_t mrvl_sai_au_thread;
 
@@ -1106,10 +1106,7 @@ static sai_status_t mrvl_sai_switch_default_1q_bridge_id_get_prv(_In_ const sai_
 {
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 1, &value->oid))) {
-    	MRVL_SAI_LOG_EXIT();
-        MRVL_SAI_API_RETURN(status);
-    }
+    value->oid = mrvl_sai_default_bridge_id;
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -1994,7 +1991,7 @@ void * mrvl_sai_port_status_task(void * arg)
 					sprintf(extra_data,"\n");
 				}
                 mrvl_sai_netdev_set_carrier(i,up);
-				MRVL_SAI_LOG_INF("port %d status changed now %s %s", i, (up) ? "UP" : "Down", extra_data);
+				MRVL_SAI_LOG_INF("port %d status changed: now %s %s", i, (up) ? "UP" : "Down", extra_data);
 				port_status[i] = up;
 				port_data.port_state = (up) ? SAI_PORT_OPER_STATUS_UP : SAI_PORT_OPER_STATUS_DOWN;
 				mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, i, &port_id);

@@ -21,8 +21,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "mrvl_sai.h"
-#include "assert.h"
 #include    <errno.h> 
 #include    <unistd.h>
 #include    <stdlib.h>
@@ -647,6 +645,7 @@ sai_status_t mrvl_sai_table_entry_get(_In_ const sai_object_key_t   *key,
 {
     sai_status_t     status;
     uint32_t         hif_data, hif_ext_data;
+    uint8_t         ext_data[RESERVED_DATA_LENGTH_CNS];
     
     
     MRVL_SAI_LOG_ENTER();
@@ -654,8 +653,10 @@ sai_status_t mrvl_sai_table_entry_get(_In_ const sai_object_key_t   *key,
     assert((SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE == (long)arg) || (SAI_HOSTIF_TABLE_ENTRY_ATTR_OBJ_ID == (long)arg) ||
            (SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID == (long)arg));
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hif_data, &hif_ext_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hif_data, ext_data)))
         MRVL_SAI_API_RETURN(status);
+
+    hif_ext_data = (uint32_t)(ext_data[1] << 8 | ext_data[0]);
 
     switch ((long)arg) {
     case SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE:
@@ -1140,7 +1141,6 @@ sai_status_t mrvl_sai_host_interface_oper_set(_In_ const sai_object_key_t      *
                                           _In_ const sai_attribute_value_t *value,
                                           void                             *arg)
 {
-
     MRVL_SAI_LOG_ENTER();
 
     MRVL_SAI_LOG_EXIT();
@@ -1151,9 +1151,20 @@ sai_status_t mrvl_sai_host_interface_vlan_tag_set(_In_ const sai_object_key_t   
                                                   _In_ const sai_attribute_value_t *value,
                                                   void                             *arg)
 {
+    uint32_t        hostif_idx;
+    sai_status_t    status;
     MRVL_SAI_LOG_ENTER();
 
-    MRVL_SAI_LOG_EXIT();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_HOSTIF, &hostif_idx))) {
+    	MRVL_SAI_API_RETURN(status);
+    }
+
+    if (!host_fd[hostif_idx].valid)
+    {
+        MRVL_SAI_LOG_ERR("Host interface %d is invalid\n", hostif_idx);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    MRVL_SAI_LOG_EXIT(); 
     return SAI_STATUS_SUCCESS;
 }
 
@@ -2394,6 +2405,7 @@ sai_status_t mrvl_sai_create_hostif_table_entry(
     const sai_attribute_value_t *type, *obj_id, *channel, *fd;
     uint32_t                     type_index, obj_id_index, obj_id_data, channel_index, fd_index;
     uint32_t                     fd_data, fd_ext_data;
+    uint8_t                      ext_data[RESERVED_DATA_LENGTH_CNS];
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
 
@@ -2436,9 +2448,7 @@ sai_status_t mrvl_sai_create_hostif_table_entry(
 
         if ((SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT == type->s32) || (SAI_HOSTIF_TABLE_ENTRY_TYPE_LAG == type->s32)) {
             if (SAI_STATUS_SUCCESS != 
-                (status = mrvl_sai_utl_object_to_type(obj_id->oid,
-                                         (SAI_HOSTIF_TABLE_ENTRY_TYPE_PORT == type->s32) ? SAI_OBJECT_TYPE_PORT : SAI_OBJECT_TYPE_LAG,
-                                         &obj_id_data))) {
+                (status = mrvl_sai_utl_oid_to_lag_port(obj_id->oid, &obj_id_data))) {
                 MRVL_SAI_API_RETURN(status);
             }
         } else {
@@ -2470,10 +2480,10 @@ sai_status_t mrvl_sai_create_hostif_table_entry(
             MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
         }
 
-        status = mrvl_sai_utl_object_to_ext_type(fd->oid, SAI_OBJECT_TYPE_HOSTIF, &fd_data, &fd_ext_data);
+        status = mrvl_sai_utl_object_to_ext_type(fd->oid, SAI_OBJECT_TYPE_HOSTIF, &fd_data, ext_data);
         if (SAI_STATUS_SUCCESS != status)
             MRVL_SAI_API_RETURN(status);
-        
+        fd_ext_data = (uint32_t)(ext_data[1] << 8 | ext_data[0]);
         if (SAI_HOSTIF_TYPE_FD != fd_data) {
             MRVL_SAI_LOG_ERR("Can't set non FD host interface type %u\n", fd_data);
             MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + fd_index);

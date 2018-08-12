@@ -17,12 +17,12 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_BRIDGE
 
-static mrvl_sai_bridge_port_info_t bridge_ports_db[SAI_MAX_NUM_OF_BRIDGE_PORTS] = {};
+static mrvl_bridge_port_info_t bridge_ports_db[SAI_MAX_NUM_OF_BRIDGE_PORTS] = {};
+extern sai_object_id_t mrvl_sai_default_bridge_id;
 
 static void bridge_id_key_to_str(_In_ sai_object_id_t sai_bridge_id, _Out_ char *key_str);
 static void bridge_port_id_key_to_str(_In_ sai_object_id_t sai_bridge_port_id, _Out_ char *key_str);
@@ -53,6 +53,16 @@ static sai_status_t mrvl_sai_bridge_learn_disable_get(_In_ const sai_object_key_
 static sai_status_t mrvl_sai_bridge_learn_disable_set(_In_ const sai_object_key_t      *key,
                                                   _In_ const sai_attribute_value_t *value,
                                                   void                             *arg);
+static sai_status_t mrvl_sai_bridge_flood_control_type_get(_In_ const sai_object_key_t   *key,
+                                                  _Inout_ sai_attribute_value_t *value,
+                                                  _In_ uint32_t                  attr_index,
+                                                  _Inout_ vendor_cache_t        *cache,
+                                                  void                          *arg);
+static sai_status_t mrvl_sai_bridge_flood_group_get(_In_ const sai_object_key_t   *key,
+                                                  _Inout_ sai_attribute_value_t *value,
+                                                  _In_ uint32_t                  attr_index,
+                                                  _Inout_ vendor_cache_t        *cache,
+                                                  void                             *arg);
 
 static const sai_attribute_entry_t mrvl_sai_bridge_attribs[] = {
     { SAI_BRIDGE_ATTR_TYPE, true, false, false, true,
@@ -63,6 +73,18 @@ static const sai_attribute_entry_t mrvl_sai_bridge_attribs[] = {
       "Max number of learned MAC addresses", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_BRIDGE_ATTR_LEARN_DISABLE, false, false, false, true,
       "Disable learning on bridge", SAI_ATTR_VALUE_TYPE_BOOL },
+    { SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_CONTROL_TYPE, false, false, false, true,
+      "Bridge unknown unicast flood control type", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_GROUP, false, true, false, true,
+      "Bridge unknown unicast flood group", SAI_ATTR_VALUE_TYPE_OBJECT_ID},
+    { SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_CONTROL_TYPE, false, true, false, true,
+      "Bridge unknown multicast flood control type", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_GROUP, false, true, false, true,
+      "Bridge unknown multicast flood group", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_BRIDGE_ATTR_BROADCAST_FLOOD_CONTROL_TYPE, false, true, false, true,
+      "Bridge broadcast flood control type", SAI_ATTR_VALUE_TYPE_INT32 },
+    { SAI_BRIDGE_ATTR_BROADCAST_FLOOD_GROUP, false, true, false, true,
+      "Bridge broadcastt flood group", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
@@ -89,6 +111,36 @@ static const sai_vendor_attribute_entry_t mrvl_sai_bridge_vendor_attribs[] = {
       { true, false, true, true },
       mrvl_sai_bridge_learn_disable_get, NULL,
       mrvl_sai_bridge_learn_disable_set, NULL },
+    { SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_CONTROL_TYPE,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_control_type_get, (void*)SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_CONTROL_TYPE,
+      NULL, NULL },
+    { SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_GROUP,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_group_get, (void*)SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_CONTROL_TYPE,
+      NULL, NULL },
+    { SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_CONTROL_TYPE,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_control_type_get, (void*)SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_CONTROL_TYPE,
+      NULL, NULL },
+    { SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_GROUP,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_group_get, (void*)SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_CONTROL_TYPE,
+      NULL, NULL },
+    { SAI_BRIDGE_ATTR_BROADCAST_FLOOD_CONTROL_TYPE,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_control_type_get, (void*)SAI_BRIDGE_ATTR_BROADCAST_FLOOD_CONTROL_TYPE,
+      NULL, NULL },
+    { SAI_BRIDGE_ATTR_BROADCAST_FLOOD_GROUP,
+      { true, false, false, true },
+      { false, false, false, true },
+      mrvl_sai_bridge_flood_group_get, (void*)SAI_BRIDGE_ATTR_BROADCAST_FLOOD_GROUP,
+      NULL, NULL },
     
     { END_FUNCTIONALITY_ATTRIBS_ID,
       { false, false, false, false },
@@ -153,12 +205,27 @@ static sai_status_t mrvl_sai_bridge_port_admin_state_get(_In_ const sai_object_k
 static sai_status_t mrvl_sai_bridge_port_admin_state_set(_In_ const sai_object_key_t      *key,
                                                      _In_ const sai_attribute_value_t *value,
                                                      void                             *arg);
+static sai_status_t mrvl_sai_bridge_port_ingress_filtering_get(_In_ const sai_object_key_t   *key,
+                                                     _Inout_ sai_attribute_value_t *value,
+                                                     _In_ uint32_t                  attr_index,
+                                                     _Inout_ vendor_cache_t        *cache,
+                                                     void                          *arg);
+static sai_status_t mrvl_sai_bridge_port_ingress_filtering_set(_In_ const sai_object_key_t      *key,
+                                                               _In_ const sai_attribute_value_t *value,
+                                                               void                             *arg);
+static sai_status_t mrvl_sai_bridge_port_tagging_mode_get(_In_ const sai_object_key_t   *key,
+                                                          _Inout_ sai_attribute_value_t *value,
+                                                          _In_ uint32_t                  attr_index,
+                                                          _Inout_ vendor_cache_t        *cache,
+                                                          void                          *arg);
 
 static const sai_attribute_entry_t mrvl_sai_bridge_port_attribs[] = {
     { SAI_BRIDGE_PORT_ATTR_TYPE, true, true, false, true,
       "Bridge port type", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_BRIDGE_PORT_ATTR_PORT_ID, true, true, false, true,
       "Bridge port associated port/lag ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_BRIDGE_PORT_ATTR_TAGGING_MODE, false, true, false, true,
+      "Bridge port egress tagging mode", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_BRIDGE_PORT_ATTR_VLAN_ID, false, true, false, true,
       "Bridge port associated VLAN ID", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_BRIDGE_PORT_ATTR_RIF_ID, false, true, false, true,
@@ -173,8 +240,10 @@ static const sai_attribute_entry_t mrvl_sai_bridge_port_attribs[] = {
       "Bridge port max learned MAC addresses", SAI_ATTR_VALUE_TYPE_UINT32 },
     { SAI_BRIDGE_PORT_ATTR_FDB_LEARNING_LIMIT_VIOLATION_PACKET_ACTION, false, false, false, true,
       "Bridge port action for packets with unkown MAC address", SAI_ATTR_VALUE_TYPE_INT32 },
-    { SAI_BRIDGE_PORT_ATTR_ADMIN_STATE, false, true, false, true,
+    { SAI_BRIDGE_PORT_ATTR_ADMIN_STATE, false, true, true, true,
       "Bridge port admin state", SAI_ATTR_VALUE_TYPE_BOOL },
+    { SAI_BRIDGE_PORT_ATTR_INGRESS_FILTERING, false, true, false, true,
+      "Bridge port ingress filtering", SAI_ATTR_VALUE_TYPE_BOOL },
     
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
@@ -190,6 +259,11 @@ static const sai_vendor_attribute_entry_t mrvl_sai_bridge_port_vendor_attribs[] 
       { true, false, false, true },
       { true, false, false, true },
       mrvl_sai_bridge_port_lag_or_port_get, NULL,
+      NULL, NULL },
+    { SAI_BRIDGE_PORT_ATTR_TAGGING_MODE,
+      { true, false, false, true },
+      { true, false, false, true },
+      mrvl_sai_bridge_port_tagging_mode_get, NULL,
       NULL, NULL },
     { SAI_BRIDGE_PORT_ATTR_VLAN_ID,
       { true, false, false, true },
@@ -231,6 +305,11 @@ static const sai_vendor_attribute_entry_t mrvl_sai_bridge_port_vendor_attribs[] 
       { true, false, true, true },
       mrvl_sai_bridge_port_admin_state_get, NULL,
       mrvl_sai_bridge_port_admin_state_set, NULL },
+    { SAI_BRIDGE_PORT_ATTR_INGRESS_FILTERING,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_sai_bridge_port_ingress_filtering_get, NULL,
+      mrvl_sai_bridge_port_ingress_filtering_set, NULL },
     
     { END_FUNCTIONALITY_ATTRIBS_ID,
       { false, false, false, false },
@@ -253,7 +332,7 @@ static sai_status_t mrvl_sai_bridge_type_get(_In_ const sai_object_key_t   *key,
 {
     sai_object_id_t bridge_id   = key->key.object_id;
     uint32_t    bridge_data;
-    sai_status_t     status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -283,22 +362,42 @@ static sai_status_t mrvl_sai_bridge_port_list_get(_In_ const sai_object_key_t   
                                               _Inout_ vendor_cache_t        *cache,
                                               void                          *arg)
 {
-    sai_object_id_t data_obj;
-    sai_status_t     status;
+    uint32_t bridge_idx, ports_count = 0, i, j = 0;
+    mrvl_bridge_port_info_t *bport;
+    sai_object_id_t *port_list;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, 1, &data_obj)))
+        (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_BRIDGE, &bridge_idx)))
     {
-        MRVL_SAI_LOG_ERR("Failed to create object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge object\n");
         MRVL_SAI_API_RETURN(status);
     }
     
+    for (i = 0; i < SAI_MAX_NUM_OF_BRIDGE_PORTS; i++) {
+        if (true == bridge_ports_db[i].is_used) {
+            ports_count++;
+        }
+    }
+    port_list = calloc(ports_count, sizeof(*port_list));
+    if (!port_list) {
+        MRVL_SAI_API_RETURN(SAI_STATUS_NO_MEMORY);
+    }
+    for (i = 0; i < SAI_MAX_NUM_OF_BRIDGE_PORTS; i++) {
+        if (bridge_idx != bridge_ports_db[i].bridge_id) {
+            continue;
+        }
+        /* create SAI BRIDGE object */
+        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, bridge_ports_db[i].index, &port_list[j++]))) {
+            MRVL_SAI_API_RETURN(status);
+        }
+    }
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_fill_objlist(&data_obj, 1, &value->objlist)))
+        (status = mrvl_sai_utl_fill_objlist(port_list, ports_count, &value->objlist)))
     {
-         MRVL_SAI_LOG_ERR("Failed to fill objlist\n");
+         MRVL_SAI_LOG_ERR("Failed to fill bridge ports objlist\n");
          MRVL_SAI_API_RETURN(status);
     }
     
@@ -323,7 +422,7 @@ static sai_status_t mrvl_sai_bridge_max_learned_addresses_get(_In_ const sai_obj
 {
     sai_object_id_t bridge_id   = key->key.object_id;
     uint32_t    bridge_data;
-    sai_status_t     status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -374,7 +473,7 @@ static sai_status_t mrvl_sai_bridge_learn_disable_get(_In_ const sai_object_key_
 {
     sai_object_id_t bridge_id   = key->key.object_id;
     uint32_t    bridge_data;
-    sai_status_t     status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -408,6 +507,40 @@ static sai_status_t mrvl_sai_bridge_learn_disable_set(_In_ const sai_object_key_
     MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 }
 
+static sai_status_t mrvl_sai_bridge_flood_control_type_get(_In_ const sai_object_key_t   *key,
+                                                  _Inout_ sai_attribute_value_t *value,
+                                                  _In_ uint32_t                  attr_index,
+                                                  _Inout_ vendor_cache_t        *cache,
+                                                  void                          *arg)
+{
+    switch ((int64_t)arg) {
+        case SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_CONTROL_TYPE:
+        case SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_CONTROL_TYPE:
+        case SAI_BRIDGE_ATTR_BROADCAST_FLOOD_CONTROL_TYPE:
+            break;
+        default:
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    value->s32 = SAI_BRIDGE_FLOOD_CONTROL_TYPE_SUB_PORTS;
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+static sai_status_t mrvl_sai_bridge_flood_group_get(_In_ const sai_object_key_t   *key,
+                                                  _Inout_ sai_attribute_value_t *value,
+                                                  _In_ uint32_t                  attr_index,
+                                                  _Inout_ vendor_cache_t        *cache,
+                                                  void                          *arg)
+{
+    switch ((int64_t)arg) {
+        case SAI_BRIDGE_ATTR_UNKNOWN_UNICAST_FLOOD_GROUP:
+        case SAI_BRIDGE_ATTR_UNKNOWN_MULTICAST_FLOOD_GROUP:
+        case SAI_BRIDGE_ATTR_BROADCAST_FLOOD_GROUP:
+            break;
+        default:
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    value->oid = SAI_NULL_OBJECT_ID;
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
 static void bridge_id_key_to_str(_In_ sai_object_id_t sai_bridge_id, _Out_ char *key_str)
 {
     uint32_t     bridge_id;
@@ -426,7 +559,7 @@ static void bridge_port_id_key_to_str(_In_ sai_object_id_t sai_bridge_port_id, _
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(sai_bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_id)) {
         snprintf(key_str, MAX_KEY_STR_LEN, "invalid bridge port id");
     } else {
-        snprintf(key_str, MAX_KEY_STR_LEN, "bridge port id %u", bridge_port_id);
+        snprintf(key_str, MAX_KEY_STR_LEN, "bridge port %u", bridge_port_id);
     }
 }
 
@@ -446,8 +579,10 @@ sai_status_t mrvl_sai_create_bridge(
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
-	sai_status_t                 status;
+	sai_status_t status = SAI_STATUS_SUCCESS;
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
+    const sai_attribute_value_t  *bridge_type;
+    uint32_t    attr_idx;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -470,7 +605,13 @@ sai_status_t mrvl_sai_create_bridge(
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_bridge_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
     MRVL_SAI_LOG_NTC("Create %s\n", list_str);
 
-    /* create SAI BRIDGE object */
+    assert(SAI_STATUS_SUCCESS ==
+           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_ATTR_TYPE, &bridge_type, &attr_idx));
+    if (bridge_type->s32 != SAI_BRIDGE_TYPE_1D) {
+        MRVL_SAI_LOG_ERR("Not supported bridge type %d\n", bridge_type->s32);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+    /* create SAI BRIDGE object (temporarily hardcoded)*/
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 1, bridge_id))) {
         MRVL_SAI_API_RETURN(status);
     }
@@ -509,7 +650,7 @@ sai_status_t mrvl_sai_set_bridge_attribute(
 {
 	const sai_object_key_t key = { .key.object_id = bridge_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t           status;
+    sai_status_t           status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -536,7 +677,7 @@ sai_status_t mrvl_sai_get_bridge_attribute(
 {
 	const sai_object_key_t key = { .key.object_id = bridge_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t           status;
+    sai_status_t           status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -606,20 +747,19 @@ static sai_status_t mrvl_sai_bridge_port_type_get(_In_ const sai_object_key_t   
                                               _Inout_ vendor_cache_t        *cache,
                                               void                          *arg)
 {
-    sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    sai_object_id_t bridge_port_id = key->key.object_id;
+    mrvl_bridge_port_info_t          *bport;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
-    value->s32 = SAI_BRIDGE_PORT_TYPE_PORT;
+    value->s32 = bport->port_type;
     
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -640,20 +780,28 @@ static sai_status_t mrvl_sai_bridge_port_lag_or_port_get(_In_ const sai_object_k
                                                      void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t          *bport;
+    uint32_t                         port;
+    sai_status_t                     status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, 1, &value->oid)))
+    if (bport->port_type == SAI_BRIDGE_PORT_TYPE_PORT) {
+        port = bport->logical_port;
+    } else if (bport->port_type == SAI_BRIDGE_PORT_TYPE_SUB_PORT) {
+        port = bport->parent;
+    } else {
+        MRVL_SAI_LOG_ERR("Invalid port type - %d\n", bport->port_type);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port, &value->oid))
     {
         MRVL_SAI_LOG_ERR("Failed to create object port\n");
         MRVL_SAI_API_RETURN(status);
@@ -678,19 +826,23 @@ static sai_status_t mrvl_sai_bridge_port_vlan_id_get(_In_ const sai_object_key_t
                                                  void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
-    value->u16 = 1;
+    if (bport->port_type != SAI_BRIDGE_PORT_TYPE_SUB_PORT) {
+        MRVL_SAI_LOG_ERR("Invalid bridge port type %d, must be SAI_BRIDGE_PORT_TYPE_SUB_PORT\n", bport->port_type);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    value->u16 = bport->vlan_id;
     
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -713,20 +865,24 @@ static sai_status_t mrvl_sai_bridge_port_rif_id_get(_In_ const sai_object_key_t 
                                                 void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
+    if (bport->port_type != SAI_BRIDGE_PORT_TYPE_1D_ROUTER) {
+        MRVL_SAI_LOG_ERR("Invalid bridge port type %d, must be SAI_BRIDGE_PORT_TYPE_1D_ROUTER\n", bport->port_type);
+        status = SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(status);
+    }
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, 1, &value->oid)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ROUTER_INTERFACE, bport->rif_id, &value->oid)))
     {
         MRVL_SAI_LOG_ERR("Failed to create object rif\n");
         MRVL_SAI_API_RETURN(status);
@@ -751,20 +907,24 @@ static sai_status_t mrvl_sai_bridge_port_tunnel_id_get(_In_ const sai_object_key
                                                    void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
+    if (bport->port_type != SAI_BRIDGE_PORT_TYPE_TUNNEL) {
+        MRVL_SAI_LOG_ERR("Invalid bridge port type %d, must be SAI_BRIDGE_PORT_TYPE_TUNNEL\n", bport->port_type);
+        status = SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(status);
+    }
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_TUNNEL, 1, &value->oid)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_TUNNEL, bport->tunnel_id, &value->oid)))
     {
         MRVL_SAI_LOG_ERR("Failed to create object tunnel\n");
         MRVL_SAI_API_RETURN(status);
@@ -790,23 +950,19 @@ static sai_status_t mrvl_sai_bridge_port_bridge_id_get(_In_ const sai_object_key
                                                    void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bport_idx;
-    sai_status_t     status;
-    mrvl_sai_bridge_port_info_t *port;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bport_idx)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
 
-    port = &bridge_ports_db[bport_idx];
-
     if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, port->bridge_id, &value->oid)))
+        (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, bport->bridge_id, &value->oid)))
     {
         MRVL_SAI_LOG_ERR("Failed to create object bridge\n");
         MRVL_SAI_API_RETURN(status);
@@ -826,13 +982,28 @@ static sai_status_t mrvl_sai_bridge_port_bridge_id_get(_In_ const sai_object_key
  * @allownull true
  */
 static sai_status_t mrvl_sai_bridge_port_bridge_id_set(_In_ const sai_object_key_t      *key,
-                                                   _In_ const sai_attribute_value_t *value,
-                                                   void                             *arg)
+                                                       _In_ const sai_attribute_value_t *value,
+                                                       void                             *arg)
 {
+    sai_object_id_t bridge_port_id   = key->key.object_id;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(value->oid, SAI_OBJECT_TYPE_BRIDGE, &bport->bridge_id)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object bridge\n");
+        MRVL_SAI_API_RETURN(status);
+    }
     MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /**
@@ -849,15 +1020,14 @@ static sai_status_t mrvl_sai_bridge_port_fdb_learning_mode_get(_In_ const sai_ob
                                                            void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
     
@@ -897,15 +1067,14 @@ static sai_status_t mrvl_sai_bridge_port_max_learned_addresses_get(_In_ const sa
                                                                void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t *bport;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
     
@@ -949,19 +1118,18 @@ static sai_status_t mrvl_sai_bridge_port_admin_state_get(_In_ const sai_object_k
                                                      void                          *arg)
 {
     sai_object_id_t bridge_port_id   = key->key.object_id;
-    uint32_t    bridge_port_data;
-    sai_status_t     status;
+    mrvl_bridge_port_info_t  *bport;
+    sai_status_t             status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS !=
-        (status = mrvl_sai_utl_object_to_type(bridge_port_id, SAI_OBJECT_TYPE_BRIDGE_PORT, &bridge_port_data)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
     {
-        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
         MRVL_SAI_API_RETURN(status);
     }
     
-    value->booldata = false;
+    value->booldata = bport->admin_state;
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -971,37 +1139,143 @@ static sai_status_t mrvl_sai_bridge_port_admin_state_set(_In_ const sai_object_k
                                                      _In_ const sai_attribute_value_t *value,
                                                      void                             *arg)
 {
+    sai_object_id_t bridge_port_id   = key->key.object_id;
+    mrvl_bridge_port_info_t     *bport;
+    sai_status_t                status = SAI_STATUS_SUCCESS;
+    uint32_t                    index;
+    FPA_STATUS                  fpa_status;
+    FPA_PORT_PROPERTIES_STC     portProperties;
+
     MRVL_SAI_LOG_ENTER();
 
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    /* Get the current port config */
+    portProperties.flags = FPA_PORT_PROPERTIES_CONFIG_FLAG;
+
+    fpa_status = fpaLibPortPropertiesGet(SAI_DEFAULT_ETH_SWID_CNS,
+                                         bport->logical_port,
+                                         &portProperties);
+
+    if (FPA_OK != fpa_status) {
+        MRVL_SAI_LOG_ERR("Failed to get port %d config (admin link)\n", bport->logical_port);
+        MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
+    }
+
+    if (true == value->booldata) {
+        portProperties.config &= ~FPA_PORT_CONFIG_DOWN;
+    } else {
+        portProperties.config |= FPA_PORT_CONFIG_DOWN;
+    }
+
+
+    fpa_status = fpaLibPortPropertiesSet(SAI_DEFAULT_ETH_SWID_CNS,
+                                         bport->logical_port,
+                                         &portProperties);
+
+    if (FPA_OK != fpa_status) {
+        MRVL_SAI_LOG_ERR("Failed to set port %d config (admin link)\n", bport->logical_port);
+        MRVL_SAI_API_RETURN(mrvl_sai_utl_fpa_to_sai_status(fpa_status));
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+/**
+* @brief Tagging mode of the bridge port
+*
+* Specifies the tagging mode to be used during egress.
+*
+* @type sai_bridge_port_tagging_mode_t
+* @flags CREATE_AND_SET
+* @default SAI_BRIDGE_PORT_TAGGING_MODE_TAGGED
+* @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_SUB_PORT
+*/
+static sai_status_t mrvl_sai_bridge_port_tagging_mode_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg)
+{
+    sai_object_id_t bridge_port_id   = key->key.object_id;
+    mrvl_bridge_port_info_t     *bport;
+    sai_status_t                status = SAI_STATUS_SUCCESS;
+
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
+        MRVL_SAI_API_RETURN(status);
+    }
+    value->s32 = bport->tag_mode;
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+/**
+     * @brief Ingress filtering (drop frames with unknown VLANs)
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     */
+static sai_status_t mrvl_sai_bridge_port_ingress_filtering_get(
+    _In_ const sai_object_key_t   *key,
+    _Inout_ sai_attribute_value_t *value,
+    _In_ uint32_t                  attr_index,
+    _Inout_ vendor_cache_t        *cache,
+    void                          *arg)
+{
+    sai_object_id_t bridge_port_id   = key->key.object_id;
+    mrvl_bridge_port_info_t     *bport;
+    sai_status_t                status = SAI_STATUS_SUCCESS;
+
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert bridge port oid %" PRIx64 " to index\n", bridge_port_id);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    value->booldata = bport->ingress_filter;
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+static sai_status_t mrvl_sai_bridge_port_ingress_filtering_set(
+    _In_ const sai_object_key_t      *key,
+    _In_ const sai_attribute_value_t *value,
+    void                             *arg)
+{
+    MRVL_SAI_LOG_ENTER();
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
 }
 
-mrvl_sai_bridge_port_info_t* mrvl_sai_bridge_port_get_port_from_db(_In_ uint8_t index)
+sai_status_t mrvl_sai_add_bridge_port(_In_ uint32_t bridge_idx,
+                                      _In_ sai_bridge_port_type_t port_type,
+                                      _Out_ mrvl_bridge_port_info_t **bridge_port)
 {
-    return &bridge_ports_db[index];
-}
-
-/* find free index in mrvl_sai_bridge_port_db */
-static sai_status_t mrvl_sai_add_bridge_port(_In_ sai_object_id_t bridge_id,
-                                             _In_ sai_bridge_port_type_t port_type,
-                                             _Out_ mrvl_sai_bridge_port_info_t **bridge_port)
-{
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     i;
-    mrvl_sai_bridge_port_info_t *port;
+    mrvl_bridge_port_info_t *port;
 
     MRVL_SAI_LOG_ENTER();
-
     for (i = 0; i < SAI_MAX_NUM_OF_BRIDGE_PORTS; i++) {
         if (false == bridge_ports_db[i].is_used) {
             port = &bridge_ports_db[i];
             port->is_used = true;
             port->index = i;
-            port->bridge_id = bridge_id;
+            port->bridge_id = bridge_idx;
             port->port_type = port_type;
-
             *bridge_port = port;
+
             MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
         }
     }
@@ -1015,19 +1289,18 @@ static sai_status_t mrvl_sai_add_bridge_port(_In_ sai_object_id_t bridge_id,
     MRVL_SAI_API_RETURN(status);
 }
 
-sai_status_t mrvl_sai_port_to_bridge_port(_In_ uint32_t port, _Out_ sai_object_id_t *oid)
+sai_status_t mrvl_sai_port_to_bport(_In_ uint32_t port, _Out_ mrvl_bridge_port_info_t **bport)
 {
-    sai_status_t status;
+    sai_status_t            status = SAI_STATUS_SUCCESS;
+    mrvl_bridge_port_info_t *db_port;
     uint32_t     i;
 
     MRVL_SAI_LOG_ENTER();
-
+    assert(bport != NULL);
     for (i = 0; i < SAI_MAX_NUM_OF_BRIDGE_PORTS; i++) {
-        if (port == bridge_ports_db[i].port_lag_id) {
-            MRVL_SAI_LOG_NTC("Creating bridge port %d\n", bridge_ports_db[i].index);
-            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, bridge_ports_db[i].index, oid))) {
-                MRVL_SAI_API_RETURN(status);
-            }
+        db_port = &bridge_ports_db[i];
+        if (port == db_port->logical_port) {
+            *bport = db_port;
             MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
         }
     }
@@ -1038,25 +1311,100 @@ sai_status_t mrvl_sai_port_to_bridge_port(_In_ uint32_t port, _Out_ sai_object_i
     }
 
     MRVL_SAI_LOG_EXIT();
+    return status;
+}
+
+sai_status_t mrvl_sai_bridge_port_object_create(_In_ uint32_t index, _Out_ sai_object_id_t *oid)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+
+    MRVL_SAI_LOG_ENTER();
+    assert(oid != NULL);
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE_PORT, index, oid))) {
+        MRVL_SAI_API_RETURN(status);
+    }
+    MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(status);
+}
+
+uint32_t mrvl_sai_bridge_port_to_port(_In_ sai_object_id_t bridge_port_oid)
+{
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t     i, bport_log_port;
+
+    MRVL_SAI_LOG_ENTER();
+    assert(index != NULL);
+
+    if (SAI_STATUS_SUCCESS !=
+        (status = mrvl_sai_utl_object_to_type(bridge_port_oid, SAI_OBJECT_TYPE_BRIDGE_PORT, &bport_log_port)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        return 0xFFFFFFFF;
+    }
+    for (i = 0; i < SAI_MAX_NUM_OF_BRIDGE_PORTS; i++) {
+        if (bport_log_port == bridge_ports_db[i].logical_port) {
+            return i;
+        }
+    }
+
+    if (i == SAI_MAX_NUM_OF_BRIDGE_PORTS) {
+    	MRVL_SAI_LOG_ERR("Failed to find bridge port by port %d\n", bport_log_port);
+        return 0xFFFFFFFF;
+    }   
+}
+
+sai_status_t mrvl_sai_bridge_port_by_index(uint32_t index, mrvl_bridge_port_info_t **bport)
+{
+    if (index >= SAI_MAX_NUM_OF_BRIDGE_PORTS) {
+        MRVL_SAI_LOG_ERR("Invalid bridge port idx %d\n", index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (!bridge_ports_db[index].is_used) {
+        MRVL_SAI_LOG_ERR("Bridge port %d is removed or has not been created yet\n", index);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    *bport = &bridge_ports_db[index];
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+}
+
+sai_status_t mrvl_sai_bridge_port_by_oid_get(sai_object_id_t oid, mrvl_bridge_port_info_t **port)
+{
+    uint32_t        bport_index;
+    sai_status_t    status = SAI_STATUS_SUCCESS;
+
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(oid, SAI_OBJECT_TYPE_BRIDGE_PORT, &bport_index)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object bridge port\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+    return mrvl_sai_bridge_port_by_index(bport_index, port);
+}
+bool mrvl_sai_bridge_port_is_vlan_member(_In_ mrvl_bridge_port_info_t *bport)
+{
+    return bport->vlan_id != 0;
+}
+bool mrvl_sai_bridge_port_is_current_vlan_member(_In_ uint16_t bport_vlan_idx, _In_ uint16_t vlan)
+{
+    return (bport_vlan_idx == vlan);
 }
 
 sai_status_t mrvl_sai_bridge_init(void)
 {
-    sai_port_info_t *port;
-    mrvl_sai_bridge_port_info_t *bridge_port, *bport_router;
+    mrvl_port_info_t *port;
+    mrvl_bridge_port_info_t *bridge_port, *bport_router;
     sai_object_id_t bridge_id;
     uint8_t i;
-    uint32_t group;
-    uint64_t  cookie;
-    sai_status_t status;
-    FPA_FLOW_TABLE_ENTRY_STC    vlanFlowEntry;    
-    FPA_STATUS                  fpa_status = FPA_OK;
+    uint32_t            bridge_idx = 1, bport_idx;
+    sai_status_t        status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
     MRVL_SAI_LOG_NTC("Initializing bridge and bridge ports\n");
+    memset(bridge_ports_db, 0, SAI_MAX_NUM_OF_BRIDGE_PORTS*sizeof(mrvl_bridge_port_info_t));
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, 1, &bridge_id))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_BRIDGE, bridge_idx, &mrvl_sai_default_bridge_id))) {
         MRVL_SAI_API_RETURN(status);
     }
 
@@ -1065,25 +1413,25 @@ sai_status_t mrvl_sai_bridge_init(void)
         port = mrvl_sai_port_get_port_from_db(i);
         if (port != NULL && port->is_present)
         {
-            if (SAI_STATUS_SUCCESS != mrvl_sai_add_bridge_port(bridge_id, SAI_BRIDGE_PORT_TYPE_PORT, &bridge_port))
+            if (SAI_STATUS_SUCCESS != mrvl_sai_add_bridge_port(bridge_idx, SAI_BRIDGE_PORT_TYPE_PORT, &bridge_port)) 
             {
-                MRVL_SAI_LOG_ERR("Failed to add bridge port to DB\n");
+                MRVL_SAI_LOG_ERR("Failed to add bridge port to bridge_ports_db\n");
                 MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
             }
-
-            bridge_port->port_lag_id = port->port_index;
+            bridge_port->logical_port = port->index;
             bridge_port->admin_state = true;
 
-            if (SAI_STATUS_SUCCESS != mrvl_sai_vlan_port_add(bridge_port->index, SAI_DEFAULT_VLAN_CNS, SAI_VLAN_TAGGING_MODE_UNTAGGED))
+            if (SAI_STATUS_SUCCESS != mrvl_sai_vlan_port_add(bridge_port, SAI_DEFAULT_VLAN_CNS, SAI_VLAN_TAGGING_MODE_UNTAGGED))
             {
                 MRVL_SAI_LOG_ERR("Failed to add bridge port to default vlan\n");
                 MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
             }
         }
     }
-    if (SAI_STATUS_SUCCESS != mrvl_sai_add_bridge_port(bridge_id, SAI_BRIDGE_PORT_TYPE_1Q_ROUTER, &bport_router))
+    
+    if (SAI_STATUS_SUCCESS != mrvl_sai_add_bridge_port(bridge_idx, SAI_BRIDGE_PORT_TYPE_1Q_ROUTER, &bport_router))
     {
-        MRVL_SAI_LOG_ERR("Failed to create router .1Q bridge port\n");
+        MRVL_SAI_LOG_ERR("Failed to add bridge port router to bridge_ports_db\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
     bport_router->admin_state = true;
@@ -1108,12 +1456,15 @@ sai_status_t mrvl_sai_create_bridge_port(
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
-	sai_status_t                 status;
+	sai_status_t                 status = SAI_STATUS_SUCCESS;
     char                         key_str[MAX_KEY_STR_LEN];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
-    const sai_attribute_value_t  *bridge_attr, *port_type_attr, *vlan_attr, *port_attr, *rif_attr, *tunnel_attr, *attr_val;
-    uint32_t                     attr_idx, bridge_idx, rif_idx, tunnel_idx, port_lag_idx;
-    mrvl_sai_bridge_port_info_t  *bridge_port;
+    const sai_attribute_value_t  *bridge_attr, *port_type_attr, *vlan_attr, *port_attr, *rif_attr, *tunnel_attr, *attr_val, *ing_filter_attr, *tagmode_attr;
+    uint32_t                     attr_idx, bridge_idx, rif_idx, tunnel_idx, port_lag_idx, bport_idx, i, lag_idx, port;
+    sai_object_list_t            port_objlist;
+    sai_object_id_t              port_id[SAI_LAG_MAX_MEMBERS_IN_GROUP_CNS] = {0};
+    sai_object_id_t              bridge_oid;
+    mrvl_bridge_port_info_t      *bridge_port, *lag_bridge_port;
     bool                         admin_state;
 
     MRVL_SAI_LOG_ENTER();
@@ -1134,114 +1485,144 @@ sai_status_t mrvl_sai_create_bridge_port(
     if (SAI_STATUS_SUCCESS !=
         (status =
              mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_bridge_port_attribs, mrvl_sai_bridge_port_vendor_attribs, SAI_OPERATION_CREATE))) {
-        MRVL_SAI_LOG_ERR("Failed attribs check\n");
+        MRVL_SAI_LOG_ERR("Failed bridge port attributes check\n");
         MRVL_SAI_API_RETURN(status);
     }
 
-    memset(bridge_port, 0, sizeof(*bridge_port));
-    if (SAI_STATUS_SUCCESS ==
-        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_BRIDGE_ID, &bridge_attr, &attr_idx)))
-    {
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(bridge_attr->oid, SAI_OBJECT_TYPE_BRIDGE, &bridge_idx))) {
-            MRVL_SAI_LOG_ERR("Failed parse bridge id %" PRIx64 "\n", bridge_attr->oid);
-            MRVL_SAI_API_RETURN(status);
-        }
+    status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_BRIDGE_ID, &bridge_attr, &attr_idx);
+    bridge_oid = (status == SAI_STATUS_SUCCESS) ? bridge_attr->oid : mrvl_sai_default_bridge_id;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(bridge_oid, SAI_OBJECT_TYPE_BRIDGE, &bridge_idx))) {
+        MRVL_SAI_LOG_ERR("Failed to parse bridge id %" PRIx64 "\n", bridge_oid);
+        MRVL_SAI_API_RETURN(status);
     }
-    bridge_port->bridge_id = bridge_idx;
+    
+    if (SAI_STATUS_SUCCESS !=
+           (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TYPE, &port_type_attr, &attr_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Missing mandatory attribute SAI_BRIDGE_PORT_ATTR_TYPE\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+    }
 
-    assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TYPE, &port_type_attr, &attr_idx));
-    bridge_port->port_type = port_type_attr->s32;
+    /* Add bridge port to DB */ 
+    if (SAI_STATUS_SUCCESS != mrvl_sai_add_bridge_port(bridge_idx, port_type_attr->s32, &bridge_port)) 
+    {
+        MRVL_SAI_LOG_ERR("Failed to add bridge port to bridge_ports_db\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    }
 
+	if (SAI_STATUS_SUCCESS ==
+        (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_INGRESS_FILTERING, &ing_filter_attr, &attr_idx))) {
+        if (port_type_attr->s32 != SAI_BRIDGE_PORT_TYPE_PORT) {
+            MRVL_SAI_LOG_ERR("Ingress filter is only supported for bridge port type port\n");
+            MRVL_SAI_API_RETURN(SAI_STATUS_ATTR_NOT_SUPPORTED_0 + attr_idx);
+        }
+        bridge_port->ingress_filter = ing_filter_attr->booldata;
+    }
+    
     switch (bridge_port->port_type)
     {
-    /** Port or LAG */
-    case SAI_BRIDGE_PORT_TYPE_PORT:
-        status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_PORT_ID, &port_attr, &attr_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_PORT_ID attr\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
-        }
-        status = mrvl_sai_utl_oid_to_lag_port(port_attr->oid, &port_lag_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to log port\n", attr_val->oid);
-            MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
-        }
+        /** Port or LAG */
+        case SAI_BRIDGE_PORT_TYPE_PORT:
+            status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_PORT_ID, &port_attr, &attr_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_PORT_ID attr\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+            }
+            status = mrvl_sai_utl_oid_to_lag_port(port_attr->oid, &port_lag_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to port index\n", port_attr->oid);
+                MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+            }
+            
+            if (SAI_CPU_PORT_CNS == port_lag_idx)
+            {
+                MRVL_SAI_LOG_ERR("Invalid port id - CPU port\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_idx);
+            }
+            bridge_port->logical_port = port_lag_idx;
+            break;
+
+        /** {Port or LAG.vlan} */
+        case SAI_BRIDGE_PORT_TYPE_SUB_PORT:
+            status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_PORT_ID, &port_attr, &attr_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_PORT_ID attr\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+            }
+            status = mrvl_sai_utl_oid_to_lag_port(port_attr->oid, &port_lag_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to port index\n", port_attr->oid);
+                MRVL_SAI_API_RETURN(status);
+            }
         
-        if (SAI_CPU_PORT_CNS == port_lag_idx)
-        {
-            MRVL_SAI_LOG_ERR("Invalid port id - CPU port\n");
+            if (SAI_CPU_PORT_CNS == port_lag_idx)
+            {
+                MRVL_SAI_LOG_ERR("Invalid port id - CPU port\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_idx);
+            }
+            bridge_port->parent = port_lag_idx;
+            
+            status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_VLAN_ID, &vlan_attr, &attr_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_VLAN_ID attr\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+            }
+            bridge_port->vlan_id = vlan_attr->u16;
+
+            status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TAGGING_MODE, &tagmode_attr, &attr_idx);
+            if (SAI_STATUS_SUCCESS != status)
+                bridge_port->tag_mode = SAI_BRIDGE_PORT_TAGGING_MODE_TAGGED; /* SAI default value */
+            else
+                bridge_port->tag_mode = tagmode_attr->s32;
+           
+            status = mrvl_sai_vlan_port_add(bridge_port, bridge_port->vlan_id, bridge_port->tag_mode);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Failed to add bridge port %d to vlan %d\n", bridge_port->logical_port, bridge_port->vlan_id);
+                MRVL_SAI_API_RETURN(status);
+            }
+            bridge_port->logical_port = MRVL_SAI_VLAN_CREATE_COOKIE_MAC(bridge_port->vlan_id, port_lag_idx); 
+            break;
+
+        /** bridge router port */
+        case SAI_BRIDGE_PORT_TYPE_1Q_ROUTER:
+            break;
+        /** bridge router port */
+        case SAI_BRIDGE_PORT_TYPE_1D_ROUTER:
+            status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_RIF_ID, &rif_attr, &attr_idx);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_RIF_ID attr\n");
+                MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+            }
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(rif_attr->oid, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx))) {
+                MRVL_SAI_LOG_ERR("Failed to convert rif oid %" PRIx64 " to rif index\n", rif_attr->oid);
+                MRVL_SAI_API_RETURN(status);
+            }
+            bridge_port->rif_id = rif_idx;
+            break;
+
+        /** bridge tunnel port */
+        case SAI_BRIDGE_PORT_TYPE_TUNNEL:
+             if (SAI_STATUS_SUCCESS ==
+            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TUNNEL_ID, &tunnel_attr, &attr_idx))) {
+                if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tunnel_attr->oid, SAI_OBJECT_TYPE_TUNNEL, &tunnel_idx))) {
+                    MRVL_SAI_LOG_ERR("Failed to convert tunnel oid %" PRIx64 " to tunnel index\n", tunnel_attr->oid);
+                    MRVL_SAI_API_RETURN(status);
+                }
+                bridge_port->tunnel_id = tunnel_idx;
+             }
+            break;
+
+        default:
+            MRVL_SAI_LOG_ERR("Unsupported bridge port type %d\n", port_type_attr->s32);
             MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_idx);
-        }
-        bridge_port->port_lag_id = port_lag_idx;
-        break;
-
-    /** {Port or LAG.vlan} */
-    case SAI_BRIDGE_PORT_TYPE_SUB_PORT:
-        status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_PORT_ID, &port_attr, &attr_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_PORT_ID attr\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
-        }
-        status = mrvl_sai_utl_oid_to_lag_port(port_attr->oid, &port_lag_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to log port\n", attr_val->oid);
-            MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
-        }
-    
-        if (SAI_CPU_PORT_CNS == port_lag_idx)
-        {
-            MRVL_SAI_LOG_ERR("Invalid port id - CPU port\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_idx);
-        }
-        bridge_port->port_lag_id = port_lag_idx;
-        
-        status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_VLAN_ID, &vlan_attr, &attr_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_VLAN_ID attr\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
-        }
-        bridge_port->vlan_id = vlan_attr->u16;
-
-        status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TAGGING_MODE, &attr_val, &attr_idx);
-        break;
-
-    /** bridge router port */
-    case SAI_BRIDGE_PORT_TYPE_1Q_ROUTER:
-        break;
-    /** bridge router port */
-    case SAI_BRIDGE_PORT_TYPE_1D_ROUTER:
-        status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_RIF_ID, &rif_attr, &attr_idx);
-        if (SAI_STATUS_SUCCESS != status)
-        {
-            MRVL_SAI_LOG_ERR("Missing mandatory SAI_BRIDGE_PORT_ATTR_RIF_ID attr\n");
-            MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
-        }
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(rif_attr->oid, SAI_OBJECT_TYPE_ROUTER_INTERFACE, &rif_idx))) {
-            MRVL_SAI_API_RETURN(status);
-        }
-        bridge_port->rif_id = rif_idx;
-        break;
-
-    /** bridge tunnel port */
-    case SAI_BRIDGE_PORT_TYPE_TUNNEL:
-         assert(SAI_STATUS_SUCCESS ==
-           mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_TUNNEL_ID, &tunnel_attr, &attr_idx));
-        if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(tunnel_attr->oid, SAI_OBJECT_TYPE_TUNNEL, &tunnel_idx))) {
-        	MRVL_SAI_API_RETURN(status);
-        }
-        bridge_port->tunnel_id = tunnel_idx;
-        break;
-
-    default:
-        MRVL_SAI_LOG_ERR("Unsupported bridge port type %d\n", port_type_attr->s32);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_ATTR_VALUE_0 + attr_idx);
-        break;
+            break;
     }
     
     status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_BRIDGE_PORT_ATTR_ADMIN_STATE, &attr_val, &attr_idx);
@@ -1251,20 +1632,13 @@ sai_status_t mrvl_sai_create_bridge_port(
         admin_state = attr_val->booldata;
     }
 
-    /* Add bridge port to DB */ 
-    /* if (SAI_STATUS_SUCCESS !=
-        		(status = mrvl_sai_add_bridge_port(bridge_attr->oid, port_type_attr->s32, &bridge_port))){
-    	MRVL_SAI_LOG_ERR("Failed to add bridge port to DB\n");
-        MRVL_SAI_API_RETURN(status);
-    }*/
-
     /* create SAI BRIDGE PORT object */
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_port_to_bridge_port(bridge_port->port_lag_id, bridge_port_id))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_bridge_port_object_create(bridge_port->index, bridge_port_id))) {
         MRVL_SAI_API_RETURN(status);
     }
-
+    
     bridge_port_id_key_to_str(*bridge_port_id, key_str);
-    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Successfully created %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -1280,10 +1654,33 @@ sai_status_t mrvl_sai_create_bridge_port(
 sai_status_t mrvl_sai_remove_bridge_port (
         _In_ sai_object_id_t bridge_port_id)
 {
+    char                        key_str[MAX_KEY_STR_LEN];
+    mrvl_bridge_port_info_t     *bport;
+    uint32_t                    index;
+
 	MRVL_SAI_LOG_ENTER();
 
+    bridge_port_id_key_to_str(bridge_port_id, key_str);
+    MRVL_SAI_LOG_NTC("Remove bridge port %s\n", key_str);
+
+    assert(SAI_STATUS_SUCCESS == mrvl_sai_bridge_port_by_oid_get(bridge_port_id, &bport));
+
+    switch (bport->port_type) {
+    case SAI_BRIDGE_PORT_TYPE_PORT:
+    case SAI_BRIDGE_PORT_TYPE_SUB_PORT:
+    case SAI_BRIDGE_PORT_TYPE_1Q_ROUTER:
+    case SAI_BRIDGE_PORT_TYPE_1D_ROUTER:
+    case SAI_BRIDGE_PORT_TYPE_TUNNEL:
+        break;
+    default:
+        break;
+    }
+    
+    memset(bport, 0, sizeof(*bport));
+    
+    MRVL_SAI_LOG_NTC("Removed bridge port %s\n", key_str);
     MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /**
@@ -1300,7 +1697,7 @@ sai_status_t mrvl_sai_set_bridge_port_attribute(
 {
 	const sai_object_key_t key = { .key.object_id = bridge_port_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t           status;
+    sai_status_t           status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -1327,7 +1724,7 @@ sai_status_t mrvl_sai_get_bridge_port_attribute(
 {
 	const sai_object_key_t key = { .key.object_id = bridge_port_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t           status;
+    sai_status_t           status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 

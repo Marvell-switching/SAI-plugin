@@ -1705,15 +1705,16 @@ static sai_status_t mrvl_acl_group_member_attrib_get(
     void                            *arg)
 {
 	uint32_t acl_group_index = 0, acl_table_index = 0;
+    uint8_t  ext_data[RESERVED_DATA_LENGTH_CNS];
 	sai_status_t status = SAI_STATUS_SUCCESS;
     sai_object_id_t acl_group_id, acl_table_id;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, &acl_group_index, &acl_table_index))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(key->key.object_id, SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, &acl_group_index, ext_data))) {
         return status;
     }
-
+    acl_table_index = (uint32_t)(ext_data[1] << 8 | ext_data[0]);
     if (acl_group_index >= SAI_ACL_GROUP_MAX_NUM){
         MRVL_SAI_LOG_ERR("Invalid acl_group_index %d\n", acl_group_index);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
@@ -2196,7 +2197,7 @@ static sai_status_t mrvl_sai_acl_fill_entry_match_fields(_In_ uint32_t attr_coun
 {
     const sai_attribute_value_t  *tmp_value, *src_mac, *dest_mac, *ip_type;
     uint32_t tmp_index = 0, in_port = 0, src_port = 0, out_port = 0, table_fields_bitmap = 0;
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -2691,7 +2692,7 @@ static sai_status_t mrvl_sai_acl_entry_match_fields_validation(_In_ uint32_t att
 														_Inout_ uint32_t *entry_fields_bitmap, _Inout_ FPA_FLOW_TABLE_MATCH_FIELDS_ACL_POLICY_STC *fpa_match_entry,
                                                         _In_ uint32_t *port_attr, _In_ uint32_t *vlan_attr)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -3291,9 +3292,11 @@ static sai_status_t mrvl_acl_entry_action_attrib_set(
 static void mrvl_sai_acl_object_id_to_str(_In_ sai_object_type_t acl_type, _In_ sai_object_id_t acl_id, _Out_ char *object_id_str)
 {
     uint32_t acl_data, acl_group_data, acl_table_data;
+    uint8_t  ext_data[RESERVED_DATA_LENGTH_CNS];
 
     if (acl_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER){
-        if (SAI_STATUS_SUCCESS == mrvl_sai_utl_object_to_ext_type(acl_id, acl_type, &acl_group_data, &acl_table_data)){
+        if (SAI_STATUS_SUCCESS == mrvl_sai_utl_object_to_ext_type(acl_id, acl_type, &acl_group_data, ext_data)){
+            acl_table_data = (uint32_t)(ext_data[1] << 8 | ext_data[0]);
             snprintf(object_id_str, MAX_KEY_STR_LEN, " acl_group_data %u, acl_table_data %u", acl_group_data, acl_table_data);
             return;
         }
@@ -3309,7 +3312,7 @@ static void mrvl_sai_acl_object_id_to_str(_In_ sai_object_type_t acl_type, _In_ 
 /* find free index in mrvl_sai_acl_table_db */
 static sai_status_t mrvl_acl_find_free_index_in_table_db(_Out_ uint32_t *free_index)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     i;
 
     MRVL_SAI_LOG_ENTER();
@@ -3336,7 +3339,7 @@ static sai_status_t mrvl_acl_find_free_index_in_table_db(_Out_ uint32_t *free_in
 /* find free index in mrvl_sai_acl_entry_db */
 static sai_status_t mrvl_acl_find_free_index_in_entry_db(_Out_ uint32_t *free_index)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     i;
 
     MRVL_SAI_LOG_ENTER();
@@ -3363,7 +3366,7 @@ static sai_status_t mrvl_acl_find_free_index_in_entry_db(_Out_ uint32_t *free_in
 /* find free index in mrvl_sai_acl_group_db */
 static sai_status_t mrvl_acl_find_free_index_in_group_table_db(_Out_ uint32_t *free_index)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     i;
 
     MRVL_SAI_LOG_ENTER();
@@ -3391,7 +3394,7 @@ static sai_status_t mrvl_acl_find_free_index_in_group_table_db(_Out_ uint32_t *f
 /* find free index in mrvl_sai_acl_range_db */
 static sai_status_t mrvl_acl_find_free_index_in_range_db(_Out_ uint32_t *free_index)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     i;
 
     MRVL_SAI_LOG_ENTER();
@@ -4071,7 +4074,7 @@ sai_status_t mrvl_sai_acl_table_bind_to_lag(_In_ void *arg,
              portbitmap = 0,
              port, i;
     sai_object_list_t port_objlist;
-    sai_object_id_t   port_id[SAI_LAG_MAX_GROUPS_CNS] = {0};
+    sai_object_id_t   port_id[SAI_LAG_MAX_MEMBERS_IN_GROUP_CNS] = {0};
 
     MRVL_SAI_LOG_ENTER();
 
@@ -4596,7 +4599,7 @@ sai_status_t mrvl_set_acl_table_attribute(_In_ sai_object_id_t acl_table_id, _In
 {
     const sai_object_key_t key = { .key.object_id = acl_table_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -4634,7 +4637,7 @@ sai_status_t mrvl_get_acl_table_attribute(_In_ sai_object_id_t acl_table_id,
 {
     const sai_object_key_t key = { .key.object_id = acl_table_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -4671,7 +4674,7 @@ sai_status_t mrvl_set_acl_entry_attribute(_In_ sai_object_id_t acl_entry_id, _In
 {
     const sai_object_key_t key = { .key.object_id = acl_entry_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -4710,7 +4713,7 @@ sai_status_t mrvl_get_acl_entry_attribute(_In_ sai_object_id_t acl_entry_id,
 {
     const sai_object_key_t key = { .key.object_id = acl_entry_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -4751,7 +4754,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
     char    list_str[MAX_LIST_VALUE_STR_LEN];
     const sai_attribute_value_t *stage, *size, *bind_point_types, *action_types;
     uint32_t tmp_index;
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_table_index  = 0, acl_table_size = 0;
     bool is_dynamic_sized = false;
     bool is_non_ip_table = false, is_ipv4_table = false, is_ipv6_table = false, is_egress_ipv4_table = false;
@@ -4932,7 +4935,7 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
 sai_status_t mrvl_remove_acl_table(_In_ sai_object_id_t acl_table_id)
 {
     char acl_data_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_table_index = 0;
 
     MRVL_SAI_LOG_ENTER();
@@ -4998,7 +5001,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     const sai_attribute_value_t *priority, *table_id, *admin_state;
     uint32_t temp_index;
     uint32_t      acl_entry_index = 0, acl_table_index = 0, attr_port = SAI_ACL_INVALID_INTERFACE, attr_vlan = SAI_ACL_INVALID_INTERFACE;
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     FPA_STATUS    fpa_status = FPA_OK;
     FPA_FLOW_TABLE_ENTRY_TYPE_ENT fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;
     FPA_FLOW_TABLE_ENTRY_STC     fpa_flow_entry = {0};
@@ -5186,7 +5189,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
 sai_status_t mrvl_remove_acl_entry(_In_ sai_object_id_t acl_entry_id)
 {
 	char    acl_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_entry_index = 0, acl_table_index = 0;
     FPA_STATUS    fpa_status = FPA_OK;
 
@@ -5240,7 +5243,7 @@ sai_status_t mrvl_create_acl_counter(_Out_ sai_object_id_t* acl_counter_id,
     const sai_attribute_value_t *table_id, *packet_count_enable, *byte_count_enable;
     uint32_t temp_index;
     uint32_t  acl_table_index = 0;
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
 
     MRVL_SAI_LOG_ENTER();
@@ -5318,7 +5321,7 @@ sai_status_t mrvl_create_acl_counter(_Out_ sai_object_id_t* acl_counter_id,
 sai_status_t mrvl_remove_acl_counter(_In_ sai_object_id_t acl_counter_id)
 {
 	char    acl_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_table_index = 0;
 
     MRVL_SAI_LOG_ENTER();
@@ -5384,7 +5387,7 @@ sai_status_t mrvl_get_acl_counter_attribute(_In_ sai_object_id_t acl_counter_id,
 {
     const sai_object_key_t key = { .key.object_id = acl_counter_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -5420,7 +5423,7 @@ sai_status_t mrvl_create_acl_range(
     char acl_str[MAX_LIST_VALUE_STR_LEN];
     uint32_t        range_type, acl_range_index = 0;
     sai_u32_range_t range_limit;
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     const sai_attribute_value_t *att_val;
     uint32_t tmp_index;
 
@@ -5500,7 +5503,7 @@ sai_status_t mrvl_remove_acl_range(
         _In_ sai_object_id_t acl_range_id)
 {
     char acl_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_range_index = 0;
 
     MRVL_SAI_LOG_ENTER();
@@ -5554,7 +5557,7 @@ sai_status_t mrvl_get_acl_range_attribute(
 {
     const sai_object_key_t key = { .key.object_id = acl_range_id };
     char                   key_str[MAX_KEY_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -5588,7 +5591,7 @@ sai_status_t mrvl_create_acl_table_group(
     uint32_t acl_group_index = 0;
     const sai_attribute_value_t *att_val;
     uint32_t tmp_index;
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     sai_acl_table_group_type_t group_type;
     sai_acl_stage_t stage;
     sai_status_t group_bind_point_bitmap = 0;
@@ -5695,7 +5698,7 @@ sai_status_t mrvl_remove_acl_table_group(
         _In_ sai_object_id_t acl_table_group_id)
 {
     char acl_data_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_group_index = 0;
 
     MRVL_SAI_LOG_ENTER();
@@ -5742,7 +5745,7 @@ sai_status_t mrvl_set_acl_table_group_attribute(
 
     const sai_object_key_t key = { .key.object_id = acl_table_group_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -5776,7 +5779,7 @@ sai_status_t mrvl_get_acl_table_group_attribute(
 {
     const sai_object_key_t key = { .key.object_id = acl_table_group_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
     if (SAI_NULL_OBJECT_ID == acl_table_group_id) {
@@ -5817,7 +5820,8 @@ sai_status_t mrvl_create_acl_table_group_member(
     uint32_t acl_group_index = 0, acl_table_index = 0;
     const sai_attribute_value_t *att_val;
     uint32_t tmp_index, priority;
-    sai_status_t  status;
+    uint8_t data_ext[RESERVED_DATA_LENGTH_CNS];
+    sai_status_t status = SAI_STATUS_SUCCESS;
     sai_acl_bind_point_type_t type;
     sai_object_id_t table_id, group_id;
 
@@ -5911,7 +5915,9 @@ sai_status_t mrvl_create_acl_table_group_member(
     }
 
     /* create ACL Group member object */
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, acl_group_index, acl_table_index, acl_table_group_member_id))) {
+    data_ext[0] = (uint8_t)(acl_table_index & 0xFF);
+    data_ext[1] = (uint8_t)((acl_table_index >> 8) & 0xFF);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, acl_group_index, data_ext, acl_table_group_member_id))) {
         MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER acl_group_index - %d, acl_table_index - %d\n", acl_group_index, acl_table_index);
         MRVL_SAI_API_RETURN(status);
     }
@@ -5951,8 +5957,9 @@ sai_status_t mrvl_remove_acl_table_group_member(
         _In_ sai_object_id_t acl_table_group_member_id)
 {
     char acl_data_str[MAX_KEY_STR_LEN];
-    sai_status_t  status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t      acl_group_index = 0, acl_table_index = 0;
+    uint8_t       ext_data[RESERVED_DATA_LENGTH_CNS];
     sai_object_id_t acl_group_id;
 
     MRVL_SAI_LOG_ENTER();
@@ -5964,10 +5971,10 @@ sai_status_t mrvl_remove_acl_table_group_member(
     mrvl_sai_acl_object_id_to_str(SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, acl_table_group_member_id, acl_data_str);
     MRVL_SAI_LOG_NTC("Delete  %s\n", acl_data_str);
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(acl_table_group_member_id, SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, &acl_group_index, &acl_table_index))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(acl_table_group_member_id, SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER, &acl_group_index, ext_data))) {
         return status;
     }
-
+    acl_table_index = (uint32_t)(ext_data[1] << 8 | ext_data[0]);
     if (acl_group_index >= SAI_ACL_GROUP_MAX_NUM){
         MRVL_SAI_LOG_ERR("Invalid acl_group_index %d\n", acl_group_index);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
@@ -6012,7 +6019,7 @@ sai_status_t mrvl_set_acl_table_group_member_attribute(
 {
     const sai_object_key_t key = { .key.object_id = acl_table_group_member_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
 
@@ -6047,7 +6054,7 @@ sai_status_t mrvl_get_acl_table_group_member_attribute(
 {
     const sai_object_key_t key = { .key.object_id = acl_table_group_member_id };
     char                   key_str[MAX_LIST_VALUE_STR_LEN];
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     MRVL_SAI_LOG_ENTER();
     if (SAI_NULL_OBJECT_ID == acl_table_group_member_id) {
@@ -6135,7 +6142,6 @@ const sai_acl_api_t acl_api = {
     mrvl_remove_acl_table_group_member,
     mrvl_set_acl_table_group_member_attribute,
     mrvl_get_acl_table_group_member_attribute
-
 };
 
 

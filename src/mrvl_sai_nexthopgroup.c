@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 extern uint32_t mrvl_sai_switch_ecmp_hash_algorithm;
 static const sai_attribute_entry_t mrvl_sai_next_hop_group_attribs[] = {
@@ -905,5 +904,5 @@ const sai_next_hop_group_api_t next_hop_group_api = {
     mrvl_sai_set_next_hop_group_member_attribute,
     mrvl_sai_get_next_hop_group_member_attribute,
     mrvl_sai_create_next_hop_group_members,
-    mrvl_sai_remove_next_hop_group_members,
+    mrvl_sai_remove_next_hop_group_members
 };

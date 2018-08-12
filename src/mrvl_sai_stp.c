@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_STP
@@ -585,5 +584,5 @@ const sai_stp_api_t stp_api = {
     mrvl_sai_set_stp_port_attribute,
     mrvl_sai_get_stp_port_attribute,
     mrvl_sai_create_stp_ports,
-    mrvl_sai_remove_stp_ports,
+    mrvl_sai_remove_stp_ports
 };

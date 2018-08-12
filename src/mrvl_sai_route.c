@@ -374,44 +374,6 @@ sai_status_t mrvl_sai_create_route_entry(_In_ const sai_route_entry_t* route_ent
                 MRVL_SAI_API_RETURN(status);
             }
             trap_ext = 1;
-            //entry.data.action = SAI_PACKET_ACTION_TRAP;
-            #if 0
-            if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
-                /* working only if route ip mask is 32 */
-                if (route_entry->destination.mask.ip4 != 0xFFFFFFFF) {
-                    MRVL_SAI_LOG_ERR("Invalid router mask for rif interface\n");
-                    MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-                }
-            }
-            else_entry
-            {
-                /* working only if route ip mask is 128 */
-                if (route_entry->destination.mask.ip6[0] != 0xFF && route_entry->destination.mask.ip6[1] != 0xFF &&
-                    route_entry->destination.mask.ip6[2] != 0xFF && route_entry->destination.mask.ip6[3] != 0xFF &&
-                    route_entry->destination.mask.ip6[4] != 0xFF && route_entry->destination.mask.ip6[5] != 0xFF &&
-                    route_entry->destination.mask.ip6[6] != 0xFF && route_entry->destination.mask.ip6[7] != 0xFF &&
-                    route_entry->destination.mask.ip6[8] != 0xFF && route_entry->destination.mask.ip6[9] != 0xFF &&
-                    route_entry->destination.mask.ip6[10]!= 0xFF && route_entry->destination.mask.ip6[11]!= 0xFF &&
-                    route_entry->destination.mask.ip6[12]!= 0xFF && route_entry->destination.mask.ip6[13]!= 0xFF &&
-                    route_entry->destination.mask.ip6[14]!= 0xFF && route_entry->destination.mask.ip6[15]!= 0xFF) {
-                    MRVL_SAI_LOG_ERR("Invalid router mask for rif interface\n");
-                    MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-                }
-            }
-            status = mrvl_sai_route_get_rif_nbr_prv(rif_idx, route_entry, &nbr_idx);
-            if (status != SAI_STATUS_SUCCESS) {
-            	MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
-            }       
-            entry.data.nh_idx = rif_idx;
-            entry.data.nh_type = SAI_OBJECT_TYPE_ROUTER_INTERFACE;
-            entry.data.nh_valid = true; 
-            status = mrvl_sai_rif_get_vr_id(rif_idx, &rif_vr_id);
-            if ((status != SAI_STATUS_SUCCESS) || (rif_vr_id!= entry.key.vr_id)) {
-                MRVL_SAI_LOG_ERR("Invalid router interface vr_id %d\n", rif_vr_id);
-                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-            }
-            #endif
-            
         }               
     }
 
@@ -545,9 +507,15 @@ sai_status_t mrvl_sai_remove_route_entry(_In_ const sai_route_entry_t* route_ent
 		MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
 	}
 
-    fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, used_entry_ptr->data.cookie);
+    if (route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4) {
+        fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_E, used_entry_ptr->data.cookie);
+    }
+    else {
+        fpa_status = fpaLibFlowTableCookieDelete(SAI_DEFAULT_ETH_SWID_CNS, FPA_FLOW_TABLE_TYPE_L3_UNICAST_IPV6_E, used_entry_ptr->data.cookie);
+    }
     if (fpa_status != FPA_OK) {
-        MRVL_SAI_LOG_ERR("Failed to delete entry %x from L3_UNICAST table status = %d\n", used_entry_ptr->data.cookie, fpa_status);
+        MRVL_SAI_LOG_ERR("Failed to delete entry %x from %s table, status = %d\n", used_entry_ptr->data.cookie, 
+                         route_entry->destination.addr_family == SAI_IP_ADDR_FAMILY_IPV4 ? "L3 Unicast" : "L3 Unicast IPv6", fpa_status);
         if (fpa_status == SAI_STATUS_ITEM_NOT_FOUND) {
             mrvl_sai_utl_DeleteHash(mrvl_sai_route_hash_ptr, &used_entry_ptr->key);
         }
@@ -661,8 +629,8 @@ sai_status_t mrvl_sai_set_route_entry_attribute(_In_ const sai_route_entry_t* ro
  *    Failure status code on error
  */
 sai_status_t mrvl_sai_get_route_entry_attribute(_In_ const sai_route_entry_t* route_entry,
-                                      _In_ uint32_t                         attr_count,
-                                      _Inout_ sai_attribute_t              *attr_list)
+                                                _In_ uint32_t                         attr_count,
+                                                _Inout_ sai_attribute_t              *attr_list)
 {
     const sai_object_key_t key = { .key.route_entry = *route_entry };
     char                   key_str[MAX_KEY_STR_LEN];
@@ -680,7 +648,121 @@ sai_status_t mrvl_sai_get_route_entry_attribute(_In_ const sai_route_entry_t* ro
     MRVL_SAI_API_RETURN(status);
 }
 
+/**
+ * @brief Bulk create route entry
+ *
+ * @param[in] object_count Number of objects to create
+ * @param[in] route_entry List of object to create
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to create.
+ * @param[in] attr_list List of attributes for every object.
+ * @param[in] mode Bulk operation error handling mode.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are created or
+ * #SAI_STATUS_FAILURE when any of the objects fails to create. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t mrvl_sai_create_route_entries (
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ const uint32_t *attr_count,
+        _In_ const sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_error_mode_t mode,
+        _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
 
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+}
+
+/**
+ * @brief Bulk remove route entry
+ *
+ * @param[in] object_count Number of objects to remove
+ * @param[in] route_entry List of objects to remove
+ * @param[in] mode Bulk operation error handling mode.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t mrvl_sai_remove_route_entries(
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ sai_bulk_op_error_mode_t mode,
+        _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+}
+
+/**
+ * @brief Bulk set attribute on route entry
+ *
+ * @param[in] object_count Number of objects to set attribute
+ * @param[in] route_entry List of objects to set attribute
+ * @param[in] attr_list List of attributes to set on objects, one attribute per object
+ * @param[in] mode Bulk operation error handling mode.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t mrvl_sai_set_route_entries_attribute(
+            _In_ uint32_t object_count,
+            _In_ const sai_route_entry_t *route_entry,
+            _In_ const sai_attribute_t *attr_list,
+            _In_ sai_bulk_op_error_mode_t mode,
+            _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+}
+
+/**
+ * @brief Bulk get attribute on route entry
+ *
+ * @param[in] object_count Number of objects to set attribute
+ * @param[in] route_entry List of objects to set attribute
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to get
+ * @param[inout] attr_list List of attributes to set on objects, one attribute per object
+ * @param[in] mode Bulk operation error handling mode
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t mrvl_sai_get_route_entries_attribute(
+            _In_ uint32_t object_count,
+            _In_ const sai_route_entry_t *route_entry,
+            _In_ const uint32_t *attr_count,
+            _Inout_ sai_attribute_t **attr_list,
+            _In_ sai_bulk_op_error_mode_t mode,
+            _Out_ sai_status_t *object_statuses)
+{
+    MRVL_SAI_LOG_ENTER();
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+}
 
 /* Packet action [sai_packet_action_t] */
 static sai_status_t mrvl_sai_route_packet_action_get_prv(_In_ const sai_object_key_t   *key,
@@ -992,4 +1074,8 @@ const sai_route_api_t route_api = {
     mrvl_sai_remove_route_entry,
     mrvl_sai_set_route_entry_attribute,
     mrvl_sai_get_route_entry_attribute,
+    mrvl_sai_create_route_entries,
+    mrvl_sai_remove_route_entries,
+    mrvl_sai_set_route_entries_attribute,
+    mrvl_sai_get_route_entries_attribute
 };

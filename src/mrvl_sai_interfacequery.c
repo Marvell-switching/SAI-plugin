@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "mrvl_versions.h"
 
 sai_service_method_table_t g_services;
 bool                   g_initialized = false;
@@ -39,9 +38,7 @@ sai_status_t sai_api_initialize(_In_ uint64_t flags, _In_ const sai_service_meth
     mrvl_sai_trace_init();
 	MRVL_SAI_LOG_ENTER();
 
-    MRVL_SAI_LOG_INF("\n my Marvell SAI version is %s\n", sai_ver);
-
-	if ((NULL == services) || (NULL == services->profile_get_next_value) || (NULL == services->profile_get_value)) {
+    if ((NULL == services) || (NULL == services->profile_get_next_value) || (NULL == services->profile_get_value)) {
     	MRVL_SAI_LOG_ERR("Invalid services handle passed to SAI API initialize\n");
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }

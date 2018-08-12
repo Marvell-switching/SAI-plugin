@@ -17,7 +17,6 @@
  
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_ROUTER_INTF
@@ -417,8 +416,10 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
 {
     sai_status_t                 status;
     const sai_attribute_value_t  *type, *vrid, *port, *vlan, *mtu, *mac, *adminv4, *adminv6, *miss_act;
-    uint32_t                     type_index, vrid_index, port_index, vlan_index, mtu_index, mac_index, adminv4_index, adminv6_index;
-    uint32_t                     rif_idx, mtu_idx, i, vr_id, portVlan, mtu_val, miss_act_idx, miss_action;
+    uint32_t                     type_index, vrid_index, attr_index, vlan_index, mtu_index, mac_index, adminv4_index, adminv6_index;
+    uint32_t                     rif_idx, mtu_idx, i, vr_id, portVlan, mtu_val, miss_act_idx, miss_action, lag_idx, port_idx;
+	sai_object_id_t              port_id[SAI_LAG_MAX_MEMBERS_IN_GROUP_CNS] = {0};
+    sai_object_list_t            port_objlist;
     uint16_t                     fdb_vlan;
     FPA_STATUS                   fpa_status;
     uint64_t                     cookie;
@@ -516,9 +517,9 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
             MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
         }
         if (SAI_STATUS_ITEM_NOT_FOUND !=
-            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &port_index))) {
+            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &attr_index))) {
             MRVL_SAI_LOG_ERR("Invalid attribute port id for rif vlan on create\n");
-            status = SAI_STATUS_INVALID_ATTRIBUTE_0 + port_index;
+            status = SAI_STATUS_INVALID_ATTRIBUTE_0 + attr_index;
             MRVL_SAI_API_RETURN(status);
         }
         portVlan = vlan->u16;
@@ -526,7 +527,7 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
 
     } else if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32) {
         if (SAI_STATUS_SUCCESS !=
-            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &port_index))) {
+            (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &attr_index))) {
             MRVL_SAI_LOG_ERR("Missing mandatory attribute port id on create\n");
             MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
         }
@@ -547,10 +548,10 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
     } else if (SAI_ROUTER_INTERFACE_TYPE_LOOPBACK == type->s32) {
         if (SAI_STATUS_ITEM_NOT_FOUND !=
             (status =
-            		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &port_index))) {
+            		mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_ROUTER_INTERFACE_ATTR_PORT_ID, &port, &attr_index))) {
         	MRVL_SAI_LOG_ERR("Invalid attribute port id for loopback rif on create\n");
         	MRVL_SAI_LOG_EXIT();
-            status = SAI_STATUS_INVALID_ATTRIBUTE_0 + port_index;
+            status = SAI_STATUS_INVALID_ATTRIBUTE_0 + attr_index;
             MRVL_SAI_API_RETURN(status);
         }
         if (SAI_STATUS_ITEM_NOT_FOUND !=
@@ -920,7 +921,12 @@ sai_status_t mrvl_sai_create_router_interface(_Out_ sai_object_id_t      *rif_id
 
 		/*** add l2 interface group in case of rif on port ****/
 		if (SAI_ROUTER_INTERFACE_TYPE_PORT == type->s32){
-			mrvl_sai_utl_create_l2_int_group(portVlan, 0, SAI_VLAN_TAGGING_MODE_UNTAGGED, true, &group);
+			status = mrvl_sai_utl_create_l2_int_group(portVlan, 0, SAI_VLAN_TAGGING_MODE_UNTAGGED, true, &group);
+            if (SAI_STATUS_SUCCESS != status)
+            {
+                MRVL_SAI_LOG_ERR("Failed to create l2 interface group for port %d\n", portVlan);
+                MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+            }
 		}
     }
 
@@ -1544,5 +1550,5 @@ const sai_router_interface_api_t router_interface_api = {
     mrvl_sai_create_router_interface,
     mrvl_sai_remove_router_interface,
     mrvl_sai_set_router_interface_attribute,
-    mrvl_sai_get_router_interface_attribute,
+    mrvl_sai_get_router_interface_attribute
 };

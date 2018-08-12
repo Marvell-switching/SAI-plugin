@@ -17,7 +17,6 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_SCHEDULER_GROUPS
@@ -28,7 +27,7 @@
 #define level_max_groups(level) (uint32_t)MAX_SCHED_CHILD_GROUPS
 
 #define level_max_childs(level) \
-    (((level) == MAX_SCHED_LEVELS - 1) ? MAX_QUEUES : MAX_SCHED_CHILD_GROUPS)
+    (((level) == MAX_SCHED_LEVELS - 1) ? SAI_QOS_NUM_QUEUES : MAX_SCHED_CHILD_GROUPS)
 
 static void sched_group_key_to_str(_In_ sai_object_id_t sched_group_id, _Out_ char *key_str);
 
@@ -340,7 +339,7 @@ static sai_status_t mrvl_create_scheduler_group(_Out_ sai_object_id_t      *sche
     uint32_t                    attr_idx, port_id;
     uint8_t                     level;
     uint8_t                      max_child_count;
-    uint8_t ext_data[2] = {0};
+    uint8_t ext_data[RESERVED_DATA_LENGTH_CNS] = {0};
     /*sai_object_id_t              parent_group_id = SAI_NULL_OBJECT_ID;
     sai_object_id_t              scheduler_id    = SAI_NULL_OBJECT_ID;*/
     sai_object_id_t              port_oid;

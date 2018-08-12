@@ -17,12 +17,19 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_LAG
 
-static mrvl_sai_lag_group_table_t mrvl_sai_lag_group_table[SAI_LAG_MAX_GROUPS_CNS] = {};
+static mrvl_port_info_t mrvl_sai_lags_db[SAI_LAG_MAX_GROUPS_CNS] = {};
+
+sai_status_t mrvl_sai_lag_member_object_create(_In_ uint32_t             port,
+                                               _In_ uint32_t             lag_id,
+                                               _Out_ sai_object_id_t     *lag_member_oid);
+
+sai_status_t mrvl_sai_lag_member_to_port_lag(_Out_ uint32_t         *port,
+                                             _Out_ uint32_t         *lag_id,
+                                             _In_ sai_object_id_t   *lag_member_oid);
 
 static const sai_attribute_entry_t  mrvl_sai_lag_attribs[] = {
     { SAI_LAG_ATTR_PORT_LIST, false, false, false, true,
@@ -31,6 +38,14 @@ static const sai_attribute_entry_t  mrvl_sai_lag_attribs[] = {
       "LAG bind point for ingress ACL object", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
     { SAI_LAG_ATTR_EGRESS_ACL, false, true, true, true,
       "LAG bind point for egress ACL object", SAI_ATTR_VALUE_TYPE_OBJECT_ID },
+    { SAI_LAG_ATTR_PORT_VLAN_ID, false, true, true, true,
+      "LAG VLAN ID", SAI_ATTR_VALUE_TYPE_UINT16 },
+    { SAI_LAG_ATTR_DEFAULT_VLAN_PRIORITY, false, true, true, true,
+      "LAG default VLAN priority", SAI_ATTR_VALUE_TYPE_UINT8 },
+    { SAI_LAG_ATTR_DROP_UNTAGGED, false, true, true, true,
+      "LAG dropping of untagged frames (ingress)", SAI_ATTR_VALUE_TYPE_BOOL },
+    { SAI_LAG_ATTR_DROP_TAGGED, false, true, true, true,
+      "LAG dropping of tagged frames (ingress)", SAI_ATTR_VALUE_TYPE_BOOL },
     { END_FUNCTIONALITY_ATTRIBS_ID, false, false, false, false,
       "", SAI_ATTR_VALUE_TYPE_UNDETERMINED }
 };
@@ -64,7 +79,27 @@ static const sai_vendor_attribute_entry_t  mrvl_sai_lag_vendor_attribs[] = {
       { true, false, true, true },
       { true, false, true, true },
       mrvl_lag_acl_binding_get, (void*)SAI_LAG_ATTR_EGRESS_ACL,
-      mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_EGRESS_ACL}
+      mrvl_lag_acl_binding_set, (void*)SAI_LAG_ATTR_EGRESS_ACL},
+    { SAI_LAG_ATTR_PORT_VLAN_ID,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_port_lag_pvid_get, NULL,
+      mrvl_port_lag_pvid_set, NULL },
+    { SAI_LAG_ATTR_DEFAULT_VLAN_PRIORITY,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_port_lag_default_vlan_prio_get, NULL,
+      mrvl_port_lag_default_vlan_prio_set, NULL },
+    { SAI_LAG_ATTR_DROP_UNTAGGED,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_port_lag_drop_tags_get, (void*)SAI_LAG_ATTR_DROP_UNTAGGED,
+      mrvl_port_lag_drop_tags_set, (void*)SAI_LAG_ATTR_DROP_UNTAGGED },
+    { SAI_LAG_ATTR_DROP_TAGGED,
+      { true, false, true, true },
+      { true, false, true, true },
+      mrvl_port_lag_drop_tags_get, (void*)SAI_LAG_ATTR_DROP_TAGGED,
+      mrvl_port_lag_drop_tags_set, (void*)SAI_LAG_ATTR_DROP_TAGGED },
 };
 
 static const sai_attribute_entry_t  mrvl_sai_lag_member_attribs[] = {
@@ -140,6 +175,7 @@ static void lag_key_to_str(
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lagid)) {
         snprintf(key_str, MAX_KEY_STR_LEN, "Invalid LAG ID");
     } else {
+        lagid = mrvl_lag_logical_to_real_index_MAC(lagid);
         snprintf(key_str, MAX_KEY_STR_LEN, "LAG ID %u", lagid);
     }
 }
@@ -166,33 +202,35 @@ static sai_status_t mrvl_sai_lag_port_list_get_prv(
 {
     sai_status_t     status;
     uint32_t         lag_id;   
-    sai_object_id_t  lag_oid; 
-
-    lag_oid = key->key.object_id;        
+    sai_object_id_t  lag_oid = key->key.object_id; 
 
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_oid %d\n",lag_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_id))) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag oid %" PRIx64 "\n", lag_oid);
+        MRVL_SAI_API_RETURN(status);
     }
-
-    if (mrvl_sai_lag_group_table[lag_id].used != true)
+    lag_id = mrvl_lag_logical_to_real_index_MAC(lag_id);
+    if (true != is_lag_used(lag_id))
     {
-        MRVL_SAI_LOG_ERR("Lag index %d not used\n", lag_id);
+        MRVL_SAI_LOG_ERR("Lag %d has not been created\n", lag_id);
         MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
     }
 
-    value->objlist.count = mrvl_sai_lag_group_table[lag_id].group_member_counter;
+    if (true != is_lag_empty(lag_id))
+    {
+        value->objlist.count = mrvl_sai_lags_db[lag_id].group_member_counter;
 
-    /* create the port list from members of the LAG */  
-    status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_id, &value->objlist);
-    if (status != SAI_STATUS_SUCCESS) {
-        MRVL_SAI_LOG_ERR("Can't get lag group port list for lag index %d\n", lag_id);
-        return SAI_STATUS_FAILURE;
+        /* create the port list from members of the LAG */  
+        status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_id, &value->objlist);
+        if (status != SAI_STATUS_SUCCESS) {
+            MRVL_SAI_LOG_ERR("Can't get lag group port list for lag %d\n", lag_id);
+            MRVL_SAI_API_RETURN(status);
+        }
     }
 
+    MRVL_SAI_LOG_NTC("LAG %d has %d members\n", lag_id, mrvl_sai_lags_db[lag_id].group_member_counter);
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 
@@ -206,21 +244,23 @@ static sai_status_t mrvl_sai_lag_member_lag_id_get_prv(
 {
     sai_status_t     status;
     uint32_t         port_id, lag_id;
-    sai_object_id_t  lag_member_oid;
-
-    lag_member_oid = key->key.object_id;
+    sai_object_id_t  lag_member_oid = key->key.object_id;
     
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
-    /* create SAI LAG object */    
+    /* create SAI LAG object */
+    lag_id = mrvl_lag_real_to_logical_index_MAC(lag_id);
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_LAG, lag_id, &value->oid))) {
-        return status;
+        MRVL_SAI_LOG_ERR("Failed to create lag oid from lag %d\n", lag_id);
+        MRVL_SAI_API_RETURN(status);
     }    
     
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* logical port ID [sai_object_id_t] (MANDATORY_ON_CREATE|CREATE_ONLY) */
@@ -233,21 +273,22 @@ static sai_status_t mrvl_sai_lag_member_port_id_get_prv(
 {
     sai_status_t     status;
     uint32_t         port_id, lag_id;
-    sai_object_id_t  lag_member_oid;
+    sai_object_id_t  lag_member_oid = key->key.object_id;;
 
-    lag_member_oid = key->key.object_id;
-
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
+    MRVL_SAI_LOG_ENTER();
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
-    
+
     /* create SAI PORT object */    
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port_id, &value->oid))) {
-        return status;
+        MRVL_SAI_LOG_ERR("Failed to create port oid from port %d\n", port_id);
+        MRVL_SAI_API_RETURN(status);
     }   
 
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* Disable traffic distribution to this port as part of LAG. [bool] (CREATE_AND_SET) default to FALSE */
@@ -259,18 +300,18 @@ static sai_status_t mrvl_sai_lag_member_egress_disable_get_prv(
     void                          *arg)
 {    
     uint32_t            port_id, lag_id;
-    sai_object_id_t     lag_member_oid;
+    sai_object_id_t     lag_member_oid = key->key.object_id;
 
-    lag_member_oid = key->key.object_id;
-
+    MRVL_SAI_LOG_ENTER();
     /* to check data is valid */
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
-    }    
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
 
     value->booldata = false;
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* Disable traffic distribution to this port as part of LAG. [bool] (CREATE_AND_SET) default to FALSE */
@@ -280,21 +321,21 @@ static sai_status_t mrvl_sai_lag_member_egress_disable_set_prv(
     void                             *arg)
 {    
     uint32_t         port_id, lag_id;
-    sai_object_id_t  lag_member_oid;
+    sai_object_id_t  lag_member_oid = key->key.object_id;
 
-    lag_member_oid = key->key.object_id;
-
+    MRVL_SAI_LOG_ENTER();
     /* to check data is valid */
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
-    }        
-
-    if (value->booldata != false ) {
-        MRVL_SAI_LOG_WRN("invalid lag_member_oid %d egress disable attribute %d\n",lag_member_oid,value->booldata);        
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
-    return SAI_STATUS_SUCCESS;
+    if (value->booldata != false ) {
+        MRVL_SAI_LOG_WRN("invalid lag_member_oid %" PRIx64 " egress disable attribute %d\n", lag_member_oid, value->booldata);        
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* Disable traffic collection from this port as part of LAG. [bool] (CREATE_AND_SET) default to FALSE. */
@@ -306,18 +347,18 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_get_prv(
     void                          *arg)
 {    
     uint32_t            port_id, lag_id;
-    sai_object_id_t     lag_member_oid;
+    sai_object_id_t     lag_member_oid = key->key.object_id;
 
-    lag_member_oid = key->key.object_id;
-
+    MRVL_SAI_LOG_ENTER();
     /* to check data is valid */
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
-    }   
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
 
     value->booldata = false;
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 /* Disable traffic collection from this port as part of LAG. [bool] (CREATE_AND_SET) default to FALSE. */
@@ -327,21 +368,21 @@ static sai_status_t mrvl_sai_lag_member_ingress_disable_set_prv(
     void                             *arg)
 {    
     uint32_t         port_id, lag_id;
-    sai_object_id_t  lag_member_oid;
+    sai_object_id_t  lag_member_oid = key->key.object_id;
 
-    lag_member_oid = key->key.object_id;
-
+    MRVL_SAI_LOG_ENTER();
     /* to check data is valid */
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_member_oid %d\n",lag_member_oid);
-        return SAI_STATUS_INVALID_PARAMETER;
-    }   
-
-    if (value->booldata != false ) {
-        MRVL_SAI_LOG_WRN("invalid lag_member_oid %d egress disable attribute %d\n",lag_member_oid,value->booldata);        
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
-    return SAI_STATUS_SUCCESS;
+    if (value->booldata != false ) {
+        MRVL_SAI_LOG_WRN("invalid lag_member_oid %" PRIx64 " ingress disable attribute %d\n", lag_member_oid, value->booldata);        
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *key,
@@ -354,30 +395,31 @@ static sai_status_t mrvl_lag_acl_binding_set(_In_ const sai_object_key_t      *k
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_LAG, &lag))) {
-        return status;
+        MRVL_SAI_API_RETURN(status);
     }
 
+    lag = mrvl_lag_logical_to_real_index_MAC(lag);
     if (lag > SAI_LAG_MAX_GROUPS_CNS){
         MRVL_SAI_LOG_ERR("Invalid lag %d\n", lag);
-        return SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
     if (value->oid == SAI_NULL_OBJECT_ID){
     	/* unbind action */
     	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_unbind_from_lag(arg, lag))){
             MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLE\n", lag);
-            return SAI_STATUS_INVALID_PARAMETER;
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     	}
     }
     else {
     	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag(arg, value->oid, lag))){
             MRVL_SAI_LOG_ERR("Unable to unbind lag %d from ACL TABLES\n", lag);
-            return SAI_STATUS_INVALID_PARAMETER;
+            MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     	}
     }
 
     MRVL_SAI_LOG_EXIT();
-    return status;
+    MRVL_SAI_API_RETURN(status);
 }
 
 static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
@@ -392,23 +434,106 @@ static sai_status_t mrvl_lag_acl_binding_get(_In_ const sai_object_key_t   *key,
     MRVL_SAI_LOG_ENTER();
 
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(key->key.object_id, SAI_OBJECT_TYPE_LAG, &lag))) {
-        return status;
+        MRVL_SAI_API_RETURN(status);
     }
 
+    lag = mrvl_lag_logical_to_real_index_MAC(lag);
     if (lag > SAI_LAG_MAX_GROUPS_CNS){
         MRVL_SAI_LOG_ERR("Invalid lag %d\n", lag);
-        return SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_get_table_id_per_lag(arg, lag, value))){
         MRVL_SAI_LOG_ERR("Unable to get assigned ACL table per lag %d\n", lag);
-        return SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
 
     MRVL_SAI_LOG_EXIT();
-    return status;
+    MRVL_SAI_API_RETURN(status);
 
 }
+
+bool is_lag_interface(_In_ uint32_t  lag_idx)
+{
+    return (lag_idx >= SAI_FIRST_LAG_INDEX_CNS);
+}
+
+bool is_lag_used(_In_ uint32_t  lag_idx)
+{
+    return (true == mrvl_sai_lags_db[lag_idx].is_present);
+}
+
+bool is_lag_empty(_In_ uint32_t  lag_idx)
+{
+    return (0 == mrvl_sai_lags_db[lag_idx].group_member_counter);
+}
+
+uint32_t lag_members_count(_In_ uint32_t  lag_idx)
+{
+    return mrvl_sai_lags_db[lag_idx].group_member_counter;
+}
+
+void lag_vlan_info_set(_In_ uint32_t lag_idx, _In_ sai_vlan_id_t vlan_id, _In_ sai_vlan_tagging_mode_t tagging_mode)
+{
+    mrvl_sai_lags_db[lag_idx].vlan_id = vlan_id;
+    mrvl_sai_lags_db[lag_idx].tagging_mode = tagging_mode;
+}
+
+void lag_vlan_info_reset(_In_ uint32_t lag_idx)
+{
+    mrvl_sai_lags_db[lag_idx].vlan_id = 0;
+}
+
+sai_vlan_id_t lag_vlan_info_get(_In_ uint32_t lag_idx, _Out_ sai_vlan_tagging_mode_t *tagging_mode)
+{
+    *tagging_mode = mrvl_sai_lags_db[lag_idx].tagging_mode; 
+    return mrvl_sai_lags_db[lag_idx].vlan_id;
+}
+sai_status_t mrvl_sai_lag_member_object_create(_In_ uint32_t             port,
+                                               _In_ uint32_t             lag_id,
+                                               _Out_ sai_object_id_t     *lag_member_oid)
+{
+    sai_status_t status;
+    uint8_t     ext_data[RESERVED_DATA_LENGTH_CNS];
+
+    MRVL_SAI_LOG_ENTER();
+    assert(lag_member_oid);
+
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    ext_data[0] = (uint8_t)(lag_id & 0xFF);
+    ext_data[1] = (uint8_t)((lag_id << 8) & 0xFF);
+    status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_LAG_MEMBER, port, ext_data, lag_member_oid);
+    if (SAI_STATUS_SUCCESS != status) {
+        MRVL_SAI_LOG_ERR("Failed to create queue object with port %d, lag index %d\n", port, lag_id);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
+
+sai_status_t mrvl_sai_lag_member_to_port_lag(_Out_ uint32_t         *port,
+                                             _Out_ uint32_t         *lag_id,
+                                             _In_ sai_object_id_t   *lag_member_oid)
+{
+    sai_status_t status;
+    uint8_t     ext_data[RESERVED_DATA_LENGTH_CNS];
+
+    MRVL_SAI_LOG_ENTER();
+    assert(lag_member_oid);
+
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(*lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, port, ext_data)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object lag member\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+    *lag_id = (uint32_t)(ext_data[1] >> 8 | ext_data[0]);
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
+
 /**
  * @brief Create LAG Member
  *
@@ -427,10 +552,11 @@ sai_status_t mrvl_sai_create_lag_member(
     _In_ const sai_attribute_t      *attr_list)
 {
     sai_status_t                 status;
-    uint32_t                     port_id, lag_id, changed;
+    uint32_t                     port_id, real_lag_id, lag_id, changed;
     const sai_attribute_value_t  *attr_lag_id, *attr_port_id, *attr_egress_disable, *attr_ingress_disable;
     sai_object_id_t              lag_oid, port_oid;
     uint32_t                     index;
+    uint8_t                      data_ext[2];
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     char                         key_str[MAX_KEY_STR_LEN];
     bool                         ingress_disable, egress_disable;
@@ -438,7 +564,7 @@ sai_status_t mrvl_sai_create_lag_member(
 
     if (NULL == lag_member_oid) {
         MRVL_SAI_LOG_ERR("NULL lag member id param\n");
-        return SAI_STATUS_INVALID_PARAMETER;
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
     if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
         MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
@@ -449,7 +575,7 @@ sai_status_t mrvl_sai_create_lag_member(
                                                  SAI_COMMON_API_CREATE);
     if (status != SAI_STATUS_SUCCESS) {
         MRVL_SAI_LOG_ERR("Failed attribs check\n");
-        return status;
+        MRVL_SAI_API_RETURN(status);
     }
 
     /* Trace: print input parametrs */ 
@@ -487,28 +613,47 @@ sai_status_t mrvl_sai_create_lag_member(
     port_oid = attr_port_id->oid;
 
     /* Get port & LAG numbers */
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid lag_id\n");
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_oid_to_lag_port(lag_oid, &lag_id))) {
+        MRVL_SAI_LOG_ERR("Failed to convert LAG oid %" PRIx64 "\n", lag_oid);
+        MRVL_SAI_API_RETURN(status);
     }
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_id)) {
-        MRVL_SAI_LOG_ERR("invalid port_id\n");
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    real_lag_id = mrvl_lag_logical_to_real_index_MAC(lag_id);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_oid_to_lag_port(port_oid, &port_id))) {
+        MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 "\n", port_oid);
+        MRVL_SAI_API_RETURN(status);
     }
 
+    if (true != is_lag_used(real_lag_id))
+    {
+        MRVL_SAI_LOG_ERR("Lag %d has not been created\n", real_lag_id);
+        MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
+    }
+
+    if (true == mrvl_sai_is_port_lag_member(port_id))
+    {
+        MRVL_SAI_LOG_NTC("Port %d is already a member in LAG\n", port_id);
+        MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
+    }
     /* Add port as a member to lag */
-    status = mrvl_sai_utl_update_l2_lag_group_bucket(lag_id, port_oid, MRVL_SAI_UTL_ADD, &changed);
+    status = mrvl_sai_utl_update_l2_lag_group_bucket(real_lag_id, port_oid, MRVL_SAI_UTL_ADD, &changed);
     if (SAI_STATUS_SUCCESS != status) { /* lag group was deleted */
-        mrvl_sai_lag_group_table[lag_id].group_member_counter = 0;
-        mrvl_sai_lag_group_table[lag_id].used = false;
+        mrvl_sai_lags_db[real_lag_id].group_member_counter = 0;
+        mrvl_sai_lags_db[real_lag_id].is_present = false;
+        MRVL_SAI_LOG_ERR("Failed to add L2 LAG group bucket: lag %d, port %d\n", real_lag_id, port_id);
+        MRVL_SAI_API_RETURN(status);
     }else {
-        mrvl_sai_lag_group_table[lag_id].group_member_counter += changed;
-    }                                                     
-    /* inform acl with added member port&lag */
-    mrvl_sai_acl_lag_port_update(lag_id, port_id, true);                                     
-    
+        mrvl_sai_lags_db[real_lag_id].group_member_counter += changed;
+    }
+    status = mrvl_sai_port_set_port_in_lag(port_id, lag_id, true);
+    if (SAI_STATUS_SUCCESS != status)
+    {
+        MRVL_SAI_LOG_ERR("Failed to add port %d to lag %d\n", port_id, lag_id);
+        MRVL_SAI_API_RETURN(status);    
+    }
+                                                         
     /* create SAI LAG member object */       
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_LAG_MEMBER, port_id, lag_id, lag_member_oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_lag_member_object_create(port_id, real_lag_id, lag_member_oid))) {
+        MRVL_SAI_LOG_ERR("Failed to create lag member oid from port %d, lag %d\n", port_id, real_lag_id);
         MRVL_SAI_API_RETURN(status);
     }
 
@@ -532,18 +677,15 @@ sai_status_t mrvl_sai_remove_lag_member(
 )
 {
     sai_status_t        status;
-    uint32_t            port_id, lag_id, changed;      
+    uint32_t            port_id, lag_id, logic_lag_id, changed;     
     char                key_str[MAX_KEY_STR_LEN];  
     sai_object_id_t     port_oid;
 
     MRVL_SAI_LOG_ENTER();
-    /* Temporary WA to avoid SONiC's add & remove lag member */
-    MRVL_SAI_LOG_NTC("Exiting mrvl_sai_remove_lag_member without actual remove\n");
-    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(lag_member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &port_id, &lag_id)) {
-        MRVL_SAI_LOG_ERR("invalid port_id %d lag_id %d\n",port_id,lag_id);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_to_port_lag(&port_id, &lag_id, &lag_member_oid)) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag member oid %" PRIx64 " to port and lag\n", lag_member_oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
     }
 
     /* create SAI PORT object */    
@@ -554,14 +696,18 @@ sai_status_t mrvl_sai_remove_lag_member(
     /* Remove port from the LAG */
     status = mrvl_sai_utl_update_l2_lag_group_bucket(lag_id, port_oid, MRVL_SAI_UTL_DEL, &changed);
     if (SAI_STATUS_SUCCESS != status) { /* lag group was deleted */
-        mrvl_sai_lag_group_table[lag_id].group_member_counter = 0;
-        mrvl_sai_lag_group_table[lag_id].used = false;
+        mrvl_sai_lags_db[lag_id].group_member_counter = 0;
+        mrvl_sai_lags_db[lag_id].is_present = false;
     }else {
-        mrvl_sai_lag_group_table[lag_id].group_member_counter -= changed;
-    }      
-        
-    /* inform acl with removed member port&lag */
-    mrvl_sai_acl_lag_port_update(lag_id, port_id, false);                                                   
+        mrvl_sai_lags_db[lag_id].group_member_counter -= changed;
+    }
+    logic_lag_id = mrvl_lag_real_to_logical_index_MAC(lag_id);
+    status = mrvl_sai_port_set_port_in_lag(port_id, logic_lag_id, false);
+    if (SAI_STATUS_SUCCESS != status)
+    {
+        MRVL_SAI_LOG_ERR("Failed to remove port %d from lag %d\n", port_id, lag_id);
+        MRVL_SAI_API_RETURN(status);    
+    }                                   
             
     lag_member_key_to_str(lag_member_oid, key_str);
     MRVL_SAI_LOG_NTC("Removed %s\n", key_str);
@@ -594,7 +740,6 @@ sai_status_t mrvl_sai_set_lag_member_attribute(
     lag_member_key_to_str(lag_member_oid, key_str);
     status = mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_lag_member_attribs, mrvl_sai_lag_member_vendor_attribs, attr);
 
-    lag_member_key_to_str(lag_member_oid, key_str);
     MRVL_SAI_LOG_NTC("Set %s\n", key_str);
     
     MRVL_SAI_LOG_EXIT();
@@ -658,8 +803,7 @@ sai_status_t mrvl_sai_create_lag(
     uint32_t                     lag_idx, group, index;
     char                         list_str[MAX_LIST_VALUE_STR_LEN];
     char                         key_str[MAX_KEY_STR_LEN];
-    const sai_attribute_value_t *attr_ing_acl = NULL;
-    const sai_attribute_value_t *attr_eg_acl = NULL;   
+    const sai_attribute_value_t *attr_ing_acl = NULL, *attr_eg_acl = NULL, *attr_vlan = NULL, *attr_vlan_prio = NULL, *attr_drop_tagged = NULL, *attr_drop_untagged = NULL;   
 
     MRVL_SAI_LOG_ENTER();
 
@@ -684,7 +828,7 @@ sai_status_t mrvl_sai_create_lag(
 
     /* find new lag id - LAG '0' is not valid in CPSS. LAG group range 1..SAI_LAG_MAX_GROUPS_CNS */
     for (lag_idx = 1; lag_idx < SAI_LAG_MAX_GROUPS_CNS; lag_idx++) {
-        if (mrvl_sai_lag_group_table[lag_idx].used == false){
+        if (true != is_lag_used(lag_idx)) {
             break;
         }
     }
@@ -693,8 +837,47 @@ sai_status_t mrvl_sai_create_lag(
         MRVL_SAI_API_RETURN(SAI_STATUS_TABLE_FULL);
     }
 
+    /* check attr SAI_LAG_ATTR_INGRESS_ACL  */
+    if (SAI_STATUS_SUCCESS ==
+    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL, &attr_ing_acl, &index))){
+        if (attr_ing_acl->oid != SAI_NULL_OBJECT_ID) {
+        	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_INGRESS_ACL, attr_ing_acl->oid, lag_idx))){
+                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %" PRIx64 "\n", attr_ing_acl->oid);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        	}
+        }
+    }
+    /* check attr SAI_LAG_ATTR_EGRESS_ACL  */
+    if (SAI_STATUS_SUCCESS ==
+    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL, &attr_eg_acl, &index))){
+        if (attr_eg_acl->oid != SAI_NULL_OBJECT_ID) {
+            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_EGRESS_ACL, attr_eg_acl->oid, lag_idx))){
+                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %" PRIx64 "\n", attr_eg_acl->oid);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+        	}
+        }
+    }
+
+    mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_PORT_VLAN_ID, &attr_vlan, &index);
+    mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_DEFAULT_VLAN_PRIORITY, &attr_vlan_prio, &index);
+    mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_DROP_UNTAGGED, &attr_drop_untagged, &index);
+    mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_DROP_TAGGED, &attr_drop_tagged, &index);
+    
+    /* set LAG pvid */
+    if (attr_vlan) 
+    {}
+
+    /* set default VLAN priority */
+    if (attr_vlan_prio)
+    {}
+
+    /* set LAG's accepted frame types */
+    if (attr_drop_tagged || attr_drop_untagged) 
+    {}
+
+    mrvl_sai_lags_db[lag_idx].index = mrvl_lag_real_to_logical_index_MAC(lag_idx);
     /* create SAI LAG object */    
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_LAG, lag_idx, lag_oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_LAG, mrvl_sai_lags_db[lag_idx].index, lag_oid))) {
         MRVL_SAI_API_RETURN(status);
     }
   
@@ -704,29 +887,9 @@ sai_status_t mrvl_sai_create_lag(
         MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
 
-    mrvl_sai_lag_group_table[lag_idx].used = true;
-    mrvl_sai_lag_group_table[lag_idx].group_member_counter = 0; /* empty lag group */
-    /* check attr SAI_LAG_ATTR_INGRESS_ACL  */
-    if (SAI_STATUS_SUCCESS ==
-    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_INGRESS_ACL, &attr_ing_acl, &index))){
-        if (attr_ing_acl->oid != SAI_NULL_OBJECT_ID) {
-        	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_INGRESS_ACL, attr_ing_acl->oid, lag_idx))){
-                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %d\n", lag_idx, attr_ing_acl);
-                return SAI_STATUS_INVALID_PARAMETER;
-        	}
-        }
-    }
-    /* check attr SAI_LAG_ATTR_EGRESS_ACL  */
-    if (SAI_STATUS_SUCCESS ==
-    		(status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_LAG_ATTR_EGRESS_ACL, &attr_eg_acl, &index))){
-        if (attr_eg_acl->oid != SAI_NULL_OBJECT_ID) {
-            if (SAI_STATUS_SUCCESS != (status = mrvl_sai_acl_table_bind_to_lag((void*)SAI_LAG_ATTR_EGRESS_ACL, attr_eg_acl->oid, lag_idx))){
-                MRVL_SAI_LOG_ERR("Unable to bind lag %d to ACL TABLE %d\n", lag_idx, attr_eg_acl);
-                return SAI_STATUS_INVALID_PARAMETER;
-        	}
-        }
-    }
-        
+    mrvl_sai_lags_db[lag_idx].is_present = true;
+    mrvl_sai_lags_db[lag_idx].group_member_counter = 0; /* empty lag group */
+
     lag_key_to_str(*lag_oid, key_str);
     MRVL_SAI_LOG_NTC("Created %s\n", key_str);
 
@@ -748,7 +911,8 @@ sai_status_t mrvl_sai_remove_lag(
 )
 {
     sai_status_t        status;    
-    uint32_t            lag_idx, port_idx, portList_count, i;       
+    uint32_t            lag_idx, port_idx, i; 
+    uint8_t             data_ext[RESERVED_DATA_LENGTH_CNS];      
     sai_object_id_t     port_oid;
     sai_object_id_t     lag_member_oid;
     char                key_str[MAX_KEY_STR_LEN];
@@ -758,12 +922,13 @@ sai_status_t mrvl_sai_remove_lag(
 
     MRVL_SAI_LOG_ENTER();        
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_idx)) {
-        MRVL_SAI_LOG_ERR("invalid lag_idx %d\n",lag_idx);
-        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_idx))) {
+        MRVL_SAI_LOG_ERR("Failed to convert lag oid %" PRIx64 "\n", lag_oid);
+        MRVL_SAI_API_RETURN(status);
     }
     
-    if (mrvl_sai_lag_group_table[lag_idx].used != true)
+    lag_idx = mrvl_lag_logical_to_real_index_MAC(lag_idx);
+    if (true != is_lag_used(lag_idx))
     {
         MRVL_SAI_LOG_ERR("Lag index %d not used\n", lag_idx);
         MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
@@ -781,11 +946,12 @@ sai_status_t mrvl_sai_remove_lag(
         }
     } 
 
-    portList_count = mrvl_sai_lag_group_table[lag_idx].group_member_counter;
-    port_objlist.count = portList_count;
-    port_objlist.list = port_list;
-
-    if (portList_count > 0) {        
+    /*  Check if the LAG is empty */
+    if (true != is_lag_empty(lag_idx))
+    {
+        port_objlist.count = mrvl_sai_lags_db[lag_idx].group_member_counter; 
+        port_objlist.list = port_list;
+       
         /* create the port list from members of the LAG */  
         status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_idx, &port_objlist);
         if (status != SAI_STATUS_SUCCESS) {
@@ -793,19 +959,16 @@ sai_status_t mrvl_sai_remove_lag(
             MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
         }    
 
-        /*  Check if the LAG is empty */
-        for (i = 0; i <portList_count; i++) {
+        /*  Create and remove LAG members */
+        for (i = 0; i < port_objlist.count; i++) {
             port_oid = port_objlist.list[i];
-            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_object_type(port_oid, SAI_OBJECT_TYPE_PORT)) {
-                MRVL_SAI_LOG_ERR("invalid port oid in list %d at index %d\n",port_oid,i);
-                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_oid_to_lag_port(port_oid, &port_idx)) {
+                MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to index\n", port_oid);
+                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
             }
-            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_idx)) {
-                MRVL_SAI_LOG_ERR("invalid port_idx %d\n",port_idx);
-                MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
-            }        
-            if (SAI_STATUS_SUCCESS != mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_LAG_MEMBER, port_idx, lag_idx, &lag_member_oid)) {
-                MRVL_SAI_LOG_ERR("invalid lag_member_oid %d from port_id %d lag_id %d\n",lag_member_oid, port_idx, lag_idx);
+                    
+            if (SAI_STATUS_SUCCESS != mrvl_sai_lag_member_object_create(port_idx, lag_idx, &lag_member_oid)) {
+                MRVL_SAI_LOG_ERR("Failed to create LAG member oid from port %d, lag\n", port_idx, lag_idx);
                 MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
             }
             if (SAI_STATUS_SUCCESS != mrvl_sai_remove_lag_member(lag_member_oid)) {
@@ -814,7 +977,8 @@ sai_status_t mrvl_sai_remove_lag(
             }            
         }
     }
-
+    
+    
     /* Remove the LAG from system */
     status = mrvl_sai_utl_delete_l2_lag_group(lag_idx);    
     if (status != SAI_STATUS_SUCCESS) {
@@ -822,11 +986,11 @@ sai_status_t mrvl_sai_remove_lag(
         MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
     }
     
-    mrvl_sai_lag_group_table[lag_idx].used = false;
-    mrvl_sai_lag_group_table[lag_idx].group_member_counter = 0;
+    /* clear entry in DB */
+    memset(&mrvl_sai_lags_db[lag_idx], 0, sizeof(mrvl_port_info_t));
 
     lag_key_to_str(lag_oid, key_str);
-    MRVL_SAI_LOG_NTC("Removed %s\n", key_str);
+    MRVL_SAI_LOG_NTC("Removed %s and %d LAG members\n", key_str, port_objlist.count);
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
@@ -850,10 +1014,10 @@ sai_status_t mrvl_sai_set_lag_attribute(
     sai_status_t           status;    
 
     MRVL_SAI_LOG_ENTER(); 
-    
-    status = mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_lag_attribs, mrvl_sai_lag_vendor_attribs, attr);
 
     lag_key_to_str(lag_oid, key_str);
+    status = mrvl_sai_utl_set_attribute(&key, key_str, mrvl_sai_lag_attribs, mrvl_sai_lag_vendor_attribs, attr);
+
     MRVL_SAI_LOG_NTC("Set %s\n", key_str);
 
     MRVL_SAI_LOG_EXIT();
@@ -964,21 +1128,32 @@ sai_status_t mrvl_sai_get_lag_port_list(
         MRVL_SAI_LOG_ERR("invalid lag %d\n",lag_id);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
-    if (mrvl_sai_lag_group_table[lag_id].used != true)
+
+    if (true != is_lag_used(lag_id))
     {
         MRVL_SAI_LOG_ERR("Lag index %d not used\n", lag_id);
         MRVL_SAI_API_RETURN(SAI_STATUS_ITEM_NOT_FOUND);
     }
-    portobjlist->count = mrvl_sai_lag_group_table[lag_id].group_member_counter;
-    /* create the port list from members of the LAG */  
-    status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_id, portobjlist);
-    if (status != SAI_STATUS_SUCCESS) {
-        MRVL_SAI_LOG_ERR("Can't get lag group port list for lag index %d\n", lag_id);
-        return SAI_STATUS_FAILURE;
+
+    /*  Check if the LAG is empty */
+    if (true != is_lag_empty(lag_id))
+    {
+        portobjlist->count = mrvl_sai_lags_db[lag_id].group_member_counter;
+
+        /* create the port list from members of the LAG */  
+        status = mrvl_sai_utl_get_l2_lag_group_bucket_list(lag_id, portobjlist);
+        if (status != SAI_STATUS_SUCCESS) {
+            MRVL_SAI_LOG_ERR("Can't get lag group port list for lag %d\n", lag_id);
+            MRVL_SAI_API_RETURN(status);
+        }
     }
+
+    MRVL_SAI_LOG_NTC("LAG %d has %d members\n", lag_id, mrvl_sai_lags_db[lag_id].group_member_counter);
     MRVL_SAI_LOG_EXIT();
-    return SAI_STATUS_SUCCESS;
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
+
+
 const sai_lag_api_t lag_api = {
     mrvl_sai_create_lag,
     mrvl_sai_remove_lag,
@@ -990,5 +1165,4 @@ const sai_lag_api_t lag_api = {
     mrvl_sai_get_lag_member_attribute,
     mrvl_sai_create_lag_members,
     mrvl_sai_remove_lag_members
-
 };

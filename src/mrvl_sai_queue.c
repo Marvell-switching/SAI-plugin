@@ -17,10 +17,17 @@
 
 #include "sai.h"
 #include "mrvl_sai.h"
-#include "assert.h"
 
 #undef  __MODULE__
 #define __MODULE__ SAI_QUEUE
+
+sai_status_t mrvl_sai_queue_object_create(_In_ uint32_t             port,
+                                          _In_ uint8_t              index,
+                                          _Out_ sai_object_id_t     *queue_oid);
+
+sai_status_t mrvl_sai_queue_object_to_port_index(_Out_ uint32_t           *port,
+                                                 _Out_ uint8_t            *index,
+                                                 _In_ sai_object_id_t     *queue_oid);
 
 
 static void queue_id_to_str(_In_ sai_object_id_t sai_queue_id, _Out_ char *key_str);
@@ -149,8 +156,9 @@ static sai_status_t mrvl_sai_queue_config_get(_In_ const sai_object_key_t   *key
                                           _Inout_ vendor_cache_t        *cache,
                                           void                          *arg)
 {
-    sai_object_id_t          queue_id                     = key->key.object_id;
-    uint32_t                 port_num, queue_idx = 0;
+    sai_object_id_t          queue_id = key->key.object_id;
+    uint32_t                 port_num;
+    uint8_t                  queue_idx;
     long                     attr      = (long)arg;
     sai_status_t             status;
 
@@ -160,7 +168,7 @@ static sai_status_t mrvl_sai_queue_config_get(_In_ const sai_object_key_t   *key
            (SAI_QUEUE_ATTR_BUFFER_PROFILE_ID == attr) ||
            (SAI_QUEUE_ATTR_SCHEDULER_PROFILE_ID == attr));
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port_num, &queue_idx)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_queue_object_to_port_index(&port_num, &queue_idx, &queue_id)))
     {
         MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
         MRVL_SAI_API_RETURN(status);
@@ -196,19 +204,19 @@ static sai_status_t mrvl_sai_queue_type_get(_In_ const sai_object_key_t   *key,
                                         _Inout_ vendor_cache_t        *cache,
                                         void                          *arg)
 {
-    /*sai_object_id_t queue_id   = key->key.object_id;
-    sai_status_t     status;
-    uint32_t port_num;
-    uint32_t  queue_idx;*/
+    sai_object_id_t     queue_id   = key->key.object_id;
+    sai_status_t        status;
+    uint32_t            port_num;
+    uint8_t             queue_idx;
 
     MRVL_SAI_LOG_ENTER();
     
 
-    /*if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port_num, &queue_idx)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_queue_object_to_port_index(&port_num, &queue_idx, &queue_id)))
     {
         MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
         MRVL_SAI_API_RETURN(status);
-    }*/
+    }
     
     value->s32 = SAI_QUEUE_TYPE_ALL;
     MRVL_SAI_LOG_EXIT();
@@ -221,14 +229,14 @@ static sai_status_t mrvl_sai_queue_index_get(_In_ const sai_object_key_t   *key,
                                          _Inout_ vendor_cache_t        *cache,
                                          void                          *arg)
 {
-    sai_object_id_t queue_id   = key->key.object_id;
-    sai_status_t     status;
-    uint32_t port_num;
-    uint32_t  queue_idx;
+    sai_object_id_t     queue_id   = key->key.object_id;
+    sai_status_t        status;
+    uint32_t            port_num;
+    uint8_t             queue_idx;
 
     MRVL_SAI_LOG_ENTER();
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port_num, &queue_idx)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_queue_object_to_port_index(&port_num, &queue_idx, &queue_id)))
     {
         MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
         MRVL_SAI_API_RETURN(status);
@@ -245,22 +253,25 @@ static sai_status_t mrvl_sai_queue_port_get(_In_ const sai_object_key_t   *key,
                                         _Inout_ vendor_cache_t        *cache,
                                         void                          *arg)
 {
-    sai_object_id_t queue_id   = key->key.object_id;
-    sai_status_t     status;
-    uint32_t port_num;
-    uint32_t  queue_idx;
+    sai_object_id_t     queue_id   = key->key.object_id;
+    sai_status_t        status;
+    uint32_t            port_num;
+    uint8_t             queue_idx;
 
     MRVL_SAI_LOG_ENTER();
 
-    
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_queue_object_to_port_index(&port_num, &queue_idx, &queue_id)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
+        MRVL_SAI_API_RETURN(status);
+    }
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port_num, &queue_idx)))
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_PORT, port_num, &value->oid)))
     {
         MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
         MRVL_SAI_API_RETURN(status);
     }
     
-    value->u8 = port_num;
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
@@ -299,15 +310,58 @@ static sai_status_t mrvl_sai_queue_parent_sched_node_set(_In_ const sai_object_k
 static void queue_id_to_str(_In_ sai_object_id_t sai_queue_id, _Out_ char *key_str)
 {
     uint32_t port_num;
-    uint32_t queue_idx;
+    uint8_t  queue_idx;
 
-    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_object_to_ext_type(sai_queue_id, SAI_OBJECT_TYPE_QUEUE, &port_num, &queue_idx)) {
+    if (SAI_STATUS_SUCCESS != mrvl_sai_queue_object_to_port_index(&port_num, &queue_idx, &sai_queue_id)) {
         snprintf(key_str, MAX_KEY_STR_LEN, "invalid queue");
     } else {
-        snprintf(key_str, MAX_KEY_STR_LEN, " Queue:port %u:%u", queue_idx, port_num);
+        snprintf(key_str, MAX_KEY_STR_LEN, " Queue: index/port %u:%u", queue_idx, port_num);
     }
 }
 
+sai_status_t mrvl_sai_queue_object_create(_In_ uint32_t             port,
+                                          _In_ uint8_t              index,
+                                          _Out_ sai_object_id_t     *queue_oid)
+{
+    sai_status_t status;
+    uint8_t     ext_data[RESERVED_DATA_LENGTH_CNS];
+
+    MRVL_SAI_LOG_ENTER();
+    assert(queue_oid);
+
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    ext_data[0] = index;
+    status = mrvl_sai_utl_create_ext_object(SAI_OBJECT_TYPE_QUEUE, port, ext_data, queue_oid);
+    if (SAI_STATUS_SUCCESS != status) {
+        MRVL_SAI_LOG_ERR("Failed to create queue object with port %d, index %d\n", port, index);
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
+
+sai_status_t mrvl_sai_queue_object_to_port_index(_Out_ uint32_t           *port,
+                                                 _Out_ uint8_t            *index,
+                                                 _In_ sai_object_id_t     *queue_oid)
+{
+    sai_status_t status;
+    uint8_t     ext_data[RESERVED_DATA_LENGTH_CNS];
+
+    MRVL_SAI_LOG_ENTER();
+    assert(queue_oid);
+
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(*queue_oid, SAI_OBJECT_TYPE_QUEUE, port, ext_data)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+    *index = ext_data[0];
+
+    MRVL_SAI_LOG_EXIT();
+    MRVL_SAI_API_RETURN(status);
+}
 /**
  * @brief Create queue
  *
@@ -324,10 +378,84 @@ sai_status_t mrvl_create_queue(
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
+    sai_status_t                    status;
+    char                            key_str[MAX_KEY_STR_LEN];
+    char                            list_str[MAX_LIST_VALUE_STR_LEN];
+    const sai_attribute_value_t     *type_attr, *port_attr, *parent_attr, *index_attr, *attr_val;
+    uint32_t                        attr_idx, port;
+    uint8_t                         index;
+
 	MRVL_SAI_LOG_ENTER();
 
+    if (NULL == queue_id) {   
+        MRVL_SAI_LOG_ERR("NULL queue id param\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
+    }
+
+    if (SAI_STATUS_SUCCESS != mrvl_sai_utl_is_valid_switch(switch_id)) {
+        MRVL_SAI_LOG_ERR("INVALID switch_id object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_OBJECT_ID);
+    }
+
+    mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, mrvl_sai_queue_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
+    MRVL_SAI_LOG_NTC("Create queue, %s\n", list_str);
+
+    /* Mandatory attributes */
+    if (SAI_STATUS_SUCCESS !=
+        (status =
+             mrvl_sai_utl_check_attribs_metadata(attr_count, attr_list, mrvl_sai_queue_attribs, mrvl_sai_queue_vendor_attribs, SAI_OPERATION_CREATE))) {
+        MRVL_SAI_LOG_ERR("Failed queue attributes check\n");
+        MRVL_SAI_API_RETURN(status);
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+           (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_QUEUE_ATTR_TYPE, &type_attr, &attr_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Missing mandatory attribute SAI_QUEUE_ATTR_TYPE\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+    }
+    
+    if (SAI_STATUS_SUCCESS !=
+           (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_QUEUE_ATTR_PORT, &port_attr, &attr_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Missing mandatory attribute SAI_QUEUE_ATTR_PORT\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+    }
+    
+    if (SAI_STATUS_SUCCESS !=
+           (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE, &parent_attr, &attr_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Missing mandatory attribute SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+    }
+    
+    status = mrvl_sai_utl_object_to_type(port_attr->oid, SAI_OBJECT_TYPE_PORT, &port);
+    if (SAI_STATUS_SUCCESS != status)
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert port oid %" PRIx64 " to port index\n", port_attr->oid);
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    }
+
+    if (SAI_STATUS_SUCCESS !=
+           (status = mrvl_sai_utl_find_attrib_in_list(attr_count, attr_list, SAI_QUEUE_ATTR_INDEX, &index_attr, &attr_idx)))
+    {
+        MRVL_SAI_LOG_ERR("Missing mandatory attribute SAI_QUEUE_ATTR_INDEX\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING);
+    }
+    index = index_attr->u8;
+
+    status = mrvl_sai_queue_object_create(port, index, queue_id);
+    if (SAI_STATUS_SUCCESS != status)
+    {
+        MRVL_SAI_LOG_ERR("Failed to create queue object\n");
+        MRVL_SAI_API_RETURN(SAI_STATUS_FAILURE);
+    }
+
+    queue_id_to_str(*queue_id, key_str);
+    MRVL_SAI_LOG_NTC("Created %s\n", key_str);
+
     MRVL_SAI_LOG_EXIT();
-    MRVL_SAI_API_RETURN(SAI_STATUS_NOT_IMPLEMENTED);
+    MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
 }
 
 
@@ -434,6 +562,7 @@ sai_status_t mrvl_get_queue_stats(
     char         key_str[MAX_KEY_STR_LEN];
     sai_status_t status;
     uint32_t     ii, port, queue_idx;
+    uint8_t      ext_data[RESERVED_DATA_LENGTH_CNS];
     FPA_STATUS   fpa_status;
     FPA_QUEUE_STATISTICS_STC   queue_statistics;
 
@@ -457,9 +586,13 @@ sai_status_t mrvl_get_queue_stats(
         MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);
     }
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port, &queue_idx))) {
-    	MRVL_SAI_API_RETURN(status);
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port, ext_data)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
+        MRVL_SAI_API_RETURN(status);
     }
+    queue_idx = ext_data[0];
 
     fpa_status = fpaLibPortQueueStatisticsGet(SAI_DEFAULT_ETH_SWID_CNS, 
                                             port, queue_idx, 
@@ -546,6 +679,7 @@ sai_status_t mrvl_clear_queue_stats(
 {
 	sai_status_t status;
     uint32_t     port, queue_idx;
+    uint8_t      ext_data[RESERVED_DATA_LENGTH_CNS];
     char         key_str[MAX_KEY_STR_LEN];
 
     FPA_STATUS   fpa_status;
@@ -555,9 +689,13 @@ sai_status_t mrvl_clear_queue_stats(
     queue_id_to_str(queue_id, key_str);
     MRVL_SAI_LOG_NTC("Clear %s stats\n", key_str);
 
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port, &queue_idx))) {
-    	MRVL_SAI_API_RETURN(status);
+    memset(ext_data, 0, RESERVED_DATA_LENGTH_CNS);
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_ext_type(queue_id, SAI_OBJECT_TYPE_QUEUE, &port, ext_data)))
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert object queue\n");
+        MRVL_SAI_API_RETURN(status);
     }
+    queue_idx = ext_data[0];
 
     fpa_status = fpaLibPortQueueStatisticsClear(SAI_DEFAULT_ETH_SWID_CNS, port, queue_idx);
 
