@@ -3811,7 +3811,10 @@ sai_status_t mrvl_sai_acl_table_bind_to_port(_In_ void *arg,
     }
 
 	if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_object_to_type(object_id, SAI_OBJECT_TYPE_ACL_TABLE, &acl_table_index)))
-		return status;
+    {
+        MRVL_SAI_LOG_ERR("Failed to convert ACL table oid %" PRIx64 " to acl table index\n", object_id);
+        MRVL_SAI_API_RETURN(status);
+    }
 
 	if (mrvl_sai_acl_table_db[acl_table_index].stage == SAI_ACL_STAGE_EGRESS){
 		if ((int64_t)arg == SAI_PORT_ATTR_INGRESS_ACL){
@@ -5163,7 +5166,7 @@ sai_status_t mrvl_create_acl_entry(_Out_ sai_object_id_t* acl_entry_id,
     /* Create ACL entry object */
     if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_ACL_ENTRY, acl_entry_index, acl_entry_id))) {
     	mrvl_sai_acl_entry_remove_from_table(acl_entry_index, acl_table_index);
-    	MRVL_SAI_LOG_ERR("Can't create opbject id for SAI_OBJECT_TYPE_ACL_ENTRY acl_entry_index - %d\n", acl_entry_index);
+    	MRVL_SAI_LOG_ERR("Can't create object id for SAI_OBJECT_TYPE_ACL_ENTRY acl_entry_index - %d\n", acl_entry_index);
     	MRVL_SAI_API_RETURN(status);
     }
 

@@ -949,6 +949,7 @@ sai_status_t mrvl_port_state_set(_In_ const sai_object_key_t *key,
     }
 
     /* Get the current port config */
+    memset(&portProperties, 0, sizeof(portProperties));
     portProperties.flags = FPA_PORT_PROPERTIES_CONFIG_FLAG;
 
     fpa_status = fpaLibPortPropertiesGet(SAI_DEFAULT_ETH_SWID_CNS,
@@ -962,9 +963,9 @@ sai_status_t mrvl_port_state_set(_In_ const sai_object_key_t *key,
     }
 
     if (true == value->booldata) {
-        portProperties.config &= ~FPA_PORT_CONFIG_DOWN;
+        portProperties.config = 0;
     } else {
-        portProperties.config |= FPA_PORT_CONFIG_DOWN;
+        portProperties.config = FPA_PORT_CONFIG_DOWN;
     }
 
     fpa_status = fpaLibPortPropertiesSet(SAI_DEFAULT_ETH_SWID_CNS,
@@ -1652,7 +1653,7 @@ sai_status_t mrvl_port_mtu_get(_In_ const sai_object_key_t   *key,
         return status;
     }
 
-    value->u32 = 1514;
+    value->u32 = SAI_MAX_MTU_CNS;
 
     MRVL_SAI_LOG_EXIT();
     MRVL_SAI_API_RETURN(SAI_STATUS_SUCCESS);

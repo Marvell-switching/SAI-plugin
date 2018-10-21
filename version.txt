@@ -1,4 +1,4 @@
-plugin_version  1.2.6
-sai_version     1.2.6
+plugin_version  1.2.1
+sai_version     1.2.1
 sai_baseline    8e4ba04
 fpa_baseline    8bc63ce
