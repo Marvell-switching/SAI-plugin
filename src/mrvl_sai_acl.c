@@ -4782,7 +4782,6 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
         MRVL_SAI_LOG_ERR("Failed attribs check\n");
         MRVL_SAI_API_RETURN(status);
     }
-
     mrvl_sai_utl_attr_list_to_str(attr_count, attr_list, acl_table_attribs, MAX_LIST_VALUE_STR_LEN, list_str);
     MRVL_SAI_LOG_DBG("Attribs %s\n", list_str);
 
@@ -4864,9 +4863,6 @@ sai_status_t mrvl_create_acl_table(_Out_ sai_object_id_t* acl_table_id,
 		MRVL_SAI_LOG_ERR("At least one match field must be given - %x \n", table_fields_bitmap);
         MRVL_SAI_API_RETURN(SAI_STATUS_INVALID_PARAMETER);
     }
-
-    MRVL_SAI_LOG_DBG("READ-WRITE attributes: stage - %d, bind_point count - %d, actions count - %d, table size - %d\n",
-    		stage->u32, bind_point_types->u32list.count, action_types->u32list.count, size->u32);
 
     if (true == is_non_ip_table){
     	fpa_table_type = FPA_FLOW_TABLE_TYPE_PCL0_E;

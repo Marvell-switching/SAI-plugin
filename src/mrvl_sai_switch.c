@@ -930,7 +930,7 @@ static sai_status_t mrvl_sai_switch_default_trap_group_get_prv(_In_ const sai_ob
 {
     sai_status_t status;
     MRVL_SAI_LOG_ENTER();
-    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP, 0, &value->oid))) {
+    if (SAI_STATUS_SUCCESS != (status = mrvl_sai_utl_create_object(SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP, 1, &value->oid))) {
     	MRVL_SAI_LOG_EXIT();
         MRVL_SAI_API_RETURN(status);
     }
@@ -1310,7 +1310,7 @@ static const sai_attribute_entry_t        switch_attribs[] = {
       "Switch on link route supported", SAI_ATTR_VALUE_TYPE_BOOL },
     { SAI_SWITCH_ATTR_OPER_STATUS, false, false, false, true,
       "Switch operational status", SAI_ATTR_VALUE_TYPE_INT32 },
-    { SAI_SWITCH_ATTR_MAX_TEMP, false, false, false, true,
+    { SAI_SWITCH_ATTR_MAX_TEMP, false, false, false, false,
       "Switch maximum temperature", SAI_ATTR_VALUE_TYPE_INT32 },
     { SAI_SWITCH_ATTR_ACL_TABLE_MINIMUM_PRIORITY, false, false, false, true,
       "Switch ACL table min priority", SAI_ATTR_VALUE_TYPE_UINT32 },
@@ -1561,7 +1561,7 @@ static const sai_vendor_attribute_entry_t switch_vendor_attribs[] = {
       NULL, NULL },
     { SAI_SWITCH_ATTR_MAX_TEMP,
       { false, false, false, false },
-      { false, false, false, true },
+      { false, false, false, false },
       NULL, NULL,
       NULL, NULL },
     { SAI_SWITCH_ATTR_ACL_TABLE_MINIMUM_PRIORITY,
